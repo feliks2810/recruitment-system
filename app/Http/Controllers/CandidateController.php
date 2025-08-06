@@ -39,11 +39,11 @@ class CandidateController extends Controller
 
         $stats = [
             'total' => Candidate::count(),
-            'dalam_proses' => Candidate::where('overall_status', 'DALAM PROSES')->count(),
+            'proses' => Candidate::where('overall_status', 'DALAM PROSES')->count(),
             'pending' => Candidate::where('overall_status', 'PENDING')->count(),
             'lulus' => Candidate::where('overall_status', 'LULUS')->count(),
-            'hired' => Candidate::where('overall_status', 'LULUS')->count(), // Duplikat dengan 'lulus', bisa dihapus jika tidak diperlukan
-            'tidak_lulus' => Candidate::where('overall_status', 'TIDAK LULUS')->count(),
+            'hired' => Candidate::where('overall_status', 'LULUS')->count(), // Used in the view for "Lulus" display
+            'rejected' => Candidate::where('overall_status', 'TIDAK LULUS')->count(),
         ];
 
         return view('candidates.index', compact('candidates', 'stats', 'search', 'status', 'type'));
