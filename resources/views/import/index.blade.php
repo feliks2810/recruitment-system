@@ -100,7 +100,7 @@
                         <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) yang berisi data kandidat</p>
                     </div>
 
-                    <form action="{{ route('import.process') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <form action="{{ route('import.store') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
                         @csrf
                         <!-- Drop Zone -->
                         <div class="drop-zone rounded-lg p-8 text-center mb-4" id="dropZone">
@@ -112,7 +112,7 @@
                                     <p class="text-lg font-medium text-gray-700">Drag & drop file di sini</p>
                                     <p class="text-sm text-gray-500">atau klik untuk browse file</p>
                                 </div>
-                                <input type="file" name="excel_file" id="fileInput" class="hidden" accept=".xlsx,.xls" required>
+                                <input type="file" name="file" id="fileInput" class="hidden" accept=".xlsx,.xls" required>
                                 <button type="button" onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
                                     Pilih File
                                 </button>
@@ -140,19 +140,19 @@
                         <!-- Options -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-700">Tipe Kandidat</label>
+                                <select name="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                                    <option value="">Pilih tipe kandidat</option>
+                                    <option value="organic">Organik</option>
+                                    <option value="non-organic">Non-Organik</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2">
                                 <label class="block text-sm font-medium text-gray-700">Mode Import</label>
                                 <select name="import_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                                     <option value="insert">Insert Only (Tambah Baru)</option>
                                     <option value="update">Update Existing (Update yang Ada)</option>
                                     <option value="upsert">Insert & Update (Campuran)</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="block text-sm font-medium text-gray-700">Header Row</label>
-                                <select name="header_row" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                    <option value="1">Baris 1</option>
-                                    <option value="2">Baris 2</option>
-                                    <option value="3">Baris 3</option>
                                 </select>
                             </div>
                         </div>
