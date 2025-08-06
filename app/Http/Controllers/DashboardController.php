@@ -36,11 +36,12 @@ class DashboardController extends Controller
         }
 
         // Statistics
+        // Sesuaikan kunci agar konsisten dengan yang digunakan di view
         $stats = [
-            'total_candidates' => $totalQuery->count(),
-            'candidates_passed' => $passedQuery->where('overall_status', 'LULUS')->count(),
-            'candidates_in_process' => $processQuery->where('overall_status', 'DALAM PROSES')->count(),
-            'candidates_failed' => $failedQuery->where('overall_status', 'TIDAK LULUS')->count(),
+            'total' => $totalQuery->count(),
+            'lulus' => $passedQuery->where('overall_status', 'LULUS')->count(),
+            'proses' => $processQuery->where('overall_status', 'DALAM PROSES')->count(),
+            'tidak_lulus' => $failedQuery->where('overall_status', 'TIDAK LULUS')->count(),
         ];
 
         // Chart data untuk pie chart
