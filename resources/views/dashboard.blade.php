@@ -93,7 +93,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <p class="text-sm text-gray-600">Total Kandidat</p>
-                            <p class="text-3xl font-bold text-gray-900">{{ $stats['total'] ?? 0 }}</p>
+                            <p class="text-3xl font-bold text-gray-900">{{ $stats['total_candidates'] ?? 0 }}</p>
                         </div>
                         <div class="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
                             <i class="fas fa-users text-blue-600 text-xl"></i>
@@ -108,14 +108,14 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <p class="text-sm text-gray-600">Lulus</p>
-                            <p class="text-3xl font-bold text-green-600">{{ $stats['lulus'] ?? 0 }}</p>
+                            <p class="text-3xl font-bold text-green-600">{{ $stats['candidates_passed'] ?? 0 }}</p>
                         </div>
                         <div class="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
                             <i class="fas fa-check-circle text-green-600 text-xl"></i>
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total'] > 0 ? round(($stats['lulus'] / $stats['total']) * 100, 1) : 0 }}%</span>
+                        <span class="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_passed'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
                         <span class="text-xs text-gray-500">dari total</span>
                     </div>
                 </div>
@@ -124,14 +124,14 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <p class="text-sm text-gray-600">Dalam Proses</p>
-                            <p class="text-3xl font-bold text-yellow-600">{{ $stats['proses'] ?? 0 }}</p>
+                            <p class="text-3xl font-bold text-yellow-600">{{ $stats['candidates_in_process'] ?? 0 }}</p>
                         </div>
                         <div class="w-12 h-12 bg-yellow-50 rounded-lg flex items-center justify-center">
                             <i class="fas fa-clock text-yellow-600 text-xl"></i>
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="bg-yellow-100 text-yellow-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total'] > 0 ? round(($stats['proses'] / $stats['total']) * 100, 1) : 0 }}%</span>
+                        <span class="bg-yellow-100 text-yellow-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_in_process'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
                         <span class="text-xs text-gray-500">sedang berjalan</span>
                     </div>
                 </div>
@@ -140,14 +140,14 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <p class="text-sm text-gray-600">Tidak Lulus</p>
-                            <p class="text-3xl font-bold text-red-600">{{ $stats['tidak_lulus'] ?? 0 }}</p>
+                            <p class="text-3xl font-bold text-red-600">{{ $stats['candidates_failed'] ?? 0 }}</p>
                         </div>
                         <div class="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
                             <i class="fas fa-times-circle text-red-600 text-xl"></i>
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total'] > 0 ? round(($stats['tidak_lulus'] / $stats['total']) * 100, 1) : 0 }}%</span>
+                        <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_failed'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
                         <span class="text-xs text-gray-500">dari total</span>
                     </div>
                 </div>
