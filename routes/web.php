@@ -1,13 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\CandidateController;
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportController;
-use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AccountController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -18,48 +18,51 @@ Route::get('/', function () {
 require __DIR__.'/auth.php';
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard - accessible by all authenticated users
+    // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Profile routes - accessible by all authenticated users
+    // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Candidates - Export route HARUS sebelum resource routes
+    // Candidates
     Route::get('/candidates/export', [CandidateController::class, 'export'])
         ->middleware('role:admin,team_hc')
         ->name('candidates.export');
 
-    // Candidates Resource Routes with role-based access
-    Route::resource('candidates', CandidateController::class)->middleware('role:admin,team_hc,departemen');
-    
-    // Additional candidate routes - only admin and team_hc can modify
+    Route::resource('candidates', CandidateController::class)
+        ->middleware('role:admin,team_hc,departemen');
+
     Route::post('/candidates/{candidate}/update-stage', [CandidateController::class, 'updateStage'])
         ->middleware('role:admin,team_hc')
         ->name('candidates.updateStage');
 
-    // Override some candidate routes for departemen role (read-only)
     Route::get('/candidates', [CandidateController::class, 'index'])
         ->middleware('role:admin,team_hc,departemen')
         ->name('candidates.index');
+
     Route::get('/candidates/{candidate}', [CandidateController::class, 'show'])
         ->middleware('role:admin,team_hc,departemen')
         ->name('candidates.show');
 
-    // Import routes - only admin and team_hc
+    // ✅ Import Routes
     Route::prefix('import')->name('import.')->middleware('role:admin,team_hc')->group(function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
-        Route::post('/', [ImportController::class, 'store'])->name('store');
-        Route::get('/template/{type}', [ImportController::class, 'downloadTemplate'])->name('template');
+        Route::post('/', [ImportController::class, 'store'])->name('process'); // Ganti 'store' ke 'process'
+        Route::post('/process', [ImportController::class, 'store'])->name('store'); // Alias, jika masih ada form yang pakai 'store'
+        Route::get('/template/{type?}', [ImportController::class, 'downloadTemplate'])->name('template');
+        Route::get('/errors', function() {
+            return view('import.errors', ['errors' => []]);
+        })->name('errors');
     });
 
-    // Statistics route - all authenticated users can view
+    // Statistics
     Route::get('/statistics', [StatisticsController::class, 'index'])
         ->middleware('role:admin,team_hc,departemen')
         ->name('statistics.index');
 
-    // Accounts routes - only admin
+    // Accounts
     Route::prefix('accounts')->name('accounts.')->middleware('role:admin')->group(function () {
         Route::get('/', [AccountController::class, 'index'])->name('index');
         Route::get('/create', [AccountController::class, 'create'])->name('create');
@@ -70,7 +73,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-// Logout route
+// Logout
 Route::post('/logout', function () {
     Auth::logout();
     return redirect()->route('login');

@@ -11,91 +11,233 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ImportController extends Controller
 {
+    /**
+     * Display the import page.
+     */
     public function index()
     {
-        return view('import.index');
+        $import_history = collect(); // Can be populated later if using a model
+        return view('import.index', compact('import_history'));
     }
 
+    /**
+     * Process the import request.
+     */
     public function store(Request $request)
     {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv|max:10240',
-            'type' => 'required|in:organic,non-organic',
-        ], [
-            'file.required' => 'Silakan pilih file Excel untuk diimpor.',
-            'file.mimes' => 'File harus berformat Excel (.xlsx, .xls) atau CSV.',
-            'file.max' => 'Ukuran file maksimal 10MB.',
-            'type.required' => 'Tipe kandidat (organik atau non-organik) harus dipilih.',
-            'type.in' => 'Tipe kandidat harus organik atau non-organic.',
-        ]);
+        Log::info('=== IMPORT DEBUG START ===');
+        Log::info('Request method: ' . $request->method());
+        Log::info('Request URL: ' . $request->url());
+        Log::info('Request headers:', $request->headers->all());
+        Log::info('Request all input:', $request->all());
+        Log::info('Has file excel_file: ' . ($request->hasFile('excel_file') ? 'YES' : 'NO'));
+
+        if ($request->hasFile('excel_file')) {
+            $file = $request->file('excel_file');
+            Log::info('File details:', [
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getMimeType(),
+                'extension' => $file->getClientOriginalExtension(),
+                'path' => $file->getRealPath(),
+                'is_valid' => $file->isValid(),
+                'error' => $file->getError(),
+            ]);
+        } else {
+            Log::error('No file uploaded');
+            Log::info('Files in request:', $request->allFiles());
+        }
+
+        Log::info('=== IMPORT DEBUG END ===');
 
         try {
-            Log::info('Memulai proses impor', [
-                'nama_file' => $request->file('file')->getClientOriginalName(),
-                'ukuran_file' => $request->file('file')->getSize(),
-                'tipe_mime' => $request->file('file')->getMimeType(),
-                'tipe_kandidat' => $request->type,
+            $validated = $request->validate([
+                'excel_file' => 'required|mimes:xlsx,xls,csv|max:10240',
+                'import_mode' => 'required|in:insert,update,upsert',
+                'header_row' => 'required|in:1,2,3,4',
+            ], [
+                'excel_file.required' => 'Silakan pilih file Excel untuk diimpor.',
+                'excel_file.mimes' => 'File harus berformat Excel (.xlsx, .xls) atau CSV.',
+                'excel_file.max' => 'Ukuran file maksimal 10MB.',
+                'import_mode.required' => 'Mode import harus dipilih.',
+                'header_row.required' => 'Header row harus dipilih.',
             ]);
 
-            $import = new CandidatesImport($request->type);
-            Excel::import($import, $request->file('file'));
+            Log::info('Validation passed:', $validated);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed:', $e->errors());
+            return back()->withErrors($e->errors())->withInput();
+        }
 
-            Log::info('Impor selesai dengan sukses');
-            return redirect()->route('candidates.index')->with('success', 'Data kandidat ' . ($request->type == 'organic' ? 'organik' : 'non-organic') . ' berhasil diimpor.');
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $failures = $e->failures();
-            Log::error('Validasi impor gagal', [
-                'kegagalan' => array_map(function ($failure) {
-                    return [
-                        'baris' => $failure->row(),
-                        'error' => $failure->errors(),
-                        'nilai' => $failure->values(),
-                    ];
-                }, $failures),
+        $file = $request->file('excel_file');
+        if (!$file || !$file->isValid()) {
+            Log::error('File is invalid or missing');
+            return back()->with('error', 'File tidak valid atau tidak dapat dibaca.');
+        }
+
+        try {
+            $type = $this->detectCandidateType($file);
+            Log::info('Detected candidate type: ' . $type);
+
+            $import = new CandidatesImport($type, $request->import_mode, (int)$request->header_row);
+
+            Log::info('Starting Excel import...');
+            Excel::import($import, $file);
+            Log::info('Excel import completed');
+
+            $successCount = $import->getSuccessCount();
+            $errorCount = $import->getErrorCount();
+
+            Log::info('Import summary:', [
+                'success_count' => $successCount,
+                'error_count' => $errorCount,
+                'type' => $type
             ]);
 
-            $errorMessages = [];
-            foreach ($failures as $failure) {
-                $row = $failure->row();
-                $errors = implode(', ', $failure->errors());
-                $errorMessages[] = "Baris $row: $errors";
+            if ($errorCount > 0 && $successCount > 0) {
+                return redirect()->route('candidates.index')->with('warning',
+                    "Import selesai dengan {$successCount} data berhasil dan {$errorCount} data gagal. Silakan periksa log untuk detail.");
+            } elseif ($errorCount > 0) {
+                return back()->with('error', "Import gagal. {$errorCount} baris tidak dapat diproses.");
             }
 
-            return back()->with('error', 'Validasi data gagal: ' . implode(' | ', $errorMessages) . '. Pastikan format data sesuai.');
-        } catch (\Exception $e) {
-            Log::error('Impor gagal', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'baris' => $e->getLine(),
+            return redirect()->route('candidates.index')->with('success',
+                "Data kandidat berhasil diimpor! {$successCount} data berhasil ditambahkan.");
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            Log::error('Validation errors during import:', [
+                'failures' => collect($failures)->map(function ($failure) {
+                    return [
+                        'row' => $failure->row(),
+                        'errors' => $failure->errors(),
+                        'values' => $failure->values(),
+                    ];
+                })->toArray()
             ]);
 
-            return back()->with('error', 'Terjadi kesalahan saat mengimpor: ' . $e->getMessage());
+            $errors = collect($failures)->map(function ($failure) {
+                return [
+                    'row' => $failure->row(),
+                    'errors' => $failure->errors(),
+                    'data' => $failure->values()
+                ];
+            })->toArray();
+
+            return view('import.errors', compact('errors'));
+
+        } catch (\Exception $e) {
+            Log::error('Critical error during import:', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return back()->with('error', 'Terjadi kesalahan sistem: ' . $e->getMessage());
         }
     }
 
-    public function downloadTemplate($type)
+    /**
+     * Alias for store method.
+     */
+    public function process(Request $request)
+    {
+        return $this->store($request);
+    }
+
+    /**
+     * Detect candidate type based on Excel headers.
+     */
+    private function detectCandidateType($file)
+    {
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $worksheet = $spreadsheet->getActiveSheet();
+
+            $headers = [];
+            $highestColumn = $worksheet->getHighestColumn();
+            $columnRange = range('A', $highestColumn);
+
+            foreach ($columnRange as $column) {
+                $cellValue = $worksheet->getCell($column . '1')->getValue();
+                if ($cellValue) {
+                    $headers[] = strtolower(trim($cellValue));
+                }
+            }
+
+            Log::info('Headers detected', $headers);
+
+            // Define header patterns for each type
+            $organicHeaders = ['nama', 'alamat', 'email', 'applicant_id', 'vacancy_airsys', 'vacancy'];
+            $nonOrganicHeaders = ['dept', 'nama_posisi', 'quantity_target', 'sourcing_rekrutmen'];
+
+            $organicMatch = 0;
+            $nonOrganicMatch = 0;
+
+            // Count matches for organic headers
+            foreach ($headers as $header) {
+                foreach ($organicHeaders as $organicHeader) {
+                    if (str_contains($header, $organicHeader) || str_contains($organicHeader, $header)) {
+                        $organicMatch++;
+                        break;
+                    }
+                }
+            }
+
+            // Count matches for non-organic headers
+            foreach ($headers as $header) {
+                foreach ($nonOrganicHeaders as $nonOrganicHeader) {
+                    if (str_contains($header, $nonOrganicHeader) || str_contains($nonOrganicHeader, $header)) {
+                        $nonOrganicMatch++;
+                        break;
+                    }
+                }
+            }
+
+            Log::info('Match scores', [
+                'organic' => $organicMatch,
+                'non_organic' => $nonOrganicMatch
+            ]);
+
+            return $nonOrganicMatch > $organicMatch ? 'non-organic' : 'organic';
+
+        } catch (\Exception $e) {
+            Log::error('Error detecting candidate type', [
+                'error' => $e->getMessage()
+            ]);
+            return 'organic'; // Default to organic
+        }
+    }
+
+    /**
+     * Download template file for import.
+     */
+    public function downloadTemplate($type = 'organic')
     {
         $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
 
-        // Pastikan direktori ada sebelum membuat file
-        $directory = dirname($templatePath);
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
+        // Ensure template directory exists
+        if (!is_dir(dirname($templatePath))) {
+            mkdir(dirname($templatePath), 0755, true);
         }
 
-        // Buat template jika belum ada
+        // Generate template if it doesn't exist
         if (!file_exists($templatePath)) {
             $this->generateTemplate($type);
         }
 
         if (!file_exists($templatePath)) {
-            Log::error('File template tidak ditemukan setelah pembuatan', ['path' => $templatePath]);
+            Log::error('Template file not found after generation', ['path' => $templatePath]);
             return redirect()->back()->with('error', 'Template file tidak ditemukan. Silakan hubungi administrator.');
         }
 
         return response()->download($templatePath, 'template_kandidat_' . $type . '.xlsx');
     }
 
+    /**
+     * Generate Excel template based on candidate type.
+     */
     protected function generateTemplate($type)
     {
         $spreadsheet = new Spreadsheet();
@@ -103,15 +245,15 @@ class ImportController extends Controller
 
         if ($type == 'organic') {
             $headers = [
-                'No', 'Nama', 'Vacancy Airsys', 'Internal Position', 'On Process By', 'Applicant ID',
-                'Source', 'Jenis Kelamin', 'Tanggal Lahir', 'Alamat Email', 'Jenjang Pendidikan',
-                'Perguruan Tinggi', 'Jurusan', 'IPK', 'CV', 'FLK', 'Psikotest Date',
-                'Psikotes Result', 'Psikotes Notes', 'HC Interview Date', 'HC Interview Status',
-                'HC Interview Notes', 'User Interview Date', 'User Interview Status',
-                'User Interview Notes', 'BOD/GM Interview Date', 'BOD Interview Status',
-                'BOD Interview Notes', 'Offering Letter Date', 'Offering Letter Status',
-                'Offering Letter Notes', 'MCU Date', 'MCU Status', 'MCU Notes',
-                'Hiring Date', 'Hiring Status', 'Hiring Notes', 'Current Stage', 'Overall Status'
+                'no', 'nama', 'vacancy', 'internal_position', 'on_process_by', 'applicant_id',
+                'source', 'jk', 'tanggal_lahir', 'alamat_email', 'jenjang_pendidikan',
+                'perguruan_tinggi', 'jurusan', 'ipk', 'cv', 'flk', 'psikotest_date',
+                'psikotes_result', 'psikotes_notes', 'hc_intv_date', 'hc_intv_status',
+                'hc_intv_notes', 'user_intv_date', 'user_intv_status',
+                'itv_user_note', 'bod_intv_date', 'bod_intv_status',
+                'bod_intv_note', 'offering_letter_date', 'offering_letter_status',
+                'offering_letter_notes', 'mcu_date', 'mcu_status', 'mcu_note',
+                'hiring_date', 'hiring_status', 'hiring_note', 'current_stage', 'overall_status'
             ];
             $exampleData = [
                 [
@@ -120,26 +262,115 @@ class ImportController extends Controller
                     'Universitas Indonesia', 'Manajemen', 3.5, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'CV Review', 'DALAM PROSES'
                 ]
             ];
-        } else {
+        } else { // non-organic
             $headers = [
-                'No', 'Dept', 'Nama Posisi', 'Sourcing Rekrutmen Internal/Eksternal', 'Jenis Kontrak',
-                'Company', 'Form A1/B1 Submitted Date', 'Waktu Pemenuhan Target', 'Quantity Target',
-                'Nama', 'Alamat Email', 'Jenis Kelamin', 'Catatan'
+                'no', 'dept', 'nama_posisi', 'sourcing_rekrutmen_internal_eksternal', 'jenis_kontrak',
+                'company', 'form_a1b1_submitted_date', 'waktu_pemenuhan_target', 'quantity_target',
+                'nama', 'alamat_email', 'jk', 'catatan'
             ];
             $exampleData = [
-                [1, 'MDRM, LEGAL & COMMUNICATION FUNCTION', 'Corp Comm', 'Eksternal', '', 'DPP', '45645', '', 1, '', '', '', '']
+                [1, 'MDRM, LEGAL & COMMUNICATION FUNCTION', 'Corp Comm', 'Eksternal', '', 'DPP', '2024-01-01', '2024-02-01', 1, 'Jane Doe', 'jane@example.com', 'P', '']
             ];
         }
 
-        // Set header
+        // Set headers and example data
         $sheet->fromArray($headers, null, 'A1');
-        // Set contoh data
         $sheet->fromArray($exampleData, null, 'A2');
 
-        // Simpan file
-        $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
+        // Style the header row
+        $headerRange = 'A1:' . chr(65 + count($headers) - 1) . '1';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true);
+        $sheet->getStyle($headerRange)->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFCCCCCC');
+
+        // Auto-size columns
+        foreach (range('A', chr(65 + count($headers) - 1)) as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Add data validation for specific columns
+        if ($type == 'organic') {
+            // Gender validation
+            $genderValidation = $sheet->getCell('H2')->getDataValidation();
+            $genderValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $genderValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
+            $genderValidation->setAllowBlank(false);
+            $genderValidation->setShowInputMessage(true);
+            $genderValidation->setShowErrorMessage(true);
+            $genderValidation->setErrorTitle('Invalid Input');
+            $genderValidation->setError('Please select from the dropdown list.');
+            $genderValidation->setFormula1('"L,P"');
+
+            // Current stage validation
+            $stageValidation = $sheet->getCell('AK2')->getDataValidation();
+            $stageValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $stageValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
+            $stageValidation->setAllowBlank(false);
+            $stageValidation->setShowInputMessage(true);
+            $stageValidation->setShowErrorMessage(true);
+            $stageValidation->setErrorTitle('Invalid Input');
+            $stageValidation->setError('Please select from the dropdown list.');
+            $stageValidation->setFormula1('"CV Review,Psychotest,HC Interview,User Interview,BOD Interview,Offering,MCU,Hired"');
+
+            // Overall status validation
+            $statusValidation = $sheet->getCell('AL2')->getDataValidation();
+            $statusValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $statusValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
+            $statusValidation->setAllowBlank(false);
+            $statusValidation->setShowInputMessage(true);
+            $statusValidation->setShowErrorMessage(true);
+            $statusValidation->setErrorTitle('Invalid Input');
+            $statusValidation->setError('Please select from the dropdown list.');
+            $statusValidation->setFormula1('"DALAM PROSES,HIRED,REJECTED,ON HOLD"');
+        }
+
+        // Save the file
         $writer = new Xlsx($spreadsheet);
+        $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
         $writer->save($templatePath);
-        Log::info('Template berhasil dibuat', ['path' => $templatePath]);
+        
+        Log::info('Template successfully created', ['path' => $templatePath]);
+    }
+
+    /**
+     * Get available import templates.
+     */
+    public function getTemplates()
+    {
+        return [
+            'organic' => [
+                'name' => 'Template Kandidat Organic',
+                'description' => 'Template untuk import kandidat dari sumber organik (internal, referral, dll)',
+                'file' => 'candidates_template_organic.xlsx'
+            ],
+            'non-organic' => [
+                'name' => 'Template Kandidat Non-Organic',
+                'description' => 'Template untuk import kandidat dari sumber non-organik (recruitment agency, dll)',
+                'file' => 'candidates_template_non-organic.xlsx'
+            ]
+        ];
+    }
+
+    /**
+     * Validate import data before processing.
+     */
+    private function validateImportData($data, $type)
+    {
+        $requiredFields = [];
+        
+        if ($type == 'organic') {
+            $requiredFields = ['nama', 'vacancy', 'alamat_email'];
+        } else {
+            $requiredFields = ['nama', 'nama_posisi', 'alamat_email'];
+        }
+
+        foreach ($requiredFields as $field) {
+            if (empty($data[$field])) {
+                throw new \InvalidArgumentException("Field {$field} is required");
+            }
+        }
+
+        return true;
     }
 }

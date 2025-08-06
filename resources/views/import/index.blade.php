@@ -19,6 +19,12 @@
             border-color: #3b82f6;
             background-color: #eff6ff;
         }
+        .loading {
+            display: none;
+        }
+        .loading.show {
+            display: flex;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen flex">
@@ -44,14 +50,18 @@
                     <i class="fas fa-upload text-sm"></i>
                     <span>Import Excel</span>
                 </a>
+                @if (Auth::user()->isAdmin() || Auth::user()->isTeamHC())
                 <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-chart-bar text-sm"></i>
                     <span>Statistik</span>
                 </a>
+                @endif
+                @if (Auth::user()->isAdmin())
                 <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-user-cog text-sm"></i>
                     <span>Manajemen Akun</span>
                 </a>
+                @endif
                 <a href="{{ route('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-sign-out-alt text-sm"></i>
                     <span>Logout</span>
@@ -73,7 +83,7 @@
                     <p class="text-sm text-gray-600">Upload file Excel untuk import data kandidat</p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <a href="{{ asset('templates/template-import-kandidat.xlsx') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <a href="{{ route('import.template', 'organic') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
                         <i class="fas fa-download text-sm"></i>
                         <span>Download Template</span>
                     </a>
@@ -100,10 +110,10 @@
                         <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) yang berisi data kandidat</p>
                     </div>
 
-                    <form action="{{ route('import.process') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <form action="{{ route('import.store') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
                         @csrf
                         <!-- Drop Zone -->
-                        <div class="drop-zone rounded-lg p-8 text-center mb-4" id="dropZone">
+                        <div class="drop-zone rounded-lg p-8 text-center mb-4 cursor-pointer" id="dropZone">
                             <div class="space-y-4">
                                 <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
                                     <i class="fas fa-cloud-upload-alt text-gray-400 text-xl"></i>
@@ -112,7 +122,7 @@
                                     <p class="text-lg font-medium text-gray-700">Drag & drop file di sini</p>
                                     <p class="text-sm text-gray-500">atau klik untuk browse file</p>
                                 </div>
-                                <input type="file" name="excel_file" id="fileInput" class="hidden" accept=".xlsx,.xls" required>
+                                <input type="file" name="excel_file" id="fileInput" class="hidden" accept=".xlsx,.xls,.csv" required>
                                 <button type="button" onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
                                     Pilih File
                                 </button>
@@ -153,15 +163,31 @@
                                     <option value="1">Baris 1</option>
                                     <option value="2">Baris 2</option>
                                     <option value="3">Baris 3</option>
+                                    <option value="4">Baris 4</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <!-- Progress Bar (Hidden by default) -->
+                        <div id="progressBar" class="hidden mb-4">
+                            <div class="bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-2">Mengimpor data...</p>
                         </div>
 
                         <!-- Submit Button -->
                         <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium" disabled>
                             <div class="flex items-center justify-center gap-2">
-                                <i class="fas fa-upload"></i>
-                                <span>Import Data</span>
+                                <i class="fas fa-upload" id="submitIcon"></i>
+                                <span id="submitText">Import Data</span>
+                                <div class="loading items-center gap-2">
+                                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Memproses...
+                                </div>
                             </div>
                         </button>
                     </form>
@@ -176,17 +202,35 @@
                             <ul class="text-sm text-gray-600 space-y-1">
                                 <li>• File Excel (.xlsx atau .xls)</li>
                                 <li>• Maksimal ukuran 10MB</li>
-                                <li>• Gunakan template yang disediakan</li>
-                                <li>• Header harus sesuai dengan template</li>
+                                <li>• Sistem akan otomatis mendeteksi jenis kandidat</li>
+                                <li>• Header harus pada baris yang dipilih</li>
                             </ul>
                         </div>
                         <div>
-                            <h4 class="font-medium text-gray-900 mb-2">Kolom Wajib</h4>
+                            <h4 class="font-medium text-gray-900 mb-2">Kolom Wajib (Organik)</h4>
                             <ul class="text-sm text-gray-600 space-y-1">
                                 <li>• Nama</li>
                                 <li>• Email</li>
-                                <li>• Applicant ID</li>
                                 <li>• Vacancy/Posisi</li>
+                                <li>• Applicant ID (opsional, akan digenerate otomatis)</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-2">Kolom Wajib (Non-Organik)</h4>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Department</li>
+                                <li>• Nama Posisi</li>
+                                <li>• Quantity Target</li>
+                                <li>• Sourcing (Internal/Eksternal)</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-2">Tips</h4>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Pastikan tidak ada baris kosong di tengah data</li>
+                                <li>• Format tanggal: DD/MM/YYYY atau YYYY-MM-DD</li>
+                                <li>• Email harus unik untuk setiap kandidat</li>
+                                <li>• Gunakan mode "Upsert" untuk update data yang ada</li>
                             </ul>
                         </div>
                     </div>
@@ -266,12 +310,40 @@
     </div>
     @endif
 
+    @if(session('warning'))
+    <div id="warning-alert" class="fixed top-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ session('warning') }}</span>
+            <button onclick="document.getElementById('warning-alert').remove()" class="ml-2">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    @endif
+
     @if(session('error'))
     <div id="error-alert" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
         <div class="flex items-center gap-2">
             <i class="fas fa-exclamation-circle"></i>
             <span>{{ session('error') }}</span>
             <button onclick="document.getElementById('error-alert').remove()" class="ml-2">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    @endif
+
+    @if($errors->any())
+    <div id="validation-alert" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-exclamation-circle"></i>
+            <div>
+                @foreach($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+            <button onclick="document.getElementById('validation-alert').remove()" class="ml-2">
                 <i class="fas fa-times"></i>
             </button>
         </div>
@@ -285,6 +357,11 @@
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
         const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressBar = document.getElementById('progressBar');
+        const submitIcon = document.getElementById('submitIcon');
+        const submitText = document.getElementById('submitText');
+        const loading = document.querySelector('.loading');
 
         // Drag & Drop functionality
         dropZone.addEventListener('dragover', (e) => {
@@ -315,15 +392,53 @@
             }
         });
 
+        // Form submission with loading state
+        uploadForm.addEventListener('submit', (e) => {
+            if (!fileInput.files.length) {
+                e.preventDefault();
+                alert('Silakan pilih file terlebih dahulu');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitIcon.style.display = 'none';
+            submitText.textContent = 'Memproses...';
+            loading.classList.add('show');
+            progressBar.classList.remove('hidden');
+
+            // Simulate progress (optional)
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 30;
+                if (progress > 90) progress = 90;
+                progressBar.querySelector('.bg-blue-600').style.width = progress + '%';
+            }, 500);
+
+            // Clean up interval after 30 seconds (timeout)
+            setTimeout(() => {
+                clearInterval(progressInterval);
+            }, 30000);
+        });
+
         function handleFile(file) {
+            console.log('File selected:', file.name, file.type, file.size);
+
             // Validate file type
             const validTypes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'application/vnd.ms-excel'
+                'application/vnd.ms-excel',
+                'text/csv',
+                'application/csv'
             ];
             
-            if (!validTypes.includes(file.type)) {
-                alert('File harus berformat Excel (.xlsx atau .xls)');
+            const isValidType = validTypes.includes(file.type) || 
+                               file.name.toLowerCase().endsWith('.xlsx') || 
+                               file.name.toLowerCase().endsWith('.xls') ||
+                               file.name.toLowerCase().endsWith('.csv');
+            
+            if (!isValidType) {
+                alert('File harus berformat Excel (.xlsx, .xls) atau CSV');
                 return;
             }
 
@@ -343,12 +458,21 @@
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(file);
             fileInput.files = dataTransfer.files;
+
+            console.log('File handled successfully');
         }
 
         function clearFile() {
             fileInput.value = '';
             fileInfo.classList.add('hidden');
             submitBtn.disabled = true;
+            
+            // Reset loading state
+            submitIcon.style.display = 'inline';
+            submitText.textContent = 'Import Data';
+            loading.classList.remove('show');
+            progressBar.classList.add('hidden');
+            submitBtn.disabled = false;
         }
 
         function formatFileSize(bytes) {
@@ -361,11 +485,17 @@
 
         // Auto-hide alerts
         setTimeout(() => {
-            const successAlert = document.getElementById('success-alert');
-            const errorAlert = document.getElementById('error-alert');
-            if (successAlert) successAlert.remove();
-            if (errorAlert) errorAlert.remove();
-        }, 5000);
+            const alerts = ['success-alert', 'warning-alert', 'error-alert', 'validation-alert'];
+            alerts.forEach(alertId => {
+                const alert = document.getElementById(alertId);
+                if (alert) alert.remove();
+            });
+        }, 8000);
+
+        // Debug logging
+        console.log('Import page loaded');
+        console.log('Form action:', uploadForm.action);
+        console.log('CSRF token:', document.querySelector('input[name="_token"]')?.value);
     </script>
 </body>
 </html>
