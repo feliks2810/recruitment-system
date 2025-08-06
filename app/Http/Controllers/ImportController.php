@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Support\Facades\DB;
 
 class ImportController extends Controller
 {
@@ -16,7 +17,7 @@ class ImportController extends Controller
      */
     public function index()
     {
-        $import_history = collect(); // Can be populated later if using a model
+        $import_history = collect();
         return view('import.index', compact('import_history'));
     }
 
@@ -25,12 +26,13 @@ class ImportController extends Controller
      */
     public function store(Request $request)
     {
-        Log::info('=== IMPORT DEBUG START ===');
-        Log::info('Request method: ' . $request->method());
-        Log::info('Request URL: ' . $request->url());
-        Log::info('Request headers:', $request->headers->all());
-        Log::info('Request all input:', $request->all());
-        Log::info('Has file excel_file: ' . ($request->hasFile('excel_file') ? 'YES' : 'NO'));
+        Log::info('=== IMPORT DEBUG START ===', [
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'headers' => $request->headers->all(),
+            'input' => $request->except('excel_file'),
+            'has_file' => $request->hasFile('excel_file') ? 'YES' : 'NO'
+        ]);
 
         if ($request->hasFile('excel_file')) {
             $file = $request->file('excel_file');
@@ -44,8 +46,8 @@ class ImportController extends Controller
                 'error' => $file->getError(),
             ]);
         } else {
-            Log::error('No file uploaded');
-            Log::info('Files in request:', $request->allFiles());
+            Log::error('No file uploaded', ['files' => $request->allFiles()]);
+            return back()->with('error', 'Silakan unggah file Excel.');
         }
 
         Log::info('=== IMPORT DEBUG END ===');
@@ -65,7 +67,7 @@ class ImportController extends Controller
 
             Log::info('Validation passed:', $validated);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('Validation failed:', $e->errors());
+            Log::error('Validation failed:', ['errors' => $e->errors()]);
             return back()->withErrors($e->errors())->withInput();
         }
 
@@ -75,8 +77,9 @@ class ImportController extends Controller
             return back()->with('error', 'File tidak valid atau tidak dapat dibaca.');
         }
 
+        DB::beginTransaction();
         try {
-            $type = $this->detectCandidateType($file);
+            $type = $this->detectCandidateType($file, (int)$request->header_row);
             Log::info('Detected candidate type: ' . $type);
 
             $import = new CandidatesImport($type, $request->import_mode, (int)$request->header_row);
@@ -94,39 +97,31 @@ class ImportController extends Controller
                 'type' => $type
             ]);
 
+            DB::commit();
+
             if ($errorCount > 0 && $successCount > 0) {
                 return redirect()->route('candidates.index')->with('warning',
-                    "Import selesai dengan {$successCount} data berhasil dan {$errorCount} data gagal. Silakan periksa log untuk detail.");
+                    "Impor selesai: {$successCount} data berhasil, {$errorCount} data gagal. Periksa log untuk detail.");
             } elseif ($errorCount > 0) {
-                return back()->with('error', "Import gagal. {$errorCount} baris tidak dapat diproses.");
+                return back()->with('error', "Impor gagal: {$errorCount} baris tidak dapat diproses. Periksa format data.");
             }
 
             return redirect()->route('candidates.index')->with('success',
-                "Data kandidat berhasil diimpor! {$successCount} data berhasil ditambahkan.");
-
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $failures = $e->failures();
-            Log::error('Validation errors during import:', [
-                'failures' => collect($failures)->map(function ($failure) {
-                    return [
-                        'row' => $failure->row(),
-                        'errors' => $failure->errors(),
-                        'values' => $failure->values(),
-                    ];
-                })->toArray()
-            ]);
-
-            $errors = collect($failures)->map(function ($failure) {
-                return [
-                    'row' => $failure->row(),
-                    'errors' => $failure->errors(),
-                    'data' => $failure->values()
-                ];
-            })->toArray();
-
-            return view('import.errors', compact('errors'));
+                "Data kandidat berhasil diimpor! {$successCount} data ditambahkan.");
 
         } catch (\Exception $e) {
+            DB::rollBack();
+            if ($e->getMessage() === 'Empty row detected, stopping import.' || 
+                $e->getMessage() === 'Missing nama field, stopping import.') {
+                Log::info('Import stopped due to empty row or missing nama', [
+                    'message' => $e->getMessage(),
+                    'success_count' => $import->getSuccessCount(),
+                    'error_count' => $import->getErrorCount()
+                ]);
+                return redirect()->route('candidates.index')->with('success',
+                    "Impor selesai: {$import->getSuccessCount()} data berhasil diimpor sebelum menemukan baris kosong atau nama kosong.");
+            }
+
             Log::error('Critical error during import:', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -149,7 +144,7 @@ class ImportController extends Controller
     /**
      * Detect candidate type based on Excel headers.
      */
-    private function detectCandidateType($file)
+    private function detectCandidateType($file, $headerRow)
     {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
@@ -160,22 +155,20 @@ class ImportController extends Controller
             $columnRange = range('A', $highestColumn);
 
             foreach ($columnRange as $column) {
-                $cellValue = $worksheet->getCell($column . '1')->getValue();
+                $cellValue = $worksheet->getCell($column . $headerRow)->getValue();
                 if ($cellValue) {
-                    $headers[] = strtolower(trim($cellValue));
+                    $headers[] = strtolower(trim((string)$cellValue));
                 }
             }
 
-            Log::info('Headers detected', $headers);
+            Log::info('Headers detected', ['headers' => $headers, 'header_row' => $headerRow]);
 
-            // Define header patterns for each type
             $organicHeaders = ['nama', 'alamat', 'email', 'applicant_id', 'vacancy_airsys', 'vacancy'];
             $nonOrganicHeaders = ['dept', 'nama_posisi', 'quantity_target', 'sourcing_rekrutmen'];
 
             $organicMatch = 0;
             $nonOrganicMatch = 0;
 
-            // Count matches for organic headers
             foreach ($headers as $header) {
                 foreach ($organicHeaders as $organicHeader) {
                     if (str_contains($header, $organicHeader) || str_contains($organicHeader, $header)) {
@@ -185,7 +178,6 @@ class ImportController extends Controller
                 }
             }
 
-            // Count matches for non-organic headers
             foreach ($headers as $header) {
                 foreach ($nonOrganicHeaders as $nonOrganicHeader) {
                     if (str_contains($header, $nonOrganicHeader) || str_contains($nonOrganicHeader, $header)) {
@@ -204,9 +196,11 @@ class ImportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error detecting candidate type', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
-            return 'organic'; // Default to organic
+            return 'organic';
         }
     }
 
@@ -217,12 +211,10 @@ class ImportController extends Controller
     {
         $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
 
-        // Ensure template directory exists
         if (!is_dir(dirname($templatePath))) {
             mkdir(dirname($templatePath), 0755, true);
         }
 
-        // Generate template if it doesn't exist
         if (!file_exists($templatePath)) {
             $this->generateTemplate($type);
         }
@@ -259,10 +251,10 @@ class ImportController extends Controller
                 [
                     1, 'John Doe', 'Marketing & Sales - Business Consultant', 'Business Consultant', '',
                     'CAND-123456', 'Internal', 'L', '1990-01-01', 'john@example.com', 'S1',
-                    'Universitas Indonesia', 'Manajemen', 3.5, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'CV Review', 'DALAM PROSES'
+                    'Universitas Indonesia', 'Manajemen', 3.5, '', '', '', 'PASS', '', '', 'DISARANKAN', '', '', 'DISARANKAN', '', '2025-01-01', 'DISARANKAN', '', '', '', '', '', '', '', '', 'CV Review', 'DALAM PROSES'
                 ]
             ];
-        } else { // non-organic
+        } else {
             $headers = [
                 'no', 'dept', 'nama_posisi', 'sourcing_rekrutmen_internal_eksternal', 'jenis_kontrak',
                 'company', 'form_a1b1_submitted_date', 'waktu_pemenuhan_target', 'quantity_target',
@@ -273,25 +265,20 @@ class ImportController extends Controller
             ];
         }
 
-        // Set headers and example data
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray($exampleData, null, 'A2');
 
-        // Style the header row
         $headerRange = 'A1:' . chr(65 + count($headers) - 1) . '1';
         $sheet->getStyle($headerRange)->getFont()->setBold(true);
         $sheet->getStyle($headerRange)->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFCCCCCC');
 
-        // Auto-size columns
         foreach (range('A', chr(65 + count($headers) - 1)) as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
-        // Add data validation for specific columns
         if ($type == 'organic') {
-            // Gender validation
             $genderValidation = $sheet->getCell('H2')->getDataValidation();
             $genderValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
             $genderValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
@@ -302,7 +289,6 @@ class ImportController extends Controller
             $genderValidation->setError('Please select from the dropdown list.');
             $genderValidation->setFormula1('"L,P"');
 
-            // Current stage validation
             $stageValidation = $sheet->getCell('AK2')->getDataValidation();
             $stageValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
             $stageValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
@@ -313,7 +299,6 @@ class ImportController extends Controller
             $stageValidation->setError('Please select from the dropdown list.');
             $stageValidation->setFormula1('"CV Review,Psychotest,HC Interview,User Interview,BOD Interview,Offering,MCU,Hired"');
 
-            // Overall status validation
             $statusValidation = $sheet->getCell('AL2')->getDataValidation();
             $statusValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
             $statusValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
@@ -325,7 +310,6 @@ class ImportController extends Controller
             $statusValidation->setFormula1('"DALAM PROSES,HIRED,REJECTED,ON HOLD"');
         }
 
-        // Save the file
         $writer = new Xlsx($spreadsheet);
         $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
         $writer->save($templatePath);
@@ -360,9 +344,9 @@ class ImportController extends Controller
         $requiredFields = [];
         
         if ($type == 'organic') {
-            $requiredFields = ['nama', 'vacancy', 'alamat_email'];
+            $requiredFields = ['nama', 'vacancy'];
         } else {
-            $requiredFields = ['nama', 'nama_posisi', 'alamat_email'];
+            $requiredFields = ['nama', 'nama_posisi'];
         }
 
         foreach ($requiredFields as $field) {

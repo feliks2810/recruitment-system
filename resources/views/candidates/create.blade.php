@@ -71,21 +71,36 @@
                             <input type="email" name="alamat_email" id="alamat_email" value="{{ old('alamat_email') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
                         </div>
                         <div>
+                            <label for="applicant_id" class="block text-sm font-medium text-gray-700">Applicant ID</label>
+                            <input type="text" name="applicant_id" id="applicant_id" value="{{ old('applicant_id') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                        </div>
+                        <div>
                             <label for="vacancy_airsys" class="block text-sm font-medium text-gray-700">Vacancy</label>
                             <input type="text" name="vacancy_airsys" id="vacancy_airsys" value="{{ old('vacancy_airsys') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
                         </div>
                         <div>
                             <label for="airsys_internal" class="block text-sm font-medium text-gray-700">Airsys Internal</label>
                             <select name="airsys_internal" id="airsys_internal" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
-                                <option value="">Pilih Tipe</option>
                                 <option value="Yes" {{ old('airsys_internal') == 'Yes' ? 'selected' : '' }}>Yes</option>
                                 <option value="No" {{ old('airsys_internal') == 'No' ? 'selected' : '' }}>No</option>
                             </select>
                         </div>
                         <div>
+                            <label for="internal_position" class="block text-sm font-medium text-gray-700">Posisi Internal</label>
+                            <input type="text" name="internal_position" id="internal_position" value="{{ old('internal_position') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label for="on_process_by" class="block text-sm font-medium text-gray-700">Diproses Oleh</label>
+                            <input type="text" name="on_process_by" id="on_process_by" value="{{ old('on_process_by') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label for="source" class="block text-sm font-medium text-gray-700">Sumber</label>
+                            <input type="text" name="source" id="source" value="{{ old('source') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
                             <label for="jk" class="block text-sm font-medium text-gray-700">Jenis Kelamin</label>
                             <select name="jk" id="jk" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Pilih Jenis Kelamin</option>
+                                <option value="">Pilih</option>
                                 <option value="L" {{ old('jk') == 'L' ? 'selected' : '' }}>Laki-laki</option>
                                 <option value="P" {{ old('jk') == 'P' ? 'selected' : '' }}>Perempuan</option>
                             </select>
@@ -96,15 +111,7 @@
                         </div>
                         <div>
                             <label for="jenjang_pendidikan" class="block text-sm font-medium text-gray-700">Jenjang Pendidikan</label>
-                            <select name="jenjang_pendidikan" id="jenjang_pendidikan" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Pilih Jenjang</option>
-                                <option value="SMA" {{ old('jenjang_pendidikan') == 'SMA' ? 'selected' : '' }}>SMA</option>
-                                <option value="SMK" {{ old('jenjang_pendidikan') == 'SMK' ? 'selected' : '' }}>SMK</option>
-                                <option value="D3" {{ old('jenjang_pendidikan') == 'D3' ? 'selected' : '' }}>D3</option>
-                                <option value="S1" {{ old('jenjang_pendidikan') == 'S1' ? 'selected' : '' }}>S1</option>
-                                <option value="S2" {{ old('jenjang_pendidikan') == 'S2' ? 'selected' : '' }}>S2</option>
-                                <option value="S3" {{ old('jenjang_pendidikan') == 'S3' ? 'selected' : '' }}>S3</option>
-                            </select>
+                            <input type="text" name="jenjang_pendidikan" id="jenjang_pendidikan" value="{{ old('jenjang_pendidikan') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         <div>
                             <label for="perguruan_tinggi" class="block text-sm font-medium text-gray-700">Perguruan Tinggi</label>
@@ -116,11 +123,7 @@
                         </div>
                         <div>
                             <label for="ipk" class="block text-sm font-medium text-gray-700">IPK</label>
-                            <input type="number" step="0.01" name="ipk" id="ipk" value="{{ old('ipk') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label for="source" class="block text-sm font-medium text-gray-700">Source</label>
-                            <input type="text" name="source" id="source" value="{{ old('source') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="number" name="ipk" id="ipk" value="{{ old('ipk') }}" step="0.01" min="0" max="4" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         <div>
                             <label for="cv" class="block text-sm font-medium text-gray-700">CV</label>
@@ -130,9 +133,6 @@
                             <label for="flk" class="block text-sm font-medium text-gray-700">FLK</label>
                             <input type="file" name="flk" id="flk" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
-                    </div>
-                    <h3 class="text-lg font-semibold mt-6">Tahapan Seleksi</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label for="psikotest_date" class="block text-sm font-medium text-gray-700">Tanggal Psikotes</label>
                             <input type="date" name="psikotest_date" id="psikotest_date" value="{{ old('psikotest_date') }}" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
@@ -140,9 +140,10 @@
                         <div>
                             <label for="psikotes_result" class="block text-sm font-medium text-gray-700">Hasil Psikotes</label>
                             <select name="psikotes_result" id="psikotes_result" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Pilih Hasil</option>
+                                <option value="">Pilih Status</option>
                                 <option value="LULUS" {{ old('psikotes_result') == 'LULUS' ? 'selected' : '' }}>Lulus</option>
                                 <option value="TIDAK LULUS" {{ old('psikotes_result') == 'TIDAK LULUS' ? 'selected' : '' }}>Tidak Lulus</option>
+                                <option value="DIPERTIMBANGKAN" {{ old('psikotes_result') == 'DIPERTIMBANGKAN' ? 'selected' : '' }}>Dipertimbangkan</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -157,9 +158,10 @@
                             <label for="hc_intv_status" class="block text-sm font-medium text-gray-700">Status Interview HC</label>
                             <select name="hc_intv_status" id="hc_intv_status" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">Pilih Status</option>
-                                <option value="LULUS" {{ old('hc_intv_status') == 'LULUS' ? 'selected' : '' }}>Lulus</option>
-                                <option value="TIDAK LULUS" {{ old('hc_intv_status') == 'TIDAK LULUS' ? 'selected' : '' }}>Tidak Lulus</option>
-                                <option value="PENDING" {{ old('hc_intv_status') == 'PENDING' ? 'selected' : '' }}>Pending</option>
+                                <option value="DISARANKAN" {{ old('hc_intv_status') == 'DISARANKAN' ? 'selected' : '' }}>Disarankan</option>
+                                <option value="TIDAK DISARANKAN" {{ old('hc_intv_status') == 'TIDAK DISARANKAN' ? 'selected' : '' }}>Tidak Disarankan</option>
+                                <option value="DIPERTIMBANGKAN" {{ old('hc_intv_status') == 'DIPERTIMBANGKAN' ? 'selected' : '' }}>Dipertimbangkan</option>
+                                <option value="CANCEL" {{ old('hc_intv_status') == 'CANCEL' ? 'selected' : '' }}>Cancel</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -174,9 +176,10 @@
                             <label for="user_intv_status" class="block text-sm font-medium text-gray-700">Status Interview User</label>
                             <select name="user_intv_status" id="user_intv_status" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">Pilih Status</option>
-                                <option value="LULUS" {{ old('user_intv_status') == 'LULUS' ? 'selected' : '' }}>Lulus</option>
-                                <option value="TIDAK LULUS" {{ old('user_intv_status') == 'TIDAK LULUS' ? 'selected' : '' }}>Tidak Lulus</option>
-                                <option value="PENDING" {{ old('user_intv_status') == 'PENDING' ? 'selected' : '' }}>Pending</option>
+                                <option value="DISARANKAN" {{ old('user_intv_status') == 'DISARANKAN' ? 'selected' : '' }}>Disarankan</option>
+                                <option value="TIDAK DISARANKAN" {{ old('user_intv_status') == 'TIDAK DISARANKAN' ? 'selected' : '' }}>Tidak Disarankan</option>
+                                <option value="DIPERTIMBANGKAN" {{ old('user_intv_status') == 'DIPERTIMBANGKAN' ? 'selected' : '' }}>Dipertimbangkan</option>
+                                <option value="CANCEL" {{ old('user_intv_status') == 'CANCEL' ? 'selected' : '' }}>Cancel</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -191,9 +194,10 @@
                             <label for="bod_intv_status" class="block text-sm font-medium text-gray-700">Status Interview BOD/GM</label>
                             <select name="bod_intv_status" id="bod_intv_status" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">Pilih Status</option>
-                                <option value="LULUS" {{ old('bod_intv_status') == 'LULUS' ? 'selected' : '' }}>Lulus</option>
-                                <option value="TIDAK LULUS" {{ old('bod_intv_status') == 'TIDAK LULUS' ? 'selected' : '' }}>Tidak Lulus</option>
-                                <option value="PENDING" {{ old('bod_intv_status') == 'PENDING' ? 'selected' : '' }}>Pending</option>
+                                <option value="DISARANKAN" {{ old('bod_intv_status') == 'DISARANKAN' ? 'selected' : '' }}>Disarankan</option>
+                                <option value="TIDAK DISARANKAN" {{ old('bod_intv_status') == 'TIDAK DISARANKAN' ? 'selected' : '' }}>Tidak Disarankan</option>
+                                <option value="DIPERTIMBANGKAN" {{ old('bod_intv_status') == 'DIPERTIMBANGKAN' ? 'selected' : '' }}>Dipertimbangkan</option>
+                                <option value="CANCEL" {{ old('bod_intv_status') == 'CANCEL' ? 'selected' : '' }}>Cancel</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -208,9 +212,9 @@
                             <label for="offering_letter_status" class="block text-sm font-medium text-gray-700">Status Offering Letter</label>
                             <select name="offering_letter_status" id="offering_letter_status" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">Pilih Status</option>
-                                <option value="ACCEPTED" {{ old('offering_letter_status') == 'ACCEPTED' ? 'selected' : '' }}>Accepted</option>
+                                <option value="DITERIMA" {{ old('offering_letter_status') == 'DITERIMA' ? 'selected' : '' }}>Diterima</option>
+                                <option value="DITOLAK" {{ old('offering_letter_status') == 'DITOLAK' ? 'selected' : '' }}>Ditolak</option>
                                 <option value="SENT" {{ old('offering_letter_status') == 'SENT' ? 'selected' : '' }}>Sent</option>
-                                <option value="REJECTED" {{ old('offering_letter_status') == 'REJECTED' ? 'selected' : '' }}>Rejected</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -227,7 +231,6 @@
                                 <option value="">Pilih Status</option>
                                 <option value="LULUS" {{ old('mcu_status') == 'LULUS' ? 'selected' : '' }}>Lulus</option>
                                 <option value="TIDAK LULUS" {{ old('mcu_status') == 'TIDAK LULUS' ? 'selected' : '' }}>Tidak Lulus</option>
-                                <option value="PENDING" {{ old('mcu_status') == 'PENDING' ? 'selected' : '' }}>Pending</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
@@ -243,8 +246,7 @@
                             <select name="hiring_status" id="hiring_status" class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">Pilih Status</option>
                                 <option value="HIRED" {{ old('hiring_status') == 'HIRED' ? 'selected' : '' }}>Hired</option>
-                                <option value="PENDING" {{ old('hiring_status') == 'PENDING' ? 'selected' : '' }}>Pending</option>
-                                <option value="REJECTED" {{ old('hiring_status') == 'REJECTED' ? 'selected' : '' }}>Rejected</option>
+                                <option value="TIDAK DIHIRING" {{ old('hiring_status') == 'TIDAK DIHIRING' ? 'selected' : '' }}>Tidak Dihiring</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">

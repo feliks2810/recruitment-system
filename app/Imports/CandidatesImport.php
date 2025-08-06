@@ -12,6 +12,8 @@ use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Exception;
 
 class CandidatesImport implements 
     ToModel, 
@@ -33,30 +35,23 @@ class CandidatesImport implements
         $this->type = $type;
         $this->importMode = $importMode;
         $this->headerRow = $headerRow;
-        self::$rowIndex = 1;
+        self::$rowIndex = $headerRow;
     }
 
     public function model(array $row)
     {
         try {
-            Log::info("Processing row ke-" . self::$rowIndex);
-            
-            // Check if row is completely empty - if yes, stop import
+            Log::info("Processing row ke-" . self::$rowIndex, ['row_data' => array_slice($row, 0, 10, true)]);
+
             if ($this->isRowCompletelyEmpty($row)) {
                 Log::info('Detected completely empty row - stopping import', [
                     'row_number' => self::$rowIndex,
-                    'row_data' => $row
+                    'row_data' => array_slice($row, 0, 10, true)
                 ]);
-                return null;
+                throw new Exception('Empty row detected, stopping import.');
             }
-            
-            self::$rowIndex++;
 
-            Log::info('Processing row', [
-                'type' => $this->type,
-                'row_data' => array_keys($row),
-                'sample_data' => array_slice($row, 0, 5, true)
-            ]);
+            self::$rowIndex++;
 
             if ($this->type === 'non-organic') {
                 return $this->processNonOrganicCandidate($row);
@@ -64,7 +59,7 @@ class CandidatesImport implements
 
             return $this->processOrganicCandidate($row);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->errorCount++;
             Log::error('Failed to process candidate', [
                 'row_number' => self::$rowIndex,
@@ -73,27 +68,24 @@ class CandidatesImport implements
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            return null;
+            throw $e;
         }
     }
 
     protected function isRowCompletelyEmpty(array $row): bool
     {
         $cleanedRow = array_map(function($value) {
-            if ($value === null) {
-                return null;
-            }
-            $cleaned = trim((string) $value);
-            return $cleaned === '' ? null : $cleaned;
+            return is_null($value) || trim((string)$value) === '' ? null : trim((string)$value);
         }, $row);
 
         $nonEmptyValues = array_filter($cleanedRow, function($value) {
-            return $value !== null && $value !== '';
+            return !is_null($value) && $value !== '';
         });
 
         $isEmpty = empty($nonEmptyValues);
         
         Log::info('Empty row check', [
+            'row_number' => self::$rowIndex,
             'original_count' => count($row),
             'non_empty_count' => count($nonEmptyValues),
             'is_empty' => $isEmpty,
@@ -106,123 +98,145 @@ class CandidatesImport implements
     protected function processOrganicCandidate(array $row)
     {
         if ($this->isRowCompletelyEmpty($row)) {
-            Log::info('Skipping empty organic row');
-            return null;
+            Log::info('Skipping empty organic row', ['row_number' => self::$rowIndex]);
+            throw new Exception('Empty row detected, stopping import.');
         }
 
-        // Get essential fields - make them more flexible with null handling
         $nama = $this->getFieldValue($row, ['nama', 'name', 'full_name', 'candidate_name']);
         $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address', 'e_mail']);
         $vacancy = $this->getFieldValue($row, ['vacancy', 'vacancy_airsys', 'posisi', 'position', 'job_title']);
         $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
 
-        // If no essential data at all, skip the row
-        if (!$nama && !$email && !$vacancy) {
-            Log::info('Skipping row with no essential data (nama, email, vacancy all empty)', [
-                'row_number' => self::$rowIndex
+        if (!$nama) {
+            Log::warning('Missing nama field, stopping import', [
+                'row_number' => self::$rowIndex,
+                'row_data' => array_slice($row, 0, 10, true)
             ]);
-            return null;
+            throw new Exception('Missing nama field, stopping import.');
         }
 
-        // Only validate email if it's provided
-        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            Log::warning('Invalid email format', ['email' => $email, 'row' => self::$rowIndex]);
+        if (!$vacancy) {
+            Log::warning('Missing vacancy field', [
+                'row_number' => self::$rowIndex,
+                'vacancy' => $vacancy
+            ]);
             $this->errorCount++;
             return null;
         }
 
-        // Check for duplicates only if email exists
+        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Invalid email format', [
+                'row_number' => self::$rowIndex,
+                'email' => $email
+            ]);
+            $this->errorCount++;
+            return null;
+        }
+
         if ($email && $this->importMode === 'insert') {
             $existing = Candidate::where('alamat_email', $email)->first();
             if ($existing) {
-                Log::info('Duplicate email skipped', ['email' => $email]);
+                Log::info('Duplicate email skipped', [
+                    'row_number' => self::$rowIndex,
+                    'email' => $email
+                ]);
+                $this->errorCount++;
                 return null;
             }
         }
 
-        // Generate applicant ID if not provided
         if (!$applicantId) {
             do {
                 $applicantId = 'CAND-' . strtoupper(Str::random(6));
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
-        // Build candidate data with proper nullable handling
+        // Ensure all expected columns are present, even if null
         $candidateData = [
-            'no' => $this->getFieldValue($row, ['no', 'number']) ?: (Candidate::max('no') ?? 0) + 1,
+            'no' => $this->getFieldValue($row, ['no', 'number']) ?? ((Candidate::max('no') ?? 0) + 1),
             'vacancy' => $vacancy,
-            'internal_position' => $this->getFieldValue($row, ['internal_position', 'position', 'position_internal']),
-            'on_process_by' => $this->getFieldValue($row, ['on_process_by', 'process_by']),
+            'internal_position' => $this->getFieldValue($row, ['internal_position', 'position', 'position_internal']) ?? null,
+            'on_process_by' => $this->getFieldValue($row, ['on_process_by', 'process_by']) ?? null,
             'applicant_id' => $applicantId,
             'nama' => $nama,
-            'source' => $this->getFieldValue($row, ['source', 'recruitment_source']),
-            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender', 'jenis_kelamin'])),
-            'tanggal_lahir' => $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth'])),
+            'source' => $this->getFieldValue($row, ['source', 'recruitment_source']) ?? null,
+            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender', 'jenis_kelamin'])) ?? null,
+            'tanggal_lahir' => $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth'])) ?? null,
             'alamat_email' => $email,
-            'jenjang_pendidikan' => $this->getFieldValue($row, ['jenjang_pendidikan', 'education_level']),
-            'perguruan_tinggi' => $this->getFieldValue($row, ['perguruan_tinggi', 'university', 'college']),
-            'jurusan' => $this->getFieldValue($row, ['jurusan', 'major', 'field_of_study']),
-            'ipk' => $this->normalizeGPA($this->getFieldValue($row, ['ipk', 'gpa'])),
-            'cv' => $this->getFieldValue($row, ['cv', 'resume']),
-            'flk' => $this->getFieldValue($row, ['flk', 'cover_letter']),
-            'psikotest_date' => $this->transformDate($this->getFieldValue($row, ['psikotest_date', 'psychotest_date'])),
-            'psikotes_result' => $this->getFieldValue($row, ['psikotes_result', 'psychotest_result']),
-            'psikotes_notes' => $this->getFieldValue($row, ['psikotes_notes', 'psychotest_notes']),
-            'hc_interview_date' => $this->transformDate($this->getFieldValue($row, ['hc_interview_date', 'hc_intv_date'])),
-            'hc_interview_status' => $this->getFieldValue($row, ['hc_interview_status', 'hc_intv_status']),
-            'hc_interview_notes' => $this->getFieldValue($row, ['hc_interview_notes', 'hc_intv_notes']),
-            'user_interview_date' => $this->transformDate($this->getFieldValue($row, ['user_interview_date', 'user_intv_date'])),
-            'user_interview_status' => $this->getFieldValue($row, ['user_interview_status', 'user_intv_status']),
-            'user_interview_notes' => $this->getFieldValue($row, ['user_interview_notes', 'itv_user_note']),
-            'bodgm_interview_date' => $this->transformDate($this->getFieldValue($row, ['bodgm_interview_date', 'bod_intv_date'])),
-            'bod_interview_status' => $this->getFieldValue($row, ['bod_interview_status', 'bod_intv_status']),
-            'bod_interview_notes' => $this->getFieldValue($row, ['bod_interview_notes', 'bod_intv_note']),
-            'offering_letter_date' => $this->transformDate($this->getFieldValue($row, ['offering_letter_date'])),
-            'offering_letter_status' => $this->getFieldValue($row, ['offering_letter_status']),
-            'offering_letter_notes' => $this->getFieldValue($row, ['offering_letter_notes']),
-            'mcu_date' => $this->transformDate($this->getFieldValue($row, ['mcu_date'])),
-            'mcu_status' => $this->getFieldValue($row, ['mcu_status']),
-            'mcu_notes' => $this->getFieldValue($row, ['mcu_notes', 'mcu_note']),
-            'hiring_date' => $this->transformDate($this->getFieldValue($row, ['hiring_date'])),
-            'hiring_status' => $this->getFieldValue($row, ['hiring_status']),
-            'hiring_notes' => $this->getFieldValue($row, ['hiring_notes', 'hiring_note']),
-            'current_stage' => $this->getFieldValue($row, ['current_stage']) ?: 'CV Review',
-            'overall_status' => $this->getFieldValue($row, ['overall_status']) ?: 'DALAM PROSES',
+            'jenjang_pendidikan' => $this->getFieldValue($row, ['jenjang_pendidikan', 'education_level']) ?? null,
+            'perguruan_tinggi' => $this->getFieldValue($row, ['perguruan_tinggi', 'university', 'college']) ?? null,
+            'jurusan' => $this->getFieldValue($row, ['jurusan', 'major', 'field_of_study']) ?? null,
+            'ipk' => $this->normalizeGPA($this->getFieldValue($row, ['ipk', 'gpa'])) ?? null,
+            'cv' => $this->getFieldValue($row, ['cv', 'resume']) ?? null,
+            'flk' => $this->getFieldValue($row, ['flk', 'cover_letter']) ?? null,
+            'psikotest_date' => $this->transformDate($this->getFieldValue($row, ['psikotest_date', 'psychotest_date'])) ?? null,
+            'psikotes_result' => $this->normalizeStatus($this->getFieldValue($row, ['psikotes_result', 'psychotest_result'])) ?? null,
+            'psikotes_notes' => $this->getFieldValue($row, ['psikotes_notes', 'psychotest_notes']) ?? null,
+            'hc_interview_date' => $this->transformDate($this->getFieldValue($row, ['hc_interview_date', 'hc_intv_date'])) ?? null,
+            'hc_interview_status' => $this->normalizeStatus($this->getFieldValue($row, ['hc_interview_status', 'hc_intv_status'])) ?? null,
+            'hc_interview_notes' => $this->getFieldValue($row, ['hc_interview_notes', 'hc_intv_notes']) ?? null,
+            'user_interview_date' => $this->transformDate($this->getFieldValue($row, ['user_interview_date', 'user_intv_date'])) ?? null,
+            'user_interview_status' => $this->normalizeStatus($this->getFieldValue($row, ['user_interview_status', 'user_intv_status'])) ?? null,
+            'user_interview_notes' => $this->getFieldValue($row, ['user_interview_notes', 'itv_user_note']) ?? null,
+            'bodgm_interview_date' => $this->transformDate($this->getFieldValue($row, ['bodgm_interview_date', 'bod_intv_date'])) ?? null,
+            'bod_interview_status' => $this->normalizeStatus($this->getFieldValue($row, ['bod_interview_status', 'bod_intv_status'])) ?? null,
+            'bod_interview_notes' => $this->getFieldValue($row, ['bod_interview_notes', 'bod_intv_note']) ?? null,
+            'offering_letter_date' => $this->transformDate($this->getFieldValue($row, ['offering_letter_date'])) ?? null,
+            'offering_letter_status' => $this->normalizeStatus($this->getFieldValue($row, ['offering_letter_status'])) ?? null,
+            'offering_letter_notes' => $this->getFieldValue($row, ['offering_letter_notes']) ?? null,
+            'mcu_date' => $this->transformDate($this->getFieldValue($row, ['mcu_date'])) ?? null,
+            'mcu_status' => $this->normalizeStatus($this->getFieldValue($row, ['mcu_status'])) ?? null,
+            'mcu_notes' => $this->getFieldValue($row, ['mcu_notes', 'mcu_note']) ?? null,
+            'hiring_date' => $this->transformDate($this->getFieldValue($row, ['hiring_date'])) ?? null,
+            'hiring_status' => $this->normalizeStatus($this->getFieldValue($row, ['hiring_status'])) ?? null,
+            'hiring_notes' => $this->getFieldValue($row, ['hiring_notes', 'hiring_note']) ?? null,
+            'current_stage' => $this->getFieldValue($row, ['current_stage']) ?? 'CV Review',
+            'overall_status' => $this->normalizeStatus($this->getFieldValue($row, ['overall_status']) ?? 'DALAM PROSES') ?? 'DALAM PROSES',
             'airsys_internal' => 'Yes',
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
 
-        // Handle update mode
+        Log::info('Candidate data before insert', [
+            'row_number' => self::$rowIndex,
+            'data' => $candidateData,
+            'column_count' => count($candidateData)
+        ]);
+
         if (in_array($this->importMode, ['update', 'upsert']) && $email) {
             $existing = Candidate::where('alamat_email', $email)->first();
             if ($existing) {
-                // Only update non-null values
-                $updateData = array_filter($candidateData, function($value) {
-                    return $value !== null && $value !== '';
-                });
-                $existing->update($updateData);
+                $existing->update($candidateData);
                 $this->successCount++;
-                Log::info('Candidate updated', ['email' => $email, 'id' => $existing->id]);
+                Log::info('Candidate updated', [
+                    'row_number' => self::$rowIndex,
+                    'email' => $email,
+                    'id' => $existing->id
+                ]);
                 return null;
             } elseif ($this->importMode === 'update') {
-                Log::info('Candidate not found for update', ['email' => $email]);
+                Log::info('Candidate not found for update', [
+                    'row_number' => self::$rowIndex,
+                    'email' => $email
+                ]);
+                $this->errorCount++;
                 return null;
             }
         }
 
-        // Filter out null values for insert
-        $candidateData = array_filter($candidateData, function($value) {
-            return $value !== null && $value !== '';
-        });
-
         $this->successCount++;
+        Log::info('Candidate prepared for insert', [
+            'row_number' => self::$rowIndex,
+            'data' => array_slice($candidateData, 0, 10, true)
+        ]);
         return new Candidate($candidateData);
     }
 
     protected function processNonOrganicCandidate(array $row)
     {
         if ($this->isRowCompletelyEmpty($row)) {
-            Log::info('Skipping empty non-organic row');
-            return null;
+            Log::info('Skipping empty non-organic row, stopping import', ['row_number' => self::$rowIndex]);
+            throw new Exception('Empty row detected, stopping import.');
         }
 
         $nama = $this->getFieldValue($row, ['nama', 'name', 'candidate_name']);
@@ -231,22 +245,32 @@ class CandidatesImport implements
         $dept = $this->getFieldValue($row, ['dept', 'department']);
         $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
 
-        // If no essential data at all, skip the row
-        if (!$nama && !$email && !$dept && !$vacancy) {
-            Log::info('Skipping non-organic row with no essential data', [
-                'row_number' => self::$rowIndex
+        if (!$nama) {
+            Log::warning('Missing nama field, stopping import', [
+                'row_number' => self::$rowIndex,
+                'row_data' => array_slice($row, 0, 10, true)
             ]);
-            return null;
+            throw new Exception('Missing nama field, stopping import.');
         }
 
-        // Only validate email if it's provided
-        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            Log::warning('Invalid email format (non-organic)', ['email' => $email, 'row' => self::$rowIndex]);
+        if (!$vacancy) {
+            Log::warning('Missing vacancy field (non-organic)', [
+                'row_number' => self::$rowIndex,
+                'vacancy' => $vacancy
+            ]);
             $this->errorCount++;
             return null;
         }
 
-        // Generate applicant ID if not provided
+        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Invalid email format (non-organic)', [
+                'row_number' => self::$rowIndex,
+                'email' => $email
+            ]);
+            $this->errorCount++;
+            return null;
+        }
+
         if (!$applicantId) {
             do {
                 $applicantId = 'CAND-' . strtoupper(Str::random(6));
@@ -254,25 +278,54 @@ class CandidatesImport implements
         }
 
         $candidateData = [
-            'no' => $this->getFieldValue($row, ['no']) ?: (Candidate::max('no') ?? 0) + 1,
+            'no' => $this->getFieldValue($row, ['no']) ?? ((Candidate::max('no') ?? 0) + 1),
             'nama' => $nama,
             'alamat_email' => $email,
-            'vacancy' => $vacancy ?: 'Non-Organic Position',
+            'vacancy' => $vacancy ?? 'Non-Organic Position',
             'applicant_id' => $applicantId,
             'source' => $dept ? "External - {$dept}" : 'External',
-            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])),
+            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])) ?? null,
             'current_stage' => 'CV Review',
             'overall_status' => 'DALAM PROSES',
             'airsys_internal' => 'No',
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
 
-        // Filter out null values
-        $candidateData = array_filter($candidateData, function($value) {
-            return $value !== null && $value !== '';
-        });
+        Log::info('Non-organic candidate data before insert', [
+            'row_number' => self::$rowIndex,
+            'data' => $candidateData,
+            'column_count' => count($candidateData)
+        ]);
 
         $this->successCount++;
+        Log::info('Non-organic candidate prepared for insert', [
+            'row_number' => self::$rowIndex,
+            'data' => array_slice($candidateData, 0, 10, true)
+        ]);
         return new Candidate($candidateData);
+    }
+
+    protected function normalizeStatus($value)
+    {
+        if (!$value) return null;
+
+        $value = strtoupper(trim($value));
+        $allowedStatuses = [
+            'DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 
+            'PASS', 'FAIL', 'DALAM PROSES', 'HIRED', 'REJECTED', 'ON HOLD',
+            'OFFERING PERTAMINA', 'TIDAK HADIR HC INTV TANPA KABAR'
+        ];
+
+        if (!in_array($value, $allowedStatuses)) {
+            Log::warning('Invalid status value', [
+                'value' => $value,
+                'row_number' => self::$rowIndex
+            ]);
+            return null;
+        }
+
+        return $value;
     }
 
     protected function getFieldValue(array $row, array $possibleNames)
@@ -301,6 +354,10 @@ class CandidatesImport implements
             return 'P';
         }
         
+        Log::warning('Invalid gender value', [
+            'value' => $value,
+            'row_number' => self::$rowIndex
+        ]);
         return null;
     }
 
@@ -308,38 +365,59 @@ class CandidatesImport implements
     {
         if (!$value) return null;
         
-        // Clean the value
         $value = str_replace(',', '.', trim($value));
         
-        if (!is_numeric($value)) return null;
+        if (!is_numeric($value)) {
+            Log::warning('Invalid GPA value', [
+                'value' => $value,
+                'row_number' => self::$rowIndex
+            ]);
+            return null;
+        }
         
         $value = (float) $value;
         
-        // Convert from different scales to 4.0 scale
         if ($value > 4.0 && $value <= 10.0) {
-            $value = $value / 2.5; // Convert from 10.0 scale
+            $value = $value / 2.5;
         } elseif ($value > 10.0) {
-            $value = $value / 25; // Convert from 100 scale
+            $value = $value / 25;
         }
         
         return min(4.0, max(0.0, $value));
     }
 
-    private function transformDate($value)
+    protected function transformDate($value)
     {
         if (!$value) return null;
 
         try {
-            // Handle Excel serial date numbers
             if (is_numeric($value) && $value > 1000) {
-                return Carbon::instance(\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value))->format('Y-m-d');
+                $date = Date::excelToDateTimeObject($value);
+                if ($date->getTimestamp() < 0 || $date->getTimestamp() > strtotime('2100-12-31')) {
+                    Log::warning('Date out of valid range', [
+                        'value' => $value,
+                        'row_number' => self::$rowIndex
+                    ]);
+                    return null;
+                }
+                return Carbon::instance($date)->format('Y-m-d');
             }
             
-            // Handle string dates
             $parsed = Carbon::parse($value);
+            if ($parsed->year < 1900 || $parsed->year > 2100) {
+                Log::warning('Invalid date year', [
+                    'value' => $value,
+                    'row_number' => self::$rowIndex
+                ]);
+                return null;
+            }
             return $parsed->format('Y-m-d');
         } catch (\Exception $e) {
-            Log::warning('Invalid date format', ['value' => $value, 'error' => $e->getMessage()]);
+            Log::warning('Invalid date format', [
+                'value' => $value,
+                'row_number' => self::$rowIndex,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }
@@ -347,20 +425,39 @@ class CandidatesImport implements
     public function rules(): array
     {
         return [
-            'nama' => 'nullable|string|max:255',
+            'nama' => 'required|string|max:255',
             'alamat_email' => 'nullable|email|max:255',
-            'vacancy' => 'nullable|string|max:255',
+            'vacancy' => 'required|string|max:255',
             'ipk' => 'nullable|numeric|min:0|max:4',
-            'jk' => 'nullable|string',
+            'jk' => 'nullable|in:Male,Female',
+            'psikotes_result' => 'nullable|in:PASS,FAIL,DIPERTIMBANGKAN',
+            'hc_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,OFFERING PERTAMINA,TIDAK HADIR HC INTV TANPA KABAR',
+            'user_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN',
+            'bod_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN',
+            'offering_letter_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN',
+            'mcu_status' => 'nullable|in:PASS,FAIL',
+            'hiring_status' => 'nullable|in:HIRED,REJECTED,ON HOLD',
+            'overall_status' => 'nullable|in:DALAM PROSES,HIRED,REJECTED,ON HOLD',
         ];
     }
 
     public function customValidationMessages()
     {
         return [
-            'alamat_email.email' => 'Format email tidak valid.',
-            'ipk.numeric' => 'IPK harus berupa angka.',
-            'ipk.max' => 'IPK tidak boleh lebih dari 4.0.',
+            'nama.required' => 'Nama wajib diisi pada baris :attribute.',
+            'vacancy.required' => 'Vacancy wajib diisi pada baris :attribute.',
+            'alamat_email.email' => 'Format email tidak valid pada baris :attribute.',
+            'ipk.numeric' => 'IPK harus berupa angka pada baris :attribute.',
+            'ipk.max' => 'IPK tidak boleh lebih dari 4.0 pada baris :attribute.',
+            'jk.in' => 'Jenis kelamin harus Male,Female,L atau P pada baris :attribute.',
+            'psikotes_result.in' => 'Hasil psikotes harus PASS, FAIL, atau DIPERTIMBANGKAN pada baris :attribute.',
+            'hc_interview_status.in' => 'Status wawancara HC tidak valid pada baris :attribute.',
+            'user_interview_status.in' => 'Status wawancara user tidak valid pada baris :attribute.',
+            'bod_interview_status.in' => 'Status wawancara BOD tidak valid pada baris :attribute.',
+            'offering_letter_status.in' => 'Status offering letter tidak valid pada baris :attribute.',
+            'mcu_status.in' => 'Status MCU tidak valid pada baris :attribute.',
+            'hiring_status.in' => 'Status hiring tidak valid pada baris :attribute.',
+            'overall_status.in' => 'Status keseluruhan tidak valid pada baris :attribute.',
         ];
     }
 
@@ -393,6 +490,6 @@ class CandidatesImport implements
     {
         $this->successCount = 0;
         $this->errorCount = 0;
-        self::$rowIndex = 1;
+        self::$rowIndex = $this->headerRow;
     }
 }
