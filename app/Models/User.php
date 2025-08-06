@@ -85,10 +85,14 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user has specific role
+     * Check if user has specific role(s)
      */
-    public function hasRole(string $role): bool
+    public function hasRole(string|array $role): bool
     {
+        if (is_array($role)) {
+            return in_array($this->role, $role);
+        }
+        
         return $this->role === $role;
     }
 
