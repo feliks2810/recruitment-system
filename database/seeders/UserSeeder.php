@@ -38,7 +38,8 @@ class UserSeeder extends Seeder
             'name' => 'Departemen User',
             'email' => 'dept@airsys.com',
             'password' => Hash::make('password'),
-            'role' => 'departemen',
+            'role' => 'department',
+            'department' => 'Engineering',
             'status' => true,
             'email_verified_at' => now(),
         ]);
@@ -57,7 +58,8 @@ class UserSeeder extends Seeder
             'name' => 'Sarah Johnson',
             'email' => 'sarah@airsys.com',
             'password' => Hash::make('password'),
-            'role' => 'departemen',
+            'role' => 'department',
+            'department' => 'Finance & Accounting',
             'status' => true,
             'email_verified_at' => now(),
         ]);

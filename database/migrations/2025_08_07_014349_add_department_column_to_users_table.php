@@ -12,10 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->enum('role', ['admin', 'team_hc', 'user', 'department'])->default('user')->after('email');
-            $table->string('department')->nullable()->after('role');
-            $table->timestamp('last_login_at')->nullable()->after('department');
-            $table->boolean('is_active')->default(true)->after('last_login_at');
+            if (!Schema::hasColumn('users', 'department')) {
+                $table->string('department')->nullable()->after('role');
+            }
         });
     }
 
@@ -25,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['role', 'department', 'last_login_at', 'is_active']);
+            if (Schema::hasColumn('users', 'department')) {
+                $table->dropColumn('department');
+            }
         });
     }
 };

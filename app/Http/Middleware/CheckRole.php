@@ -10,13 +10,9 @@ class CheckRole
 {
     public function handle(Request $request, Closure $next, ...$roles)
     {
-        if (!Auth::check()) {
-            return redirect()->route('login');
-        }
-
-        $user = Auth::user();
-        if (!$user->hasAnyRole($roles)) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki izin untuk mengakses halaman ini.');
+        if (!in_array($request->user()->role, $roles)) {
+            // Redirect them to the home page or show an error
+            return redirect('/');
         }
 
         return $next($request);

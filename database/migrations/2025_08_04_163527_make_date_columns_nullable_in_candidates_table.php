@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->date('psikotest_date')->nullable()->change();
             $table->date('hc_intv_date')->nullable()->change();
             $table->date('user_intv_date')->nullable()->change();
-            $table->date('bod_intv_date')->nullable()->change();
+            $table->date('bod_gm_intv_date')->nullable()->change();
             $table->date('offering_letter_date')->nullable()->change();
             $table->date('mcu_date')->nullable()->change();
             $table->date('hiring_date')->nullable()->change();
@@ -24,7 +24,7 @@ return new class extends Migration {
             $table->date('psikotest_date')->nullable(false)->change();
             $table->date('hc_intv_date')->nullable(false)->change();
             $table->date('user_intv_date')->nullable(false)->change();
-            $table->date('bod_intv_date')->nullable(false)->change();
+            $table->date('bod_gm_intv_date')->nullable(false)->change();
             $table->date('offering_letter_date')->nullable(false)->change();
             $table->date('mcu_date')->nullable(false)->change();
             $table->date('hiring_date')->nullable(false)->change();

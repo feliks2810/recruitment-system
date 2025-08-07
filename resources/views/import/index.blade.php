@@ -83,10 +83,16 @@
                     <p class="text-sm text-gray-600">Upload file Excel untuk import data kandidat</p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <a href="{{ route('import.template', 'organic') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-                        <i class="fas fa-download text-sm"></i>
-                        <span>Download Template</span>
-                    </a>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('import.template', 'organic') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm">
+                            <i class="fas fa-download mr-1"></i>
+                            <span>Template Organik</span>
+                        </a>
+                        <a href="{{ route('import.template', 'non-organic') }}" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2 text-sm">
+                            <i class="fas fa-download mr-1"></i>
+                            <span>Template Non-Organik</span>
+                        </a>
+                    </div>
                     <div class="flex items-center gap-2">
                         <span class="text-sm font-medium text-gray-700">{{ Auth::user()->name }}</span>
                         <button class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -148,8 +154,15 @@
                         </div>
 
                         <!-- Options -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            <div class="space-y-2">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Jenis Kandidat</label>
+                                <select name="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <option value="organic">Organik</option>
+                                    <option value="non-organic">Non-Organik</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700">Mode Import</label>
                                 <select name="import_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                                     <option value="insert">Insert Only (Tambah Baru)</option>
@@ -157,7 +170,7 @@
                                     <option value="upsert">Insert & Update (Campuran)</option>
                                 </select>
                             </div>
-                            <div class="space-y-2">
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700">Header Row</label>
                                 <select name="header_row" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                                     <option value="1">Baris 1</option>
@@ -176,6 +189,7 @@
                             <p class="text-sm text-gray-600 mt-2">Mengimpor data...</p>
                         </div>
 
+                        @if(Auth::user()->role === 'team_hc')
                         <!-- Submit Button -->
                         <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium" disabled>
                             <div class="flex items-center justify-center gap-2">
@@ -190,6 +204,11 @@
                                 </div>
                             </div>
                         </button>
+                        @else
+                        <div class="text-center py-4 bg-gray-100 rounded-lg">
+                            <p class="text-gray-600">Anda tidak memiliki izin untuk mengimpor data.</p>
+                        </div>
+                        @endif
                     </form>
                 </div>
 

@@ -79,8 +79,8 @@ class ImportController extends Controller
 
         DB::beginTransaction();
         try {
-            $type = $this->detectCandidateType($file, (int)$request->header_row);
-            Log::info('Detected candidate type: ' . $type);
+            $type = $request->input('candidate_type', 'organic');
+            Log::info('Selected candidate type: ' . $type);
 
             $import = new CandidatesImport($type, $request->import_mode, (int)$request->header_row);
 
@@ -141,68 +141,7 @@ class ImportController extends Controller
         return $this->store($request);
     }
 
-    /**
-     * Detect candidate type based on Excel headers.
-     */
-    private function detectCandidateType($file, $headerRow)
-    {
-        try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
-
-            $headers = [];
-            $highestColumn = $worksheet->getHighestColumn();
-            $columnRange = range('A', $highestColumn);
-
-            foreach ($columnRange as $column) {
-                $cellValue = $worksheet->getCell($column . $headerRow)->getValue();
-                if ($cellValue) {
-                    $headers[] = strtolower(trim((string)$cellValue));
-                }
-            }
-
-            Log::info('Headers detected', ['headers' => $headers, 'header_row' => $headerRow]);
-
-            $organicHeaders = ['nama', 'alamat', 'email', 'applicant_id', 'vacancy_airsys', 'vacancy'];
-            $nonOrganicHeaders = ['dept', 'nama_posisi', 'quantity_target', 'sourcing_rekrutmen'];
-
-            $organicMatch = 0;
-            $nonOrganicMatch = 0;
-
-            foreach ($headers as $header) {
-                foreach ($organicHeaders as $organicHeader) {
-                    if (str_contains($header, $organicHeader) || str_contains($organicHeader, $header)) {
-                        $organicMatch++;
-                        break;
-                    }
-                }
-            }
-
-            foreach ($headers as $header) {
-                foreach ($nonOrganicHeaders as $nonOrganicHeader) {
-                    if (str_contains($header, $nonOrganicHeader) || str_contains($nonOrganicHeader, $header)) {
-                        $nonOrganicMatch++;
-                        break;
-                    }
-                }
-            }
-
-            Log::info('Match scores', [
-                'organic' => $organicMatch,
-                'non_organic' => $nonOrganicMatch
-            ]);
-
-            return $nonOrganicMatch > $organicMatch ? 'non-organic' : 'organic';
-
-        } catch (\Exception $e) {
-            Log::error('Error detecting candidate type', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            return 'organic';
-        }
-    }
+    
 
     /**
      * Download template file for import.

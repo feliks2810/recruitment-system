@@ -14,7 +14,7 @@ class CandidateController extends Controller
     {
         $search = $request->input('search');
         $status = $request->input('status');
-        $type = $request->input('type');
+        $type = $request->input('type', 'organic'); // Default to organic
 
         $query = Candidate::query();
 
@@ -22,7 +22,7 @@ class CandidateController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('nama', 'like', "%$search%")
                   ->orWhere('alamat_email', 'like', "%$search%")
-                  ->orWhere('vacancy_airsys', 'like', "%$search%")
+                  ->orWhere('vacancy', 'like', "%$search%")
                   ->orWhere('applicant_id', 'like', "%$search%");
             });
         }
@@ -31,8 +31,11 @@ class CandidateController extends Controller
             $query->where('current_stage', $status);
         }
 
-        if ($type) {
-            $query->where('airsys_internal', $type === 'Organik' ? 'Yes' : 'No');
+        // Filter by type
+        if (auth()->user()->role === 'department') {
+            $query->where('department', auth()->user()->department);
+        } else {
+            $query->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
         }
 
         $candidates = $query->orderBy('created_at', 'desc')->paginate(10);
@@ -240,6 +243,17 @@ class CandidateController extends Controller
         ]);
 
         return redirect()->route('candidates.show', $candidate)->with('success', 'Tahapan berhasil diperbarui.');
+    }
+
+    public function switchType(Candidate $candidate)
+    {
+        $candidate->airsys_internal = ($candidate->airsys_internal === 'Yes') ? 'No' : 'Yes';
+        $candidate->save();
+
+        $newType = ($candidate->airsys_internal === 'Yes') ? 'organik' : 'non-organik';
+
+        return redirect()->route('candidates.index', ['type' => $newType])
+                        ->with('success', "Kandidat berhasil dipindahkan ke {$newType}.");
     }
 
     public function export(Request $request)

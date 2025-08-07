@@ -10,6 +10,19 @@ use Illuminate\Validation\Rule;
 
 class AccountController extends Controller
 {
+    protected $departments = [
+        'Batam Production',
+        'Batam QA & QC',
+        'Engineering',
+        'Finance & Accounting',
+        'HCGAESRIT',
+        'MDRM Legal & Communication Function',
+        'Procurement & Subcontractor',
+        'Production Control',
+        'PE & Facility',
+        'Warehouse & Inventory'
+    ];
+
     public function index()
     {
         $users = User::orderBy('created_at', 'desc')->paginate(10);
@@ -18,7 +31,8 @@ class AccountController extends Controller
             'total' => User::count(),
             'admin' => User::where('role', 'admin')->count(),
             'team_hc' => User::where('role', 'team_hc')->count(),
-            'departemen' => User::where('role', 'departemen')->count(),
+            'department' => User::where('role', 'department')->count(),
+            'user' => User::where('role', 'user')->count(),
             'active' => User::where('status', true)->count(),
         ];
         
@@ -27,7 +41,7 @@ class AccountController extends Controller
 
     public function create()
     {
-        return view('accounts.create');
+        return view('accounts.create', ['departments' => $this->departments]);
     }
 
     public function store(Request $request)
@@ -36,7 +50,8 @@ class AccountController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:admin,team_hc,departemen',
+            'role' => 'required|in:admin,team_hc,department,user',
+            'department' => 'required_if:role,department|' . Rule::in($this->departments),
             'status' => 'required|boolean',
         ]);
 
@@ -45,8 +60,9 @@ class AccountController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
+            'department' => $request->role === 'department' ? $request->department : null,
             'status' => $request->status,
-            'email_verified_at' => now(), // Auto verify untuk admin created accounts
+            'email_verified_at' => now(), // Auto verify for admin created accounts
         ]);
 
         return redirect()->route('accounts.index')
@@ -55,7 +71,10 @@ class AccountController extends Controller
 
     public function edit(User $account)
     {
-        return view('accounts.edit', compact('account'));
+        return view('accounts.edit', [
+            'account' => $account,
+            'departments' => $this->departments
+        ]);
     }
 
     public function update(Request $request, User $account)
@@ -64,7 +83,8 @@ class AccountController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($account->id)],
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|in:admin,team_hc,departemen',
+            'role' => 'required|in:admin,team_hc,department,user',
+            'department' => 'required_if:role,department|' . Rule::in($this->departments),
             'status' => 'required|boolean',
         ]);
 
@@ -72,6 +92,7 @@ class AccountController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
+            'department' => $request->role === 'department' ? $request->department : null,
             'status' => $request->status,
         ];
 

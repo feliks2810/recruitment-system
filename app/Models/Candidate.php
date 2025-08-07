@@ -9,6 +9,7 @@ class Candidate extends Model
     protected $fillable = [
         'no', 
         'vacancy',
+        'department',
         'internal_position',
         'on_process_by', 
         'applicant_id', 

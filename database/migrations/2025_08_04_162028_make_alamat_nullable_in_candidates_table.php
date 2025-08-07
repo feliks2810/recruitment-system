@@ -8,14 +8,14 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('candidates', function (Blueprint $table) {
-            $table->string('alamat')->nullable()->change();
+            $table->string('alamat_email')->nullable()->change();
         });
     }
 
     public function down(): void
     {
         Schema::table('candidates', function (Blueprint $table) {
-            $table->string('alamat')->nullable(false)->default('')->change();
+            $table->string('alamat_email')->nullable(false)->default('')->change();
         });
     }
 };

@@ -282,6 +282,7 @@ class CandidatesImport implements
             'nama' => $nama,
             'alamat_email' => $email,
             'vacancy' => $vacancy ?? 'Non-Organic Position',
+            'department' => $dept,
             'applicant_id' => $applicantId,
             'source' => $dept ? "External - {$dept}" : 'External',
             'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])) ?? null,

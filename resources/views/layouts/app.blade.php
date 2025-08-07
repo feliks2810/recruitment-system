@@ -61,7 +61,7 @@
                                     <div class="text-gray-500">{{ ucwords(str_replace('_', ' ', Auth::user()->role)) }}</div>
                                 </div>
                                 <a href="{{ route('profile.edit') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
-                                @if(Auth::user()->hasRole('admin'))
+                                @if(Auth::user()->role === 'admin')
                                     <a href="{{ route('accounts.index') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Manage Accounts</a>
                                 @endif
                                 <form method="POST" action="{{ route('logout') }}">

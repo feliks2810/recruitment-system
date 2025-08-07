@@ -38,6 +38,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('role:admin,team_hc')
         ->name('candidates.updateStage');
 
+    Route::post('/candidates/{candidate}/switch-type', [CandidateController::class, 'switchType'])
+        ->middleware('role:admin,team_hc')
+        ->name('candidates.switchType');
+
     Route::get('/candidates', [CandidateController::class, 'index'])
         ->middleware('role:admin,team_hc,departemen')
         ->name('candidates.index');

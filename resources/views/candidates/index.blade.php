@@ -158,6 +158,22 @@
                 </div>
             </div>
 
+            <!-- Tabs -->
+            <div class="mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                        <a href="{{ route('candidates.index', ['type' => 'organic']) }}" 
+                           class="{{ $type === 'organic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Kandidat Organik
+                        </a>
+                        <a href="{{ route('candidates.index', ['type' => 'non-organic']) }}" 
+                           class="{{ $type === 'non-organic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Kandidat Non-Organik
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
             <!-- Candidates Table -->
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200">
@@ -226,10 +242,18 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex items-center gap-2">
-                                        <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900">
+                                        @if(Auth::user()->role !== 'department')
+                                        <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
+                                            @csrf
+                                            <button type="submit" class="text-gray-600 hover:text-gray-900" title="Pindahkan Tipe">
+                                                <i class="fas fa-exchange-alt"></i>
+                                            </button>
+                                        </form>
+                                        @endif
+                                        <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900" title="Lihat Detail">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        @if(Auth::user()->canModifyData())
+                                        @if(Auth::user()->role === 'user' || Auth::user()->role === 'admin' || Auth::user()->role === 'team_hc')
                                         <a href="{{ route('candidates.edit', $candidate) }}" class="text-indigo-600 hover:text-indigo-900">
                                             <i class="fas fa-edit"></i>
                                         </a>
