@@ -51,7 +51,7 @@ class AccountController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:admin,team_hc,department,user',
-            'department' => 'required_if:role,department|' . Rule::in($this->departments),
+            'department' => 'required_if:role,department,admin|' . Rule::in($this->departments),
             'status' => 'required|boolean',
         ]);
 
@@ -60,7 +60,7 @@ class AccountController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
-            'department' => $request->role === 'department' ? $request->department : null,
+            'department' => in_array($request->role, ['department', 'admin']) ? $request->department : null,
             'status' => $request->status,
             'email_verified_at' => now(), // Auto verify for admin created accounts
         ]);
