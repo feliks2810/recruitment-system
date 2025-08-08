@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Candidate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
@@ -35,6 +36,15 @@ class DashboardController extends Controller
             $failedQuery->where('airsys_internal', $typeFilter);
         }
 
+        // Filter berdasarkan department jika user memiliki role department
+        if (Auth::user()->hasRole('department')) {
+            $userDepartment = Auth::user()->department;
+            $totalQuery->where('department', $userDepartment);
+            $passedQuery->where('department', $userDepartment);
+            $processQuery->where('department', $userDepartment);
+            $failedQuery->where('department', $userDepartment);
+        }
+
         // Statistics
         $stats = [
             'total_candidates' => $totalQuery->count(),
@@ -43,6 +53,46 @@ class DashboardController extends Controller
             'candidates_failed' => $failedQuery->where('overall_status', 'TIDAK LULUS')->count(),
         ];
 
+        // Recent Candidates (10 kandidat terbaru)
+        $recentCandidatesQuery = Candidate::whereYear('created_at', $year)
+            ->orderBy('created_at', 'desc')
+            ->limit(5);
+
+        // Terapkan filter tipe untuk recent candidates
+        if ($type !== 'all') {
+            $recentCandidatesQuery->where('airsys_internal', $type === 'organik' ? 'Yes' : 'No');
+        }
+
+        // Filter berdasarkan department jika user memiliki role department
+        if (Auth::user()->hasRole('department')) {
+            $recentCandidatesQuery->where('department', Auth::user()->department);
+        }
+
+        $recent_candidates = $recentCandidatesQuery->get();
+
+        // Process Distribution untuk chart
+        $processQuery = Candidate::select('current_stage', DB::raw('count(*) as count'))
+            ->whereYear('created_at', $year);
+
+        // Terapkan filter tipe untuk process distribution
+        if ($type !== 'all') {
+            $processQuery->where('airsys_internal', $type === 'organik' ? 'Yes' : 'No');
+        }
+
+        // Filter berdasarkan department jika user memiliki role department
+        if (Auth::user()->hasRole('department')) {
+            $processQuery->where('department', Auth::user()->department);
+        }
+
+        $process_distribution = $processQuery->groupBy('current_stage')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'stage' => $item->current_stage ?: 'Belum Ditentukan',
+                    'count' => $item->count
+                ];
+            });
+
         // Chart data untuk pie chart
         $pieQuery = Candidate::select('current_stage', DB::raw('count(*) as count'))
             ->whereYear('created_at', $year);
@@ -50,6 +100,11 @@ class DashboardController extends Controller
         // Terapkan filter tipe untuk pie chart
         if ($type !== 'all') {
             $pieQuery->where('airsys_internal', $type === 'organik' ? 'Yes' : 'No');
+        }
+
+        // Filter berdasarkan department jika user memiliki role department
+        if (Auth::user()->hasRole('department')) {
+            $pieQuery->where('department', Auth::user()->department);
         }
 
         $pieData = $pieQuery->groupBy('current_stage')
@@ -69,6 +124,11 @@ class DashboardController extends Controller
             )
             ->whereYear('created_at', $year);
 
+        // Filter berdasarkan department jika user memiliki role department
+        if (Auth::user()->hasRole('department')) {
+            $barQuery->where('department', Auth::user()->department);
+        }
+
         // Jika filter tipe dipilih, sesuaikan query
         if ($type === 'organik') {
             $barQuery = DB::table('candidates')
@@ -79,6 +139,11 @@ class DashboardController extends Controller
                 )
                 ->whereYear('created_at', $year)
                 ->where('airsys_internal', 'Yes');
+
+            // Filter berdasarkan department jika user memiliki role department
+            if (Auth::user()->hasRole('department')) {
+                $barQuery->where('department', Auth::user()->department);
+            }
         } elseif ($type === 'non_organik') {
             $barQuery = DB::table('candidates')
                 ->select(
@@ -88,6 +153,11 @@ class DashboardController extends Controller
                 )
                 ->whereYear('created_at', $year)
                 ->where('airsys_internal', 'No');
+
+            // Filter berdasarkan department jika user memiliki role department
+            if (Auth::user()->hasRole('department')) {
+                $barQuery->where('department', Auth::user()->department);
+            }
         }
 
         $barData = $barQuery->groupBy('month')->get()->keyBy('month');
@@ -104,7 +174,9 @@ class DashboardController extends Controller
             'pieData', 
             'completeBarData', 
             'year', 
-            'type'
+            'type',
+            'recent_candidates',
+            'process_distribution'
         ));
     }
 }

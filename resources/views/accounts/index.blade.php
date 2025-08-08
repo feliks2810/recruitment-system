@@ -1,75 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Manajemen Akun - Patria Maritim Perkasa</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex">
-    <!-- Sidebar -->
-    <aside class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col">
-        <div class="p-4 flex justify-center">
-            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-30 h-auto object-contain">
-        </div>
-        <nav class="flex-1 p-4">
-            <div class="space-y-2">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-th-large text-sm"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-users text-sm"></i>
-                    <span>Kandidat</span>
-                </a>
-                @if(in_array(Auth::user()->role, ['admin', 'team_hc']))
-                <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-upload text-sm"></i>
-                    <span>Import Excel</span>
-                </a>
-                @endif
-                <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-chart-bar text-sm"></i>
-                    <span>Statistik</span>
-                </a>
-                @if(Auth::user()->role === 'admin')
-                <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-medium">
-                    <i class="fas fa-user-cog text-sm"></i>
-                    <span>Manajemen Akun</span>
-                </a>
-                @endif
-                <a href="{{ route('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-sign-out-alt text-sm"></i>
-                    <span>Logout</span>
-                </a>
-                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
-                    @csrf
-                </form>
-            </div>
-        </nav>
-    </aside>
+@extends('layouts.app')
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
-        <header class="bg-white border-b border-gray-200 px-6 py-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-xl font-semibold text-gray-900">Manajemen Akun</h1>
-                    <p class="text-sm text-gray-600">Kelola akun pengguna sistem</p>
-                </div>
-                <a href="{{ route('accounts.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                    <i class="fas fa-plus text-sm"></i>
-                    <span>Tambah Akun</span>
-                </a>
-            </div>
-        </header>
+@section('title', 'Manajemen Akun')
+@section('page-title', 'Manajemen Akun')
+@section('page-subtitle', 'Kelola akun pengguna sistem')
+
+@push('header-filters')
+@can('manage-users')
+<a href="{{ route('accounts.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+    <i class="fas fa-plus text-sm"></i>
+    <span>Tambah Akun</span>
+</a>
+<a href="{{ route('accounts.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+    <i class="fas fa-download text-sm"></i>
+    <span>Export Akun</span>
+</a>
+@endcan
+@endpush
+
+@section('content')
 
         <div class="flex-1 p-6">
             <!-- Stats Cards -->
@@ -133,7 +81,7 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ $user->role_display_name }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $user->department ?? '-' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     @if($user->status)
@@ -145,6 +93,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $user->created_at->format('d M Y') }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex items-center gap-3">
+                                        @can('manage-users')
                                         <a href="{{ route('accounts.edit', $user->id) }}" class="text-blue-600 hover:text-blue-800" title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -157,6 +106,7 @@
                                             </button>
                                         </form>
                                         @endif
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -177,5 +127,4 @@
             </div>
         </div>
     </main>
-</body>
-</html>
+@endsection

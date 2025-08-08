@@ -1,181 +1,200 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Buat Akun Baru - Patria Maritim Perkasa</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex">
-    <!-- Sidebar -->
-    <aside class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col">
-        <div class="p-4 flex justify-center">
-            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-30 h-auto object-contain">
+@extends('layouts.app')
+
+@section('title', 'Tambah Akun')
+@section('page-title', 'Tambah Akun')
+@section('page-subtitle', 'Buat akun pengguna baru')
+
+@push('header-filters')
+<a href="{{ route('accounts.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+    <i class="fas fa-arrow-left text-sm"></i>
+    <span>Kembali</span>
+</a>
+@endpush
+
+@section('content')
+@can('manage-users')
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Form Akun</h3>
         </div>
-        <nav class="flex-1 p-4">
-            <div class="space-y-2">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-th-large text-sm"></i><span>Dasbor</span>
-                </a>
-                <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-users text-sm"></i><span>Kandidat</span>
-                </a>
-                                @if (in_array(Auth::user()->role, ['admin', 'team_hc']))
-                    <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                        <i class="fas fa-upload text-sm"></i><span>Impor Excel</span>
-                    </a>
-                    <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                        <i class="fas fa-chart-bar text-sm"></i><span>Statistik</span>
-                    </a>
-                @endif
-                @if (Auth::user()->role === 'admin')
-                    <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-medium">
-                        <i class="fas fa-user-cog text-sm"></i><span>Manajemen Akun</span>
-                    </a>
-                @endif
-            </div>
-        </nav>
-    </aside>
+        
+        <div class="p-6">
+                    @if ($errors->any())
+                        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-exclamation-circle text-red-600 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-red-800 font-medium">Terdapat kesalahan dalam pengisian form:</p>
+                                    <ul class="list-disc pl-5 text-red-800 mt-1">
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
-        <header class="bg-white border-b border-gray-200 px-6 py-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-xl font-semibold text-gray-900">Buat Akun Baru</h1>
-                    <p class="text-sm text-gray-600">Isi detail di bawah untuk membuat akun pengguna baru.</p>
-                </div>
-                <a href="{{ route('accounts.index') }}" class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-2">
-                    <i class="fas fa-arrow-left"></i>
-                    <span>Kembali ke Manajemen Akun</span>
-                </a>
-            </div>
-        </header>
-
-        <div class="flex-1 p-6">
-            <div class="max-w-3xl mx-auto">
-                @if ($errors->any())
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
-                        <strong class="font-bold">Oops!</strong>
-                        <span class="block sm:inline">Ada beberapa masalah dengan input Anda.</span>
-                        <ul class="mt-3 list-disc list-inside text-sm">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-
-                <div class="bg-white rounded-xl p-8 border border-gray-200">
-                    <form action="{{ route('accounts.store') }}" method="POST">
+                    <form method="POST" action="{{ route('candidates.store') }}" enctype="multipart/form-data" class="space-y-6">
                         @csrf
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Nama Lengkap -->
-                            <div class="md:col-span-2">
-                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" required
-                                       class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
-
-                            <!-- Email -->
-                            <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Alamat Email</label>
-                                <input type="email" name="email" id="email" value="{{ old('email') }}" required
-                                       class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
-
-                            <!-- Role -->
-                            <div>
-                                <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                <select name="role" id="role" required onchange="toggleDepartment(this.value)"
-                                        class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                    <option value="">Pilih Role</option>
-                                    <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
-                                    <option value="team_hc" {{ old('role') == 'team_hc' ? 'selected' : '' }}>Team HC</option>
-                                    <option value="user" {{ old('role') == 'user' ? 'selected' : '' }}>User</option>
-                                    <option value="department" {{ old('role') == 'department' ? 'selected' : '' }}>Department</option>
-                                </select>
-                            </div>
-
-                            <!-- Department (Conditional) -->
-                            <div id="department-field" class="{{ old('role') == 'department' ? '' : 'hidden' }} md:col-span-2">
-                                <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
-                                <select name="department" id="department"
-                                        class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                    <option value="">Pilih Departemen</option>
-                                    @foreach($departments as $dept)
-                                        <option value="{{ $dept }}" {{ old('department') == $dept ? 'selected' : '' }}>{{ $dept }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <!-- Password -->
-                            <div>
-                                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Kata Sandi</label>
-                                <input type="password" name="password" id="password" required
-                                       class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
-
-                            <!-- Konfirmasi Password -->
-                            <div>
-                                <label for="password_confirmation" class="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Kata Sandi</label>
-                                <input type="password" name="password_confirmation" id="password_confirmation" required
-                                       class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
-                            
-                            <!-- Status -->
-                             <div class="md:col-span-2">
-                                <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select name="status" id="status" required
-                                        class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                    <option value="1" {{ old('status', '1') == '1' ? 'selected' : '' }}>Aktif</option>
-                                    <option value="0" {{ old('status') == '0' ? 'selected' : '' }}>Non-Aktif</option>
-                                </select>
+                        
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Dasar</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="nama" class="block text-sm font-medium text-gray-700">Nama *</label>
+                                    <input type="text" name="nama" id="nama" value="{{ old('nama') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                </div>
+                                <div>
+                                    <label for="alamat_email" class="block text-sm font-medium text-gray-700">Email *</label>
+                                    <input type="email" name="alamat_email" id="alamat_email" value="{{ old('alamat_email') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                </div>
+                                <div>
+                                    <label for="applicant_id" class="block text-sm font-medium text-gray-700">Applicant ID *</label>
+                                    <input type="text" name="applicant_id" id="applicant_id" value="{{ old('applicant_id') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                </div>
+                                <div>
+                                    <label for="jk" class="block text-sm font-medium text-gray-700">Jenis Kelamin</label>
+                                    <select name="jk" id="jk" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                        <option value="">Pilih Jenis Kelamin</option>
+                                        <option value="L" {{ old('jk') == 'L' ? 'selected' : '' }}>Laki-laki</option>
+                                        <option value="P" {{ old('jk') == 'P' ? 'selected' : '' }}>Perempuan</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="tanggal_lahir" class="block text-sm font-medium text-gray-700">Tanggal Lahir</label>
+                                    <input type="date" name="tanggal_lahir" id="tanggal_lahir" value="{{ old('tanggal_lahir') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mt-8 pt-5 border-t border-gray-200">
-                            <div class="flex justify-end gap-3">
-                                <a href="{{ route('accounts.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm font-medium">
-                                    Batal
-                                </a>
-                                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2">
-                                    <i class="fas fa-save"></i>
-                                    <span>Buat Akun</span>
-                                </button>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="vacancy_airsys" class="block text-sm font-medium text-gray-700">Vacancy *</label>
+                                    <input type="text" name="vacancy_airsys" id="vacancy_airsys" value="{{ old('vacancy_airsys') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                </div>
+                                <div>
+                                    <label for="airsys_internal" class="block text-sm font-medium text-gray-700">Tipe Kandidat *</label>
+                                    <select name="airsys_internal" id="airsys_internal" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                        <option value="Yes" {{ old('airsys_internal') == 'Yes' ? 'selected' : '' }}>Organik</option>
+                                        <option value="No" {{ old('airsys_internal') == 'No' ? 'selected' : '' }}>Non-Organik</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="internal_position" class="block text-sm font-medium text-gray-700">Posisi Internal</label>
+                                    <input type="text" name="internal_position" id="internal_position" value="{{ old('internal_position') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label for="source" class="block text-sm font-medium text-gray-700">Sumber</label>
+                                    <input type="text" name="source" id="source" value="{{ old('source') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
                             </div>
                         </div>
+
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Pendidikan</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="jenjang_pendidikan" class="block text-sm font-medium text-gray-700">Jenjang Pendidikan</label>
+                                    <input type="text" name="jenjang_pendidikan" id="jenjang_pendidikan" value="{{ old('jenjang_pendidikan') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label for="perguruan_tinggi" class="block text-sm font-medium text-gray-700">Perguruan Tinggi</label>
+                                    <input type="text" name="perguruan_tinggi" id="perguruan_tinggi" value="{{ old('perguruan_tinggi') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label for="jurusan" class="block text-sm font-medium text-gray-700">Jurusan</label>
+                                    <input type="text" name="jurusan" id="jurusan" value="{{ old('jurusan') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label for="ipk" class="block text-sm font-medium text-gray-700">IPK</label>
+                                    <input type="number" name="ipk" id="ipk" value="{{ old('ipk') }}" step="0.01" min="0" max="4" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Berkas</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="cv" class="block text-sm font-medium text-gray-700">CV</label>
+                                    <input type="file" name="cv" id="cv" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label for="flk" class="block text-sm font-medium text-gray-700">FLK</label>
+                                    <input type="file" name="flk" id="flk" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        @endcan
+@endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const roleSelect = document.getElementById('role');
+        const departmentField = document.getElementById('department-field');
+
+        function toggleDepartmentField() {
+            if (roleSelect.value === 'department') {
+                departmentField.style.display = 'block';
+            } else {
+                departmentField.style.display = 'none';
+            }
+        }
+
+        roleSelect.addEventListener('change', toggleDepartmentField);
+        toggleDepartmentField(); // Initial check
+    });
+</script>
+    <!-- Success Message -->
+    @if(session('success'))
+    <div id="success-alert" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ session('success') }}</span>
+            <button onclick="document.getElementById('success-alert').remove()" class="ml-2 text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <script>
+        setTimeout(() => {
+            const alert = document.getElementById('success-alert');
+            if (alert) alert.remove();
+        }, 5000);
+    </script>
+    @endif
+
+    <!-- Error Message -->
+    @if(session('error'))
+    <div id="error-alert" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ session('error') }}</span>
+            <button onclick="document.getElementById('error-alert').remove()" class="ml-2 text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <script>
+        setTimeout(() => {
+            const alert = document.getElementById('error-alert');
+            if (alert) alert.remove();
+        }, 5000);
+    </script>
+    @endif
+@endpush
                     </form>
                 </div>
             </div>
         </div>
     </main>
-
-    <script>
-        function toggleDepartment(role) {
-            const departmentField = document.getElementById('department-field');
-            const departmentSelect = document.getElementById('department');
-            if (role === 'department') {
-                departmentField.classList.remove('hidden');
-                departmentSelect.required = true;
-            } else {
-                departmentField.classList.add('hidden');
-                departmentSelect.required = false;
-                // Clear the department value when not needed
-                departmentSelect.value = '';
-            }
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const roleSelect = document.getElementById('role');
-            toggleDepartment(roleSelect.value);
-        });
-    </script>
+    @endcan
 </body>
 </html>

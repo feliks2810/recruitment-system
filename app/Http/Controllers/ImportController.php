@@ -8,6 +8,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Models\ImportHistory;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ImportController extends Controller
@@ -17,7 +19,7 @@ class ImportController extends Controller
      */
     public function index()
     {
-        $import_history = collect();
+        $import_history = ImportHistory::latest()->paginate(10);
         return view('import.index', compact('import_history'));
     }
 
@@ -99,15 +101,30 @@ class ImportController extends Controller
 
             DB::commit();
 
+            $status = 'success';
+            $message = "Data kandidat berhasil diimpor! {$successCount} data ditambahkan.";
             if ($errorCount > 0 && $successCount > 0) {
-                return redirect()->route('candidates.index')->with('warning',
-                    "Impor selesai: {$successCount} data berhasil, {$errorCount} data gagal. Periksa log untuk detail.");
+                $status = 'partial';
+                $message = "Impor selesai: {$successCount} data berhasil, {$errorCount} data gagal. Periksa log untuk detail.";
             } elseif ($errorCount > 0) {
-                return back()->with('error', "Impor gagal: {$errorCount} baris tidak dapat diproses. Periksa format data.");
+                $status = 'failed';
+                $message = "Impor gagal: {$errorCount} baris tidak dapat diproses. Periksa format data.";
             }
 
-            return redirect()->route('candidates.index')->with('success',
-                "Data kandidat berhasil diimpor! {$successCount} data ditambahkan.");
+            ImportHistory::create([
+                'filename' => $file->getClientOriginalName(),
+                'total_rows' => $successCount + $errorCount,
+                'success_rows' => $successCount,
+                'failed_rows' => $errorCount,
+                'status' => $status,
+                'user_id' => Auth::id(),
+            ]);
+
+            if ($status === 'failed') {
+                return back()->with('error', $message);
+            } else {
+                return redirect()->route('import.index')->with('success', $message);
+            }
 
         } catch (\Exception $e) {
             DB::rollBack();

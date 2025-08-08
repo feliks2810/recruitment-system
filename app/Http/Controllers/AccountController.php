@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AccountController extends Controller
 {
@@ -124,5 +125,10 @@ class AccountController extends Controller
 
         return redirect()->route('accounts.index')
                         ->with('success', 'Akun berhasil dihapus.');
+    }
+
+    public function export()
+    {
+        return Excel::download(new \App\Exports\UsersExport, 'users_' . now()->format('Ymd_His') . '.xlsx');
     }
 }

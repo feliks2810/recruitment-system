@@ -13,7 +13,7 @@ class CandidateRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return Auth::user()->canModifyData();
+        return Auth::user()->can('edit-candidates');
     }
 
     /**
@@ -37,7 +37,6 @@ class CandidateRequest extends FormRequest
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('candidates')->ignore($candidateId),
             ],
             'vacancy_airsys' => 'required|string|max:255',
             'internal_position' => 'nullable|string|max:255',

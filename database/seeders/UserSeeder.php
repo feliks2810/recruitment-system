@@ -14,54 +14,64 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         // Create admin user
-        User::create([
-            'name' => 'Administrator',
+        $admin = User::firstOrCreate([
             'email' => 'admin@airsys.com',
+        ], [
+            'name' => 'Administrator',
             'password' => Hash::make('password'),
-            'role' => 'admin',
             'status' => true,
             'email_verified_at' => now(),
+            'role' => 'admin', // Added role
         ]);
+        $admin->assignRole('admin');
 
         // Create team HC user
-        User::create([
-            'name' => 'Team HC',
+        $teamHc = User::firstOrCreate([
             'email' => 'hc@airsys.com',
+        ], [
+            'name' => 'Team HC',
             'password' => Hash::make('password'),
-            'role' => 'team_hc',
             'status' => true,
             'email_verified_at' => now(),
+            'role' => 'team_hc', // Added role
         ]);
+        $teamHc->assignRole('team_hc');
 
         // Create departemen user
-        User::create([
-            'name' => 'Departemen User',
+        $department = User::firstOrCreate([
             'email' => 'dept@airsys.com',
+        ], [
+            'name' => 'Departemen User',
             'password' => Hash::make('password'),
-            'role' => 'department',
             'department' => 'Engineering',
             'status' => true,
             'email_verified_at' => now(),
+            'role' => 'department', // Added role
         ]);
+        $department->assignRole('department');
 
         // Create additional sample users
-        User::create([
-            'name' => 'John Smith',
+        $john = User::firstOrCreate([
             'email' => 'john@airsys.com',
+        ], [
+            'name' => 'John Smith',
             'password' => Hash::make('password'),
-            'role' => 'team_hc',
             'status' => true,
             'email_verified_at' => now(),
+            'role' => 'user', // Added role
         ]);
+        $john->assignRole('user');
 
-        User::create([
-            'name' => 'Sarah Johnson',
+        $sarah = User::firstOrCreate([
             'email' => 'sarah@airsys.com',
+        ], [
+            'name' => 'Sarah Johnson',
             'password' => Hash::make('password'),
-            'role' => 'department',
             'department' => 'Finance & Accounting',
             'status' => true,
             'email_verified_at' => now(),
+            'role' => 'department', // Added role
         ]);
+        $sarah->assignRole('department');
     }
 }

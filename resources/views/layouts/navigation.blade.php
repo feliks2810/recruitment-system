@@ -21,19 +21,19 @@
                         {{ __('Kandidat') }}
                     </x-nav-link>
 
-                    @if(auth()->user()->isAdmin())
+                    @if(auth()->user()->hasRole('admin'))
                         <x-nav-link :href="route('import.index')" :active="request()->routeIs('import.*')">
                             {{ __('Import Excel') }}
                         </x-nav-link>
                     @endif
 
-                    @if(auth()->user()->isAdmin() || auth()->user()->isTeamHC())
+                    @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('team_hc'))
                         <x-nav-link :href="route('statistics.index')" :active="request()->routeIs('statistics.*')">
                             {{ __('Statistik') }}
                         </x-nav-link>
                     @endif
 
-                    @if(auth()->user()->isAdmin())
+                    @if(auth()->user()->hasRole('admin'))
                         <x-nav-link :href="route('accounts.index')" :active="request()->routeIs('accounts.*')">
                             {{ __('Manajemen Akun') }}
                         </x-nav-link>
@@ -112,7 +112,7 @@
                 </x-responsive-nav-link>
             @endif
 
-            @if(auth()->user()->isAdmin() || auth()->user()->isTeamHC())
+            @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('team_hc'))
                 <x-responsive-nav-link :href="route('statistics.index')" :active="request()->routeIs('statistics.*')">
                     {{ __('Statistik') }}
                 </x-responsive-nav-link>

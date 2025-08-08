@@ -1,78 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Error Import - Patria Maritim Perkasa</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex">
-    <!-- Sidebar -->
-    <aside class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col">
-        <!-- Logo -->
-        <div class="p-4 flex justify-center">
-            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-30 h-auto object-contain">
-        </div>
+@extends('layouts.app')
 
-        <!-- Navigation -->
-        <nav class="flex-1 p-4">
-            <div class="space-y-2">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-th-large text-sm"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-users text-sm"></i>
-                    <span>Kandidat</span>
-                </a>
-                <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-medium">
-                    <i class="fas fa-upload text-sm"></i>
-                    <span>Import Excel</span>
-                </a>
-                @if (Auth::user()->isAdmin() || Auth::user()->isTeamHC())
-                <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-chart-bar text-sm"></i>
-                    <span>Statistik</span>
-                </a>
-                @endif
-                @if (Auth::user()->isAdmin())
-                <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-user-cog text-sm"></i>
-                    <span>Manajemen Akun</span>
-                </a>
-                @endif
-            </div>
-        </nav>
-    </aside>
+@section('title', 'Error Import')
+@section('page-title', 'Detail Error Import')
+@section('page-subtitle', 'Berikut adalah baris yang gagal diimport beserta alasannya')
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
-        <!-- Header -->
-        <header class="bg-white border-b border-gray-200 px-6 py-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-xl font-semibold text-gray-900">Detail Error Import</h1>
-                    <p class="text-sm text-gray-600">Berikut adalah baris yang gagal diimport beserta alasannya</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <a href="{{ route('import.index') }}" class="flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
-                        <i class="fas fa-arrow-left text-sm"></i>
-                        <span>Kembali ke Import</span>
-                    </a>
-                    <a href="{{ route('candidates.index') }}" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        <i class="fas fa-users text-sm"></i>
-                        <span>Lihat Kandidat</span>
-                    </a>
-                </div>
-            </div>
-        </header>
+@push('header-filters')
+<div class="flex items-center gap-3">
+    <a href="{{ route('import.index') }}" class="flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+        <i class="fas fa-arrow-left text-sm"></i>
+        <span>Kembali ke Import</span>
+    </a>
+    <a href="{{ route('candidates.index') }}" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <i class="fas fa-users text-sm"></i>
+        <span>Lihat Kandidat</span>
+    </a>
+</div>
+@endpush
+
+@section('content')
 
         <!-- Content -->
         <div class="flex-1 p-6">
@@ -240,6 +185,4 @@
             </div>
             @endif
         </div>
-    </main>
-</body>
-</html>
+    @endsection

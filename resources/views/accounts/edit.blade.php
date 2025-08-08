@@ -1,51 +1,19 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Edit Akun - Patria Maritim Perkasa</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex">
-    <!-- Sidebar -->
-    <aside class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col">
-        <div class="p-4 flex justify-center">
-            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-30 h-auto object-contain">
-        </div>
-        <nav class="flex-1 p-4">
-            <div class="space-y-2">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-th-large text-sm"></i><span>Dasbor</span>
-                </a>
-                <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-users text-sm"></i><span>Kandidat</span>
-                </a>
-                @if (in_array(Auth::user()->role, ['admin', 'team_hc']))
-                    <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                        <i class="fas fa-upload text-sm"></i><span>Impor Excel</span>
-                    </a>
-                    <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-                        <i class="fas fa-chart-bar text-sm"></i><span>Statistik</span>
-                    </a>
-                @endif
-                @if (Auth::user()->role === 'admin')
-                    <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-medium">
-                        <i class="fas fa-user-cog text-sm"></i><span>Manajemen Akun</span>
-                    </a>
-                @endif
-            </div>
-        </nav>
-    </aside>
+@extends('layouts.app')
 
-    <!-- Main Content -->
-    <main class="flex-1 p-6">
-        <div class="max-w-2xl mx-auto">
-            <h1 class="text-2xl font-semibold text-gray-900 mb-6">Edit Akun</h1>
+@section('title', 'Edit Akun')
+@section('page-title', 'Edit Akun')
+@section('page-subtitle', 'Perbarui informasi akun pengguna')
+
+@push('header-filters')
+<a href="{{ route('accounts.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+    <i class="fas fa-arrow-left text-sm"></i>
+    <span>Kembali</span>
+</a>
+@endpush
+
+@section('content')
+@can('manage-users')
+    <div class="max-w-2xl mx-auto">
 
             @if ($errors->any())
                 <div class="bg-red-50 text-red-800 p-4 rounded-lg mb-4">
@@ -84,8 +52,8 @@
                                                 <select name="role" id="role" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" onchange="toggleDepartment(this.value)">
                             <option value="admin" {{ $account->role == 'admin' ? 'selected' : '' }}>Admin</option>
                             <option value="team_hc" {{ $account->role == 'team_hc' ? 'selected' : '' }}>Team HC</option>
-                            <option value="user" {{ $account->role == 'user' ? 'selected' : '' }}>User</option>
-                            <option value="department" {{ $account->role == 'department' ? 'selected' : '' }}>Department</option>
+                            <option value="user" {{ $account->role == 'user' ? 'selected' : '' }}>Staf Departemen</option>
+                            <option value="department" {{ $account->role == 'department' ? 'selected' : '' }}>Kepala Departemen</option>
                         </select>
                     </div>
                     <div id="department-field" style="display: {{ $account->role === 'department' ? 'block' : 'none' }};">
@@ -111,8 +79,10 @@
                 </div>
             </form>
         </div>
-    </main>
+    @endcan
+@endsection
 
+@push('scripts')
     <script>
         function toggleDepartment(role) {
             const departmentField = document.getElementById('department-field');
@@ -123,5 +93,4 @@
             }
         }
     </script>
-</body>
-</html>
+@endpush
