@@ -38,7 +38,7 @@ class CandidateRequest extends FormRequest
                 'string',
                 'max:50',
             ],
-            'vacancy_airsys' => 'required|string|max:255',
+            'vacancy' => 'required|string|max:255',
             'internal_position' => 'nullable|string|max:255',
             'on_process_by' => 'nullable|string|max:255',
             'source' => 'nullable|string|max:100',
@@ -54,30 +54,30 @@ class CandidateRequest extends FormRequest
             
             // Stage dates - optional
             'psikotest_date' => 'nullable|date',
-            'hc_intv_date' => 'nullable|date',
-            'user_intv_date' => 'nullable|date',
-            'bod_gm_intv_date' => 'nullable|date',
+            'hc_interview_date' => 'nullable|date',
+            'user_interview_date' => 'nullable|date',
+            'bodgm_interview_date' => 'nullable|date',
             'offering_letter_date' => 'nullable|date',
             'mcu_date' => 'nullable|date',
             'hiring_date' => 'nullable|date',
             
             // Stage results - optional
             'psikotes_result' => 'nullable|in:LULUS,TIDAK LULUS,DIPERTIMBANGKAN',
-            'hc_intv_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
-            'user_intv_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
-            'bod_intv_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
+            'hc_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
+            'user_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
+            'bod_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
             'offering_letter_status' => 'nullable|in:DITERIMA,DITOLAK,SENT',
             'mcu_status' => 'nullable|in:LULUS,TIDAK LULUS',
             'hiring_status' => 'nullable|in:HIRED,TIDAK DIHIRING',
             
             // Notes - optional
             'psikotes_notes' => 'nullable|string|max:1000',
-            'hc_intv_notes' => 'nullable|string|max:1000',
-            'itv_user_note' => 'nullable|string|max:1000',
-            'bod_intv_note' => 'nullable|string|max:1000',
+            'hc_interview_notes' => 'nullable|string|max:1000',
+            'user_interview_notes' => 'nullable|string|max:1000',
+            'bod_interview_notes' => 'nullable|string|max:1000',
             'offering_letter_notes' => 'nullable|string|max:1000',
-            'mcu_note' => 'nullable|string|max:1000',
-            'hiring_note' => 'nullable|string|max:1000',
+            'mcu_notes' => 'nullable|string|max:1000',
+            'hiring_notes' => 'nullable|string|max:1000',
         ];
     }
 

@@ -171,6 +171,7 @@
     <!-- Charts Row 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Monthly Trend -->
+        @can('view-statistics')
         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <div class="flex items-center justify-between mb-6">
                 <div>
@@ -195,8 +196,10 @@
                 <canvas id="monthlyTrendChart"></canvas>
             </div>
         </div>
+        @endcan
 
         <!-- Department Distribution -->
+        @can('view-statistics')
         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <div class="flex items-center justify-between mb-6">
                 <div>
@@ -214,6 +217,7 @@
                 <canvas id="departmentDistributionChart"></canvas>
             </div>
         </div>
+        @endcan
     </div>
 
     <!-- Conversion Funnel -->
@@ -248,6 +252,7 @@
     <!-- Additional Analytics Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <!-- Top Performing Departments -->
+        @can('view-statistics')
         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <h4 class="text-lg font-semibold text-gray-900 mb-4">Top Departemen</h4>
             <div class="space-y-3">
@@ -267,8 +272,10 @@
                 @endforelse
             </div>
         </div>
+        @endcan
 
         <!-- Recent Activity -->
+        @can('view-statistics')
         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <h4 class="text-lg font-semibold text-gray-900 mb-4">Aktivitas Terbaru</h4>
             <div class="space-y-3">
@@ -290,25 +297,34 @@
                 @endforelse
             </div>
         </div>
+        @endcan
 
         <!-- Quick Actions -->
+        @can('view-statistics')
         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <h4 class="text-lg font-semibold text-gray-900 mb-4">Aksi Cepat</h4>
             <div class="space-y-3">
+                @can('edit-candidates')
                 <a href="{{ route('candidates.create') ?? '#' }}" class="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
                     <i class="fas fa-user-plus text-blue-600"></i>
                     <span class="text-sm font-medium text-blue-900">Tambah Kandidat</span>
                 </a>
+                @endcan
+                @can('import-excel')
                 <a href="{{ route('import.index') ?? '#' }}" class="flex items-center gap-3 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
                     <i class="fas fa-file-excel text-green-600"></i>
                     <span class="text-sm font-medium text-green-900">Import Data</span>
                 </a>
+                @endcan
+                @can('view-reports')
                 <a href="{{ route('reports.export') ?? '#' }}" class="flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
                     <i class="fas fa-download text-purple-600"></i>
                     <span class="text-sm font-medium text-purple-900">Export Laporan</span>
                 </a>
+                @endcan
             </div>
         </div>
+        @endcan
     </div>
 </div>
 @endsection

@@ -21,19 +21,19 @@ class CandidateController extends Controller
             'notes' => 'psikotes_notes'
         ],
         'interview_hc' => [
-            'date' => 'hc_intv_date',
-            'result' => 'hc_intv_status',
-            'notes' => 'hc_intv_notes'
+            'date' => 'hc_interview_date',
+            'result' => 'hc_interview_status',
+            'notes' => 'hc_interview_notes'
         ],
         'interview_user' => [
-            'date' => 'user_intv_date',
-            'result' => 'user_intv_status',
-            'notes' => 'itv_user_note'
+            'date' => 'user_interview_date',
+            'result' => 'user_interview_status',
+            'notes' => 'user_interview_notes'
         ],
         'interview_bod' => [
-            'date' => 'bod_gm_intv_date',
-            'result' => 'bod_intv_status',
-            'notes' => 'bod_intv_note'
+            'date' => 'bodgm_interview_date',
+            'result' => 'bod_interview_status',
+            'notes' => 'bod_interview_notes'
         ],
         'offering_letter' => [
             'date' => 'offering_letter_date',
@@ -43,12 +43,12 @@ class CandidateController extends Controller
         'mcu' => [
             'date' => 'mcu_date',
             'result' => 'mcu_status',
-            'notes' => 'mcu_note'
+            'notes' => 'mcu_notes'
         ],
         'hiring' => [
             'date' => 'hiring_date',
             'result' => 'hiring_status',
-            'notes' => 'hiring_note'
+            'notes' => 'hiring_notes'
         ],
     ];
 
@@ -211,20 +211,48 @@ class CandidateController extends Controller
                                ->with('error', 'Selesaikan tahapan sebelumnya terlebih dahulu.');
             }
 
-            $fields = self::STAGE_FIELDS[$stageKey];
-            $updateData = [];
+            // Validate result against stage-specific allowed values
+            $stageAllowedResults = [
+                'psikotes' => ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                'interview_hc' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                'interview_user' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                'interview_bod' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                'offering_letter' => ['DITERIMA', 'DITOLAK', 'SENT'],
+                'mcu' => ['LULUS', 'TIDAK LULUS'],
+                'hiring' => ['HIRED', 'TIDAK DIHIRING'],
+            ];
 
-            // Update fields
-            if ($validated['date']) {
-                $updateData[$fields['date']] = $validated['date'];
+            $resultValue = strtoupper(trim($validated['result']));
+            if (isset($stageAllowedResults[$stageKey]) && !in_array($resultValue, $stageAllowedResults[$stageKey], true)) {
+                return redirect()->route('candidates.show', $candidate)
+                    ->with('error', 'Nilai hasil tidak valid untuk tahapan ini.');
             }
-            $updateData[$fields['result']] = $validated['result'];
-            $updateData[$fields['notes']] = $validated['notes'];
 
-            $candidate->update($updateData);
+            $fields = self::STAGE_FIELDS[$stageKey];
+
+            // Update fields directly to avoid mass-assignment quirks
+            if (!empty($validated['date'])) {
+                $candidate->{$fields['date']} = $validated['date'];
+            }
+            $candidate->{$fields['result']} = $resultValue;
+            $candidate->{$fields['notes']} = $validated['notes'];
+
+            $candidate->save();
+            $candidate->refresh();
 
             // Update overall status and current stage
             $this->updateCandidateStatus($candidate);
+
+            // Ensure hiring stage forces overall status appropriately
+            if ($stageKey === 'hiring') {
+                if ($resultValue === 'HIRED') {
+                    $candidate->overall_status = 'LULUS';
+                } elseif ($resultValue === 'TIDAK DIHIRING') {
+                    $candidate->overall_status = 'TIDAK LULUS';
+                }
+                $candidate->current_stage = 'Hiring';
+                $candidate->save();
+            }
 
             return redirect()->route('candidates.show', $candidate)
                             ->with('success', 'Tahapan berhasil diperbarui.');
@@ -424,10 +452,9 @@ class CandidateController extends Controller
             }
         }
 
-        $candidate->update([
-            'current_stage' => $currentStage,
-            'overall_status' => $overallStatus,
-        ]);
+        $candidate->current_stage = $currentStage;
+        $candidate->overall_status = $overallStatus;
+        $candidate->save();
     }
 
     private function getStageDisplayName(string $stageKey): string

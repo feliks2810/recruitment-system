@@ -196,12 +196,12 @@ class ImportController extends Controller
                 'no', 'nama', 'vacancy', 'internal_position', 'on_process_by', 'applicant_id',
                 'source', 'jk', 'tanggal_lahir', 'alamat_email', 'jenjang_pendidikan',
                 'perguruan_tinggi', 'jurusan', 'ipk', 'cv', 'flk', 'psikotest_date',
-                'psikotes_result', 'psikotes_notes', 'hc_intv_date', 'hc_intv_status',
-                'hc_intv_notes', 'user_intv_date', 'user_intv_status',
-                'itv_user_note', 'bod_intv_date', 'bod_intv_status',
-                'bod_intv_note', 'offering_letter_date', 'offering_letter_status',
-                'offering_letter_notes', 'mcu_date', 'mcu_status', 'mcu_note',
-                'hiring_date', 'hiring_status', 'hiring_note', 'current_stage', 'overall_status'
+                'psikotes_result', 'psikotes_notes', 'hc_interview_date', 'hc_interview_status',
+                'hc_interview_notes', 'user_interview_date', 'user_interview_status',
+                'user_interview_notes', 'bodgm_interview_date', 'bod_interview_status',
+                'bod_interview_notes', 'offering_letter_date', 'offering_letter_status',
+                'offering_letter_notes', 'mcu_date', 'mcu_status', 'mcu_notes',
+                'hiring_date', 'hiring_status', 'hiring_notes', 'current_stage', 'overall_status'
             ];
             $exampleData = [
                 [

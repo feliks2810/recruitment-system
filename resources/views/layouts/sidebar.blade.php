@@ -16,7 +16,7 @@
             </a>
 
             <!-- Kandidat -->
-            @can('import-excel')
+            @can('view-candidates')
             <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('candidates.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <i class="fas fa-users text-sm w-4 {{ request()->routeIs('candidates.*') ? 'text-white' : 'group-hover:text-green-600' }}"></i>
                 <span class="font-medium">Kandidat</span>

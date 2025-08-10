@@ -6,7 +6,7 @@
 
 @push('header-filters')
 <div class="flex items-center gap-4">
-    @can('edit-candidates')
+    @can('import-excel')
         <a href="{{ route('candidates.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
             <i class="fas fa-plus text-sm"></i>
             <span>Tambah Kandidat</span>
@@ -230,7 +230,7 @@
                             @endif
                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex items-center gap-1 sm:gap-2">
-                                    @can('edit-candidates')
+                                    @can('import-excel')
                                     <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
                                         @csrf
                                         <button type="submit" class="text-gray-600 hover:text-gray-900 p-1" title="Pindahkan Tipe">
@@ -243,7 +243,7 @@
                                         <i class="fas fa-eye text-sm"></i>
                                     </a>
                                     @endcan
-                                    @can('edit-candidates')
+                                    @can('import-excel')
                                     <a href="{{ route('candidates.edit', $candidate) }}" class="text-indigo-600 hover:text-indigo-900 p-1" title="Edit">
                                         <i class="fas fa-edit text-sm"></i>
                                     </a>

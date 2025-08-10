@@ -70,8 +70,8 @@
                             <input type="date" name="tanggal_lahir" id="tanggal_lahir" value="{{ old('tanggal_lahir', $candidate->tanggal_lahir ? \Carbon\Carbon::parse($candidate->tanggal_lahir)->format('Y-m-d') : '') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         </div>
                         <div>
-                            <label for="vacancy_airsys" class="block text-sm font-medium text-gray-700">Vacancy *</label>
-                            <input type="text" name="vacancy_airsys" id="vacancy_airsys" value="{{ old('vacancy_airsys', $candidate->vacancy_airsys) }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                            <label for="vacancy" class="block text-sm font-medium text-gray-700">Vacancy *</label>
+                            <input type="text" name="vacancy" id="vacancy" value="{{ old('vacancy', $candidate->vacancy) }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
                         </div>
                         <div>
                             <label for="airsys_internal" class="block text-sm font-medium text-gray-700">Tipe Kandidat *</label>

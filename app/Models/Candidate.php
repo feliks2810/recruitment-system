@@ -64,9 +64,9 @@ class Candidate extends Model
         'ipk' => 'float',
     ];
 
-    public function getHiringStatusAttribute()
+    public function getHiringStatusAttribute($value)
     {
-        return $this->hiring_status ?? 'Pending';
+        return $value ?? 'Pending';
     }
 
     public function scopeAirsysInternal($query, $isInternal = true)

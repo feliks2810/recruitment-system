@@ -18,7 +18,7 @@
 </div>
 
 <div class="flex items-center space-x-2">
-    @can('edit-candidates')
+    @can('import-excel')
     <a href="{{ route('candidates.edit', $candidate) }}" 
        class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,29 +102,14 @@
                                     <!-- Result Field -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
-                                        <select name="result" 
-                                                x-model="stageData.result" 
-                                                required 
+                                        <select name="result"
+                                                x-model="stageData.result"
+                                                required
                                                 class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                             <option value="">Pilih Hasil</option>
-                                            <optgroup label="Lulus">
-                                                <option value="LULUS">Lulus</option>
-                                                <option value="DISARANKAN">Disarankan</option>
-                                                <option value="DITERIMA">Diterima</option>
-                                                <option value="HIRED">Hired</option>
-                                            </optgroup>
-                                            <optgroup label="Pending">
-                                                <option value="PENDING">Pending</option>
-                                                <option value="DIPERTIMBANGKAN">Dipertimbangkan</option>
-                                                <option value="SENT">Sent</option>
-                                            </optgroup>
-                                            <optgroup label="Tidak Lulus">
-                                                <option value="TIDAK LULUS">Tidak Lulus</option>
-                                                <option value="TIDAK DISARANKAN">Tidak Disarankan</option>
-                                                <option value="DITOLAK">Ditolak</option>
-                                                <option value="TIDAK DIHIRING">Tidak Dihiring</option>
-                                                <option value="CANCEL">Cancel</option>
-                                            </optgroup>
+                                            <template x-for="opt in availableResults" :key="opt">
+                                                <option :value="opt" x-text="labelMap[opt] || opt"></option>
+                                            </template>
                                         </select>
                                     </div>
                                     
@@ -468,6 +453,7 @@
                 <div class="px-6 py-6">
                     <div class="flow-root">
                         <ul class="space-y-6">
+                            @php $userCanMultiEdit = Auth::user()->hasRole('Team_HC'); @endphp
                             @foreach($timeline as $index => $stage)
                                 @php
                                     // Determine if this stage can be edited
@@ -484,6 +470,10 @@
                                     $isFailed = $hasResult && in_array($stage['result'], ['TIDAK LULUS', 'DITOLAK', 'CANCEL', 'TIDAK DISARANKAN', 'TIDAK DIHIRING']);
                                     $isPending = $hasResult && in_array($stage['result'], ['PENDING', 'DIPERTIMBANGKAN', 'SENT']);
                                     $isInProgress = $isEditable && !$hasResult;
+                                    // If user is not Team HC and the stage already has a result, lock editing
+                                    if ($hasResult && !$userCanMultiEdit) {
+                                        $isEditable = false;
+                                    }
                                 @endphp
                                 
                                 <li class="relative">
@@ -559,7 +549,7 @@
                                                         </button>
                                                     @endif
                                                     
-                                                    @can('edit-candidates')
+                                                    @canany(['edit-candidates','edit-timeline'])
                                                         @if($stage['stage'] !== 'Seleksi Berkas' && $isEditable)
                                                             <button @click="openStageModal(
                                                                 '{{ $stage['stage'] }}', 
@@ -584,7 +574,7 @@
                                                                 </svg>
                                                             </span>
                                                         @endif
-                                                    @endcan
+                                                    @endcanany
                                                 </div>
                                             </div>
                                             
@@ -644,6 +634,30 @@ document.addEventListener('alpine:init', () => {
         showCommentModal: false,
         selectedComment: '',
         isSubmitting: false,
+            // Options per stage
+            stageOptions: {
+                psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                interview_hc: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                interview_user: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+                offering_letter: ['DITERIMA', 'DITOLAK', 'SENT'],
+                mcu: ['LULUS', 'TIDAK LULUS'],
+                hiring: ['HIRED', 'TIDAK DIHIRING']
+            },
+            labelMap: {
+                'LULUS': 'Lulus',
+                'TIDAK LULUS': 'Tidak Lulus',
+                'DIPERTIMBANGKAN': 'Dipertimbangkan',
+                'DISARANKAN': 'Disarankan',
+                'TIDAK DISARANKAN': 'Tidak Disarankan',
+                'CANCEL': 'Cancel',
+                'DITERIMA': 'Diterima',
+                'DITOLAK': 'Ditolak',
+                'SENT': 'Sent',
+                'HIRED': 'Hired',
+                'TIDAK DIHIRING': 'Tidak Dihiring'
+            },
+            availableResults: [],
         stageData: {
             stage: '',
             date: '',
@@ -669,6 +683,8 @@ document.addEventListener('alpine:init', () => {
                 field_result: fieldResult || '',
                 field_notes: fieldNotes || ''
             };
+            // set available results based on stage
+            this.availableResults = this.stageOptions[stageKey] || [];
             this.showModal = true;
             this.isSubmitting = false;
             

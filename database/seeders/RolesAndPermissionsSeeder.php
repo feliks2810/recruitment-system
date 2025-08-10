@@ -30,6 +30,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'import-excel',
             'view-candidates',
             'edit-candidates',
+            'edit-timeline',
             'show-candidates',
             'delete-candidates',
             'view-statistics',
@@ -64,7 +65,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $userRole->givePermissionTo([
             'view-candidates',
-            'edit-candidates',
+            'edit-timeline',
             'show-candidates',
             'view-statistics',
         ]);
