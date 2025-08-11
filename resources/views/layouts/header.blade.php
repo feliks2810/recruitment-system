@@ -1,16 +1,16 @@
-<header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+<header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 shadow-sm">
     <div class="flex items-center justify-between">
         <!-- Mobile Hamburger & Title -->
         <div class="flex items-center gap-4">
             <!-- Mobile menu button -->
-            <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+            <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 active:scale-95">
                 <i class="fas fa-bars text-lg"></i>
             </button>
             
             <!-- Page Title -->
-            <div>
-                <h1 class="text-lg sm:text-xl font-semibold text-gray-900">@yield('page-title', 'Dashboard')</h1>
-                <p class="text-sm text-gray-600 hidden sm:block">@yield('page-subtitle', 'Overview rekrutmen dan kandidat')</p>
+            <div class="min-w-0 flex-1">
+                <h1 class="text-lg sm:text-xl font-semibold text-gray-900 truncate">@yield('page-title', 'Dashboard')</h1>
+                <p class="text-sm text-gray-600 hidden sm:block truncate">@yield('page-subtitle', 'Overview rekrutmen dan kandidat')</p>
             </div>
         </div>
 
@@ -25,7 +25,7 @@
                     <span class="text-sm font-medium text-gray-700 block">{{ Auth::user()->name }}</span>
                     <span class="text-xs text-gray-500">{{ Auth::user()->roles->first()->name ?? 'User' }}</span>
                 </div>
-                <button class="w-9 h-9 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                <button class="w-9 h-9 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 active:scale-95">
                     <span class="text-sm font-semibold text-white">{{ substr(Auth::user()->name, 0, 2) }}</span>
                 </button>
             </div>
@@ -33,7 +33,7 @@
             <!-- User Profile (Mobile) -->
             <div class="lg:hidden">
                 <div class="flex items-center gap-2">
-                    <button class="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                    <button class="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm active:scale-95 transition-all duration-200">
                         <span class="text-sm font-semibold text-white">{{ substr(Auth::user()->name, 0, 2) }}</span>
                     </button>
                 </div>

@@ -57,6 +57,237 @@ class CandidateController extends Controller
     private const FAILED_RESULTS = ['TIDAK LULUS', 'TIDAK DISARANKAN', 'DITOLAK', 'TIDAK DIHIRING', 'CANCEL'];
     private const PENDING_RESULTS = ['PENDING', 'DIPERTIMBANGKAN', 'SENT'];
 
+    /**
+     * Bulk update status for multiple candidates
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array|min:1',
+            'candidate_ids.*' => 'exists:candidates,id',
+            'status' => 'required|string',
+            'stage' => 'required|string',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $candidateIds = $request->input('candidate_ids');
+        $status = $request->input('status');
+        $stage = $request->input('stage');
+        $notes = $request->input('notes');
+
+        $candidates = Candidate::whereIn('id', $candidateIds)->get();
+        $updatedCount = 0;
+
+        foreach ($candidates as $candidate) {
+            if ($this->canUpdateStage($candidate, $stage)) {
+                $fields = self::STAGE_FIELDS[$stage] ?? null;
+                
+                if ($fields) {
+                    $candidate->{$fields['date']} = now();
+                    $candidate->{$fields['result']} = $status;
+                    $candidate->{$fields['notes']} = $notes;
+                    
+                    // Update current stage and overall status
+                    $this->updateCandidateStatus($candidate);
+                    
+                    $candidate->save();
+                    $updatedCount++;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Berhasil update status {$updatedCount} kandidat",
+            'updated_count' => $updatedCount
+        ]);
+    }
+
+    /**
+     * Bulk move candidates to next stage
+     */
+    public function bulkMoveStage(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array|min:1',
+            'candidate_ids.*' => 'exists:candidates,id',
+            'target_stage' => 'required|string',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $candidateIds = $request->input('candidate_ids');
+        $targetStage = $request->input('target_stage');
+        $notes = $request->input('notes');
+
+        $candidates = Candidate::whereIn('id', $candidateIds)->get();
+        $movedCount = 0;
+
+        foreach ($candidates as $candidate) {
+            if ($this->canUpdateStage($candidate, $targetStage)) {
+                $fields = self::STAGE_FIELDS[$targetStage] ?? null;
+                
+                if ($fields) {
+                    $candidate->{$fields['date']} = now();
+                    $candidate->{$fields['result']} = 'PENDING';
+                    $candidate->{$fields['notes']} = $notes ?: "Dipindahkan ke stage {$targetStage}";
+                    
+                    // Update current stage
+                    $candidate->current_stage = $targetStage;
+                    $candidate->save();
+                    
+                    $movedCount++;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Berhasil pindahkan {$movedCount} kandidat ke stage {$targetStage}",
+            'moved_count' => $movedCount
+        ]);
+    }
+
+    /**
+     * Bulk delete candidates
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array|min:1',
+            'candidate_ids.*' => 'exists:candidates,id',
+        ]);
+
+        $candidateIds = $request->input('candidate_ids');
+        $candidates = Candidate::whereIn('id', $candidateIds)->get();
+        $deletedCount = 0;
+
+        foreach ($candidates as $candidate) {
+            try {
+                $this->deleteFiles($candidate);
+                $candidate->delete();
+                $deletedCount++;
+            } catch (\Exception $e) {
+                Log::error("Failed to delete candidate {$candidate->id}: " . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Berhasil hapus {$deletedCount} kandidat",
+            'deleted_count' => $deletedCount
+        ]);
+    }
+
+    /**
+     * Bulk export candidates with filters
+     */
+    public function bulkExport(Request $request)
+    {
+        $request->validate([
+            'filters' => 'nullable|array',
+            'columns' => 'nullable|array',
+            'format' => 'nullable|string|in:excel,csv,pdf',
+        ]);
+
+        $filters = $request->input('filters', []);
+        $columns = $request->input('columns', []);
+        $format = $request->input('format', 'excel');
+
+        $query = Candidate::query();
+
+        // Apply filters
+        if (!empty($filters['search'])) {
+            $query->where(function ($q) use ($filters) {
+                $q->where('nama', 'like', "%{$filters['search']}%")
+                  ->orWhere('alamat_email', 'like', "%{$filters['search']}%")
+                  ->orWhere('vacancy', 'like', "%{$filters['search']}%");
+            });
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where('current_stage', $filters['status']);
+        }
+
+        if (!empty($filters['department'])) {
+            $query->where('department', $filters['department']);
+        }
+
+        if (!empty($filters['date_from'])) {
+            $query->where('created_at', '>=', $filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query->where('created_at', '<=', $filters['date_to']);
+        }
+
+        $candidates = $query->get();
+
+        // If no specific columns selected, use default
+        if (empty($columns)) {
+            $columns = ['nama', 'vacancy', 'department', 'current_stage', 'overall_status', 'created_at'];
+        }
+
+        $filename = 'candidates_export_' . date('Y-m-d_H-i-s');
+
+        if ($format === 'csv') {
+            return $this->exportToCsv($candidates, $columns, $filename);
+        } elseif ($format === 'pdf') {
+            return $this->exportToPdf($candidates, $columns, $filename);
+        } else {
+            return $this->exportToExcel($candidates, $columns, $filename);
+        }
+    }
+
+    /**
+     * Export to CSV
+     */
+    private function exportToCsv($candidates, $columns, $filename)
+    {
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}.csv\"",
+        ];
+
+        $callback = function() use ($candidates, $columns) {
+            $file = fopen('php://output', 'w');
+            
+            // Write headers
+            fputcsv($file, $columns);
+            
+            // Write data
+            foreach ($candidates as $candidate) {
+                $row = [];
+                foreach ($columns as $column) {
+                    $row[] = $candidate->{$column} ?? '';
+                }
+                fputcsv($file, $row);
+            }
+            
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export to PDF
+     */
+    private function exportToPdf($candidates, $columns, $filename)
+    {
+        // For now, return CSV as PDF is more complex
+        // You can implement PDF generation using packages like DomPDF or Snappy
+        return $this->exportToCsv($candidates, $columns, $filename);
+    }
+
+    /**
+     * Export to Excel
+     */
+    private function exportToExcel($candidates, $columns, $filename)
+    {
+        // Use existing export logic
+        return $this->export(request());
+    }
+
     public function index(Request $request)
     {
         $search = $request->input('search');
@@ -300,26 +531,28 @@ class CandidateController extends Controller
 
     private function getDuplicateCandidateIds(): array
     {
-        $latestDuplicateCandidateIds = [];
-        
         $duplicateApplicantIds = Candidate::select('applicant_id')
             ->groupBy('applicant_id')
             ->havingRaw('COUNT(*) > 1')
             ->pluck('applicant_id');
 
-        foreach ($duplicateApplicantIds as $appId) {
-            $candidates = Candidate::where('applicant_id', $appId)
-                ->orderBy('created_at', 'asc')
-                ->get();
+        if ($duplicateApplicantIds->isEmpty()) {
+            return [];
+        }
 
-            for ($i = 0; $i < $candidates->count(); $i++) {
+        $candidatesByAppId = Candidate::whereIn('applicant_id', $duplicateApplicantIds)
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->groupBy('applicant_id');
+
+        $latestDuplicateCandidateIds = [];
+        foreach ($candidatesByAppId as $candidates) {
+            for ($i = 0; $i < $candidates->count() - 1; $i++) {
                 $current = $candidates[$i];
-                for ($j = $i + 1; $j < $candidates->count(); $j++) {
-                    $next = $candidates[$j];
-                    
-                    if ($next->created_at->lessThanOrEqualTo($current->created_at->addYear())) {
-                        $latestDuplicateCandidateIds[] = $next->id;
-                    }
+                $next = $candidates[$i + 1];
+                // Check if the next candidate was created within a year of the previous one
+                if ($next->created_at->lessThanOrEqualTo($current->created_at->addYear())) {
+                    $latestDuplicateCandidateIds[] = $next->id;
                 }
             }
         }

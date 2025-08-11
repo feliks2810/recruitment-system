@@ -68,6 +68,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:edit-candidates')
         ->name('candidates.switchType');
 
+    // Bulk Operations Routes
+    Route::post('/candidates/bulk-update-status', [CandidateController::class, 'bulkUpdateStatus'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.bulkUpdateStatus');
+
+    Route::post('/candidates/bulk-move-stage', [CandidateController::class, 'bulkMoveStage'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.bulkMoveStage');
+
+    Route::delete('/candidates/bulk-delete', [CandidateController::class, 'bulkDelete'])
+        ->middleware('can:delete-candidates')
+        ->name('candidates.bulkDelete');
+
+    Route::post('/candidates/bulk-export', [CandidateController::class, 'bulkExport'])
+        ->middleware('can:view-candidates')
+        ->name('candidates.bulkExport');
+
     // ✅ Import Routes
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
@@ -83,6 +100,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/statistics', [StatisticsController::class, 'index'])
         ->middleware('can:view-statistics')
         ->name('statistics.index');
+
+
 
     // Reports
     Route::get('/reports/export', [ReportController::class, 'export'])

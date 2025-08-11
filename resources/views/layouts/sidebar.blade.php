@@ -1,4 +1,4 @@
-<aside id="sidebar" class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col fixed lg:static z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+<aside id="sidebar" class="bg-white w-64 min-h-screen border-r border-gray-200 flex flex-col fixed lg:static z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out shadow-lg lg:shadow-none">
     <!-- Logo -->
     <div class="p-6 flex justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50 to-white">
         <div class="w-full max-w-[180px]">
@@ -10,14 +10,14 @@
     <nav class="flex-1 px-4 py-6 overflow-y-auto">
         <div class="space-y-2">
             <!-- Dashboard -->
-            <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('dashboard') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+            <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('dashboard') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-th-large text-sm w-4 {{ request()->routeIs('dashboard') ? 'text-white' : 'group-hover:text-blue-600' }}"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
 
             <!-- Kandidat -->
             @can('view-candidates')
-            <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('candidates.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+            <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('candidates.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-users text-sm w-4 {{ request()->routeIs('candidates.*') ? 'text-white' : 'group-hover:text-green-600' }}"></i>
                 <span class="font-medium">Kandidat</span>
             </a>
@@ -25,21 +25,21 @@
 
             <!-- Import Excel -->
             @can('import-excel')
-            <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('import.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+            <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('import.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-upload text-sm w-4 {{ request()->routeIs('import.*') ? 'text-white' : 'group-hover:text-purple-600' }}"></i>
                 <span class="font-medium">Import Excel</span>
             </a>
             @endcan
 
             <!-- Statistik -->
-            <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('statistics.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+            <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('statistics.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-chart-bar text-sm w-4 {{ request()->routeIs('statistics.*') ? 'text-white' : 'group-hover:text-yellow-600' }}"></i>
                 <span class="font-medium">Statistik</span>
             </a>
 
             <!-- Manajemen Akun -->
             @can('manage-users')
-            <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('accounts.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+            <a href="{{ route('accounts.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('accounts.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-user-cog text-sm w-4 {{ request()->routeIs('accounts.*') ? 'text-white' : 'group-hover:text-indigo-600' }}"></i>
                 <span class="font-medium">Manajemen Akun</span>
             </a>
@@ -63,7 +63,7 @@
         <!-- Logout Button -->
         <a href="{{ route('logout') }}" 
            onclick="event.preventDefault(); document.getElementById('logout-form').submit();" 
-           class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 w-full group">
+           class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 w-full group active:scale-95">
             <i class="fas fa-sign-out-alt text-sm w-4 group-hover:text-red-600"></i>
             <span class="font-medium">Logout</span>
         </a>
@@ -73,3 +73,4 @@
         </form>
     </div>
 </aside>
+

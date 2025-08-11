@@ -29,6 +29,7 @@ class CandidatesImport implements
     protected $successCount = 0;
     protected $errorCount = 0;
     protected static $rowIndex = 1;
+    protected int $lastNo;
 
     public function __construct($type = 'organic', $importMode = 'insert', $headerRow = 1)
     {
@@ -36,6 +37,7 @@ class CandidatesImport implements
         $this->importMode = $importMode;
         $this->headerRow = $headerRow;
         self::$rowIndex = $headerRow;
+        $this->lastNo = Candidate::max('no') ?? 0;
     }
 
     public function model(array $row)
@@ -151,9 +153,11 @@ class CandidatesImport implements
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
+        $this->lastNo++;
+
         // Ensure all expected columns are present, even if null
         $candidateData = [
-            'no' => $this->getFieldValue($row, ['no', 'number']) ?? ((Candidate::max('no') ?? 0) + 1),
+            'no' => $this->getFieldValue($row, ['no', 'number']) ?? $this->lastNo,
             'vacancy' => $vacancy,
             'internal_position' => $this->getFieldValue($row, ['internal_position', 'position', 'position_internal']) ?? null,
             'on_process_by' => $this->getFieldValue($row, ['on_process_by', 'process_by']) ?? null,
@@ -277,8 +281,10 @@ class CandidatesImport implements
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
+        $this->lastNo++;
+
         $candidateData = [
-            'no' => $this->getFieldValue($row, ['no']) ?? ((Candidate::max('no') ?? 0) + 1),
+            'no' => $this->getFieldValue($row, ['no']) ?? $this->lastNo,
             'nama' => $nama,
             'alamat_email' => $email,
             'vacancy' => $vacancy ?? 'Non-Organic Position',

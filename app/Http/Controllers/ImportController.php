@@ -272,45 +272,4 @@ class ImportController extends Controller
         
         Log::info('Template successfully created', ['path' => $templatePath]);
     }
-
-    /**
-     * Get available import templates.
-     */
-    public function getTemplates()
-    {
-        return [
-            'organic' => [
-                'name' => 'Template Kandidat Organic',
-                'description' => 'Template untuk import kandidat dari sumber organik (internal, referral, dll)',
-                'file' => 'candidates_template_organic.xlsx'
-            ],
-            'non-organic' => [
-                'name' => 'Template Kandidat Non-Organic',
-                'description' => 'Template untuk import kandidat dari sumber non-organik (recruitment agency, dll)',
-                'file' => 'candidates_template_non-organic.xlsx'
-            ]
-        ];
-    }
-
-    /**
-     * Validate import data before processing.
-     */
-    private function validateImportData($data, $type)
-    {
-        $requiredFields = [];
-        
-        if ($type == 'organic') {
-            $requiredFields = ['nama', 'vacancy'];
-        } else {
-            $requiredFields = ['nama', 'nama_posisi'];
-        }
-
-        foreach ($requiredFields as $field) {
-            if (empty($data[$field])) {
-                throw new \InvalidArgumentException("Field {$field} is required");
-            }
-        }
-
-        return true;
-    }
 }
