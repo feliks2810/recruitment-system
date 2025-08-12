@@ -23,8 +23,9 @@
 
 @section('content')
 @can('view-candidates')
+    <div x-data="bulkOperations()" id="candidates-scope">
     <!-- Bulk Operations Bar -->
-    <div id="bulk-operations" class="bg-blue-50 border border-blue-200 px-4 sm:px-6 py-4 mb-4 rounded-lg hidden" x-data="bulkOperations()">
+    <div id="bulk-operations" class="bg-blue-50 border border-blue-200 px-4 sm:px-6 py-4 mb-4 rounded-lg hidden">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-4">
                 <span class="text-sm font-medium text-blue-900">
@@ -205,8 +206,9 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <input type="checkbox" 
-                                       @change="toggleAllCandidates($event.target.checked)"
+                                <input type="checkbox"
+                                       data-select-all
+                                       @click="toggleAllCandidates($event.target.checked)"
                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                             </th>
                             <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kandidat</th>
@@ -227,7 +229,8 @@
                         @endif
                         <tr class="hover:bg-gray-50 transition-colors {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'bg-red-50 border-l-4 border-red-500' : '' }}">
                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                <input type="checkbox" 
+                                <input type="checkbox"
+                                       data-candidate-checkbox
                                        value="{{ $candidate->id }}"
                                        @change="toggleCandidate({{ $candidate->id }}, $event.target.checked)"
                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -563,7 +566,7 @@
                 },
                 
                 toggleAllCandidates(checked) {
-                    const checkboxes = document.querySelectorAll('input[type="checkbox"][value]');
+                    const checkboxes = document.querySelectorAll('#candidates-scope input[type="checkbox"][data-candidate-checkbox]');
                     checkboxes.forEach(checkbox => {
                         checkbox.checked = checked;
                         if (checked) {
@@ -589,8 +592,7 @@
                     this.selectedCandidates.clear();
                     this.selectedCount = 0;
                     this.updateBulkBar();
-                    
-                    const checkboxes = document.querySelectorAll('input[type="checkbox"][value]');
+                    const checkboxes = document.querySelectorAll('#candidates-scope input[type="checkbox"][data-candidate-checkbox]');
                     checkboxes.forEach(checkbox => checkbox.checked = false);
                 },
                 
