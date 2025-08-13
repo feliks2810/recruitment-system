@@ -9,6 +9,7 @@ use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\EventController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -26,6 +27,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Events
+    Route::prefix('events')->name('events.')->group(function () {
+        Route::post('/', [EventController::class, 'store'])->name('store');
+        Route::get('/today', [EventController::class, 'getTodayEvents'])->name('today');
+        Route::get('/upcoming', [EventController::class, 'getUpcomingEvents'])->name('upcoming');
+        Route::get('/by-date/range', [EventController::class, 'getEventsByDateRange'])->name('by-date');
+        Route::get('/{event}', [EventController::class, 'show'])->name('show');
+        Route::put('/{event}', [EventController::class, 'update'])->name('update');
+        Route::delete('/{event}', [EventController::class, 'destroy'])->name('destroy');
+    });
 
     // Candidates
     Route::get('/candidates/export', [CandidateController::class, 'export'])
@@ -101,14 +113,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:view-statistics')
         ->name('statistics.index');
 
-
-
     // Reports
     Route::get('/reports/export', [ReportController::class, 'export'])
         ->middleware('can:view-reports')
         ->name('reports.export');
-
-    
 
     // Accounts
     Route::prefix('accounts')->name('accounts.')->middleware('can:manage-users')->group(function () {
