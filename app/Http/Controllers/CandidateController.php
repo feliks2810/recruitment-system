@@ -354,7 +354,11 @@ class CandidateController extends Controller
 
     public function create()
     {
-        return view('candidates.create');
+        // Generate applicant_id otomatis
+        $today = now()->format('dm');
+        $countToday = Candidate::whereDate('created_at', now()->toDateString())->count() + 1;
+        $applicantId = $today . '-' . str_pad($countToday, 3, '0', STR_PAD_LEFT);
+        return view('candidates.create', compact('applicantId'));
     }
 
     public function store(CandidateRequest $request)
@@ -391,12 +395,38 @@ class CandidateController extends Controller
     {
         try {
             $candidateData = $request->validated();
-            
+            // Validasi next_test_date jika hasil tes tahap manapun = LULUS
+            $nextTestRequired = false;
+            $nextTestStages = [
+                'psikotes_result',
+                'hc_interview_status',
+                'user_interview_status',
+                'bod_interview_status',
+                'mcu_status',
+                'offering_letter_status',
+                'hiring_status',
+            ];
+            foreach ($nextTestStages as $stage) {
+                if ($request->has($stage) && strtoupper($request->input($stage)) === 'LULUS') {
+                    $nextTestRequired = true;
+                    break;
+                }
+            }
+            $rules = [];
+            if ($nextTestRequired) {
+                $rules['next_test_date'] = 'required|date';
+                $validator = \Validator::make($request->all(), $rules);
+                if ($validator->fails()) {
+                    return redirect()->back()
+                        ->withErrors($validator)
+                        ->withInput();
+                }
+            }
             // Handle file uploads with deletion of old files
             $candidateData = $this->handleFileUploads($request, $candidateData, $candidate);
-
             $candidate->update($candidateData);
-
+            $candidate->next_test_date = $request->input('next_test_date');
+            $candidate->save();
             return redirect()->route('candidates.show', $candidate)
                             ->with('success', 'Kandidat berhasil diperbarui.');
         } catch (\Exception $e) {
@@ -427,77 +457,61 @@ class CandidateController extends Controller
     public function updateStage(Request $request, Candidate $candidate)
     {
         try {
+            $passingResults = implode(',', self::PASSED_RESULTS);
+
             $validated = $request->validate([
                 'stage' => 'required|string|in:' . implode(',', array_keys(self::STAGE_FIELDS)),
                 'result' => 'required|string',
                 'notes' => 'nullable|string|max:1000',
+                'next_test_stage' => 'nullable|string',
+                'next_test_date' => ['nullable', 'date', "required_if:result,{$passingResults}"],
+            ], [
+                'next_test_date.required_if' => 'Tanggal tes berikutnya wajib diisi jika hasil tes lulus.'
             ]);
 
             $stageKey = $validated['stage'];
             
             if (!isset(self::STAGE_FIELDS[$stageKey])) {
-                return redirect()->route('candidates.show', $candidate)
-                               ->with('error', 'Tahapan tidak valid.');
+                return response()->json(['success' => false, 'message' => 'Tahapan tidak valid.'], 400);
             }
 
-            // Check if previous stages are completed
             if (!$this->canUpdateStage($candidate, $stageKey)) {
-                return redirect()->route('candidates.show', $candidate)
-                               ->with('error', 'Selesaikan tahapan sebelumnya terlebih dahulu.');
-            }
-
-            // Validate result against stage-specific allowed values
-            $stageAllowedResults = [
-                'psikotes' => ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-                'interview_hc' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                'interview_user' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                'interview_bod' => ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                'offering_letter' => ['DITERIMA', 'DITOLAK', 'SENT'],
-                'mcu' => ['LULUS', 'TIDAK LULUS'],
-                'hiring' => ['HIRED', 'TIDAK DIHIRING'],
-            ];
-
-            $resultValue = strtoupper(trim($validated['result']));
-            if (isset($stageAllowedResults[$stageKey]) && !in_array($resultValue, $stageAllowedResults[$stageKey], true)) {
-                return redirect()->route('candidates.show', $candidate)
-                    ->with('error', 'Nilai hasil tidak valid untuk tahapan ini.');
+                return response()->json(['success' => false, 'message' => 'Selesaikan tahapan sebelumnya terlebih dahulu.'], 400);
             }
 
             $fields = self::STAGE_FIELDS[$stageKey];
+            $resultValue = strtoupper(trim($validated['result']));
 
-            // Update fields directly to avoid mass-assignment quirks
+            // Update stage fields
             $candidate->{$fields['date']} = now();
             $candidate->{$fields['result']} = $resultValue;
             $candidate->{$fields['notes']} = $validated['notes'];
 
-            $candidate->save();
-            $candidate->refresh();
-
-            // Update overall status and current stage
-            $this->updateCandidateStatus($candidate);
-
-            // Ensure hiring stage forces overall status appropriately
-            if ($stageKey === 'hiring') {
-                if ($resultValue === 'HIRED') {
-                    $candidate->overall_status = 'LULUS';
-                } elseif ($resultValue === 'TIDAK DIHIRING') {
-                    $candidate->overall_status = 'DITOLAK';
-                }
-                $candidate->current_stage = 'Hiring';
-                $candidate->save();
+            // Update next test info if passed
+            if (in_array($resultValue, self::PASSED_RESULTS)) {
+                $candidate->next_test_stage = $validated['next_test_stage'];
+                $candidate->next_test_date = $validated['next_test_date'];
+            } else {
+                // If failed or pending, clear any future test dates that might have been set previously
+                $candidate->next_test_stage = null;
+                $candidate->next_test_date = null;
             }
 
-            return redirect()->route('candidates.show', $candidate)
-                            ->with('success', 'Tahapan berhasil diperbarui.');
+            $candidate->save();
+
+            // Update overall status and current stage after saving
+            $this->updateCandidateStatus($candidate);
+
+            return response()->json([
+                'success' => true, 
+                'message' => 'Tahapan berhasil diperbarui.',
+            ]);
                             
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->back()
-                            ->withErrors($e->errors())
-                            ->withInput();
+            return response()->json(['success' => false, 'message' => 'Data tidak valid.', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             Log::error('Error updating stage: ' . $e->getMessage());
-            return redirect()->route('candidates.show', $candidate)
-                            ->with('error', 'Terjadi kesalahan saat memperbarui tahapan.');
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan saat memperbarui tahapan.'], 500);
         }
     }
 
@@ -529,6 +543,18 @@ class CandidateController extends Controller
         }
     }
 
+    /**
+     * Set the next test date for a candidate
+     */
+    public function setNextTestDate(Request $request, $id)
+    {
+        $request->validate(['next_test_date' => 'required|date']);
+        $candidate = Candidate::findOrFail($id);
+        $candidate->next_test_date = $request->next_test_date;
+        $candidate->save();
+        return redirect()->route('candidates.show', $candidate->id)->with('success', 'Tanggal tes berikutnya berhasil disimpan.');
+    }
+
     // Private helper methods
 
     private function getDuplicateCandidateIds(): array
@@ -542,40 +568,187 @@ class CandidateController extends Controller
             return [];
         }
 
-        $candidatesByAppId = Candidate::whereIn('applicant_id', $duplicateApplicantIds)
-            ->orderBy('created_at', 'asc')
-            ->get()
-            ->groupBy('applicant_id');
-
-        $latestDuplicateCandidateIds = [];
-        foreach ($candidatesByAppId as $candidates) {
-            for ($i = 0; $i < $candidates->count() - 1; $i++) {
-                $current = $candidates[$i];
-                $next = $candidates[$i + 1];
-                // Check if the next candidate was created within a year of the previous one
-                if ($next->created_at->lessThanOrEqualTo($current->created_at->addYear())) {
-                    $latestDuplicateCandidateIds[] = $next->id;
-                }
-            }
-        }
-
-        return array_unique($latestDuplicateCandidateIds);
+        $candidatesByAppId = Candidate::whereIn('applicant_id', $duplicateApplicantIds)->pluck('id')->toArray();
+        return $candidatesByAppId;
     }
 
+    private function createTimelineStage(string $stageName, string $stageKey, Candidate $candidate, string $evaluator): array
+    {
+        $fields = self::STAGE_FIELDS[$stageKey];
+        
+        return [
+            'stage' => $stageName,
+            'stage_key' => $stageKey,
+            'status' => $this->getStageStatus($candidate->{$fields['result']}),
+            'date' => $candidate->{$fields['date']},
+            'notes' => $candidate->{$fields['notes']},
+            'evaluator' => $evaluator,
+            'result' => $candidate->{$fields['result']},
+            'field_date' => $fields['date'],
+            'field_result' => $fields['result'],
+            'field_notes' => $fields['notes'],
+        ];
+    }
+
+    private function getStageStatus(?string $result): string
+    {
+        if (!$result) return 'pending';
+        
+        if (in_array($result, self::PASSED_RESULTS)) return 'completed';
+        if (in_array($result, self::PENDING_RESULTS)) return 'current';
+        if (in_array($result, self::FAILED_RESULTS)) return 'failed';
+        
+        return 'pending';
+    }
+
+    /**
+     * Delete all files associated with a candidate
+     */
+    private function deleteFiles(Candidate $candidate): void
+    {
+        $fileFields = [
+            'cv_file',
+            'ijazah_file',
+            'transkrip_file',
+            'ktp_file',
+            'foto_file',
+            'skck_file',
+            'surat_keterangan_sehat_file',
+        ];
+
+        foreach ($fileFields as $field) {
+            if ($candidate->$field && Storage::exists($candidate->$field)) {
+                Storage::delete($candidate->$field);
+            }
+        }
+    }
+
+    /**
+     * Calculate recruitment statistics
+     */
     private function calculateStats(array $duplicateIds): array
     {
         return [
-            'total' => Candidate::count(),
             'dalam_proses' => Candidate::where('overall_status', 'DALAM PROSES')->count(),
-            'pending' => Candidate::where('overall_status', 'PENDING')->count(),
-            'lulus' => Candidate::where('overall_status', 'LULUS')->count(),
             'hired' => Candidate::where('overall_status', 'LULUS')->count(),
-            'ditolak' => Candidate::where('overall_status', 'DITOLAK')->count(),
+            'ditolak' => Candidate::whereIn('overall_status', ['TIDAK LULUS', 'DITOLAK'])->count(),
             'duplicate' => count($duplicateIds),
         ];
     }
 
-    private function generateTimeline(Candidate $candidate): array
+    /**
+     * Handle file uploads for a candidate
+     */
+    private function handleFileUploads(Request $request, array $data, ?Candidate $candidate = null): array
+    {
+        $fileFields = [
+            'cv_file',
+            'ijazah_file',
+            'transkrip_file',
+            'ktp_file',
+            'foto_file',
+            'skck_file',
+            'surat_keterangan_sehat_file',
+        ];
+
+        foreach ($fileFields as $field) {
+            if ($request->hasFile($field)) {
+                // Delete old file if exists
+                if ($candidate && $candidate->$field) {
+                    Storage::delete($candidate->$field);
+                }
+
+                $file = $request->file($field);
+                $path = $file->store('public/candidates');
+                $data[$field] = $path;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Get display name for a stage
+     */
+    private function getStageDisplayName(string $stageKey): string
+    {
+        $displayNames = [
+            'psikotes' => 'Psikotes',
+            'interview_hc' => 'Interview HC',
+            'interview_user' => 'Interview User',
+            'interview_bod' => 'Interview BOD/GM',
+            'offering_letter' => 'Offering Letter',
+            'mcu' => 'Medical Check Up',
+            'hiring' => 'Hiring',
+        ];
+
+        return $displayNames[$stageKey] ?? $stageKey;
+    }
+
+    private function canUpdateStage(Candidate $candidate, string $stageKey): bool
+    {
+        $stageOrder = array_keys(self::STAGE_FIELDS);
+        $currentIndex = array_search($stageKey, $stageOrder);
+        
+        if ($currentIndex === false || $currentIndex === 0) {
+            return true; // First stage or invalid stage
+        }
+
+        // Check if previous stage is completed successfully
+        $previousStageKey = $stageOrder[$currentIndex - 1];
+        $previousFields = self::STAGE_FIELDS[$previousStageKey];
+        $previousResult = $candidate->{$previousFields['result']};
+
+        return $previousResult && in_array($previousResult, self::PASSED_RESULTS);
+    }
+
+    private function updateCandidateStatus(Candidate $candidate): void
+    {
+        $currentStage = 'Seleksi Berkas';
+        $overallStatus = 'DALAM PROSES';
+
+        // Check each stage for failures
+        foreach (self::STAGE_FIELDS as $stageKey => $fields) {
+            $result = $candidate->{$fields['result']};
+            if ($result && in_array($result, self::FAILED_RESULTS)) {
+                $overallStatus = 'DITOLAK';
+                $currentStage = $this->getStageDisplayName($stageKey);
+                break;
+            }
+        }
+
+        // If not failed, determine current stage
+        if ($overallStatus !== 'TIDAK LULUS') {
+            $stageNames = [
+                'psikotes' => 'Psikotes',
+                'interview_hc' => 'Interview HC',
+                'interview_user' => 'Interview User',
+                'interview_bod' => 'Interview BOD/GM',
+                'offering_letter' => 'Offering Letter',
+                'mcu' => 'Medical Check Up',
+                'hiring' => 'Hiring',
+            ];
+            foreach (self::STAGE_FIELDS as $stageKey => $fields) {
+                $result = $candidate->{$fields['result']};
+                if (!$result || !in_array($result, self::PASSED_RESULTS)) {
+                    $currentStage = $stageNames[$stageKey];
+                    break;
+                }
+            }
+            // Check if fully completed (hired)
+            if ($candidate->hiring_status === 'HIRED') {
+                $overallStatus = 'LULUS';
+            }
+        }
+        $candidate->current_stage = $currentStage;
+        $candidate->overall_status = $overallStatus;
+        $candidate->save();
+    }
+
+    /**
+     * Generate timeline array for candidate stages
+     */
+    private function generateTimeline(Candidate $candidate)
     {
         $timeline = [];
         $timeline[] = [
@@ -625,144 +798,5 @@ class CandidateController extends Controller
         }
 
         return $timeline;
-    }
-
-    private function createTimelineStage(string $stageName, string $stageKey, Candidate $candidate, string $evaluator): array
-    {
-        $fields = self::STAGE_FIELDS[$stageKey];
-        
-        return [
-            'stage' => $stageName,
-            'stage_key' => $stageKey,
-            'status' => $this->getStageStatus($candidate->{$fields['result']}),
-            'date' => $candidate->{$fields['date']},
-            'notes' => $candidate->{$fields['notes']},
-            'evaluator' => $evaluator,
-            'result' => $candidate->{$fields['result']},
-            'field_date' => $fields['date'],
-            'field_result' => $fields['result'],
-            'field_notes' => $fields['notes'],
-        ];
-    }
-
-    private function getStageStatus(?string $result): string
-    {
-        if (!$result) return 'pending';
-        
-        if (in_array($result, self::PASSED_RESULTS)) return 'completed';
-        if (in_array($result, self::PENDING_RESULTS)) return 'current';
-        if (in_array($result, self::FAILED_RESULTS)) return 'failed';
-        
-        return 'pending';
-    }
-
-    private function canUpdateStage(Candidate $candidate, string $stageKey): bool
-    {
-        $stageOrder = array_keys(self::STAGE_FIELDS);
-        $currentIndex = array_search($stageKey, $stageOrder);
-        
-        if ($currentIndex === false || $currentIndex === 0) {
-            return true; // First stage or invalid stage
-        }
-
-        // Check if previous stage is completed successfully
-        $previousStageKey = $stageOrder[$currentIndex - 1];
-        $previousFields = self::STAGE_FIELDS[$previousStageKey];
-        $previousResult = $candidate->{$previousFields['result']};
-
-        return $previousResult && in_array($previousResult, self::PASSED_RESULTS);
-    }
-
-    private function updateCandidateStatus(Candidate $candidate): void
-    {
-        $currentStage = 'Seleksi Berkas';
-        $overallStatus = 'DALAM PROSES';
-
-        // Check each stage for failures
-        foreach (self::STAGE_FIELDS as $stageKey => $fields) {
-            $result = $candidate->{$fields['result']};
-            
-            if ($result && in_array($result, self::FAILED_RESULTS)) {
-                $overallStatus = 'DITOLAK';
-                $currentStage = $this->getStageDisplayName($stageKey);
-                break;
-            }
-        }
-
-        // If not failed, determine current stage
-        if ($overallStatus !== 'TIDAK LULUS') {
-            $stageNames = [
-                'psikotes' => 'Psikotes',
-                'interview_hc' => 'Interview HC',
-                'interview_user' => 'Interview User',
-                'interview_bod' => 'Interview BOD/GM',
-                'offering_letter' => 'Offering Letter',
-                'mcu' => 'Medical Check Up',
-                'hiring' => 'Hiring',
-            ];
-
-            foreach (self::STAGE_FIELDS as $stageKey => $fields) {
-                $result = $candidate->{$fields['result']};
-                
-                if (!$result || !in_array($result, self::PASSED_RESULTS)) {
-                    $currentStage = $stageNames[$stageKey];
-                    break;
-                }
-                $currentStage = $stageNames[$stageKey];
-            }
-
-            // Check if fully completed (hired)
-            if ($candidate->hiring_status === 'HIRED') {
-                $overallStatus = 'LULUS';
-            }
-        }
-
-        $candidate->current_stage = $currentStage;
-        $candidate->overall_status = $overallStatus;
-        $candidate->save();
-    }
-
-    private function getStageDisplayName(string $stageKey): string
-    {
-        $displayNames = [
-            'psikotes' => 'Psikotes',
-            'interview_hc' => 'Interview HC',
-            'interview_user' => 'Interview User',
-            'interview_bod' => 'Interview BOD/GM',
-            'offering_letter' => 'Offering Letter',
-            'mcu' => 'Medical Check Up',
-            'hiring' => 'Hiring',
-        ];
-
-        return $displayNames[$stageKey] ?? $stageKey;
-    }
-
-    private function handleFileUploads(Request $request, array $data, ?Candidate $candidate = null): array
-    {
-        if ($request->hasFile('cv')) {
-            if ($candidate && $candidate->cv) {
-                Storage::disk('public')->delete($candidate->cv);
-            }
-            $data['cv'] = $request->file('cv')->store('candidates/cv', 'public');
-        }
-
-        if ($request->hasFile('flk')) {
-            if ($candidate && $candidate->flk) {
-                Storage::disk('public')->delete($candidate->flk);
-            }
-            $data['flk'] = $request->file('flk')->store('candidates/flk', 'public');
-        }
-
-        return $data;
-    }
-
-    private function deleteFiles(Candidate $candidate): void
-    {
-        if ($candidate->cv) {
-            Storage::disk('public')->delete($candidate->cv);
-        }
-        if ($candidate->flk) {
-            Storage::disk('public')->delete($candidate->flk);
-        }
     }
 }

@@ -99,6 +99,8 @@ class CandidatesImport implements
 
     protected function processOrganicCandidate(array $row)
     {
+        $row = $this->fillPreviousStages($row);
+
         if ($this->isRowCompletelyEmpty($row)) {
             Log::info('Skipping empty organic row', ['row_number' => self::$rowIndex]);
             throw new Exception('Empty row detected, stopping import.');
@@ -195,11 +197,12 @@ class CandidatesImport implements
             'hiring_status' => $this->normalizeStatus($this->getFieldValue($row, ['hiring_status'])) ?? null,
             'hiring_notes' => $this->getFieldValue($row, ['hiring_notes', 'hiring_note']) ?? null,
             'current_stage' => $this->getFieldValue($row, ['current_stage']) ?? 'CV Review',
-            'overall_status' => $this->normalizeStatus($this->getFieldValue($row, ['overall_status']) ?? 'DALAM PROSES') ?? 'DALAM PROSES',
             'airsys_internal' => 'Yes',
             'created_at' => now(),
             'updated_at' => now(),
         ];
+
+        $candidateData['overall_status'] = $this->calculateOverallStatus($row);
 
         Log::info('Candidate data before insert', [
             'row_number' => self::$rowIndex,
@@ -311,6 +314,76 @@ class CandidatesImport implements
             'data' => array_slice($candidateData, 0, 10, true)
         ]);
         return new Candidate($candidateData);
+    }
+
+    private function calculateOverallStatus(array $row): string
+    {
+        $failedResults = ['TIDAK LULUS', 'TIDAK DISARANKAN', 'DITOLAK', 'TIDAK DIHIRING', 'CANCEL', 'FAIL', 'REJECTED'];
+        
+        $stageResults = [
+            $this->normalizeStatus($this->getFieldValue($row, ['psikotes_result'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['hc_interview_status'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['user_interview_status'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['bod_interview_status'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['offering_letter_status'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['mcu_status'])),
+            $this->normalizeStatus($this->getFieldValue($row, ['hiring_status'])),
+        ];
+
+        foreach ($stageResults as $result) {
+            if ($result && in_array($result, $failedResults)) {
+                return 'DITOLAK';
+            }
+        }
+
+        if ($this->normalizeStatus($this->getFieldValue($row, ['hiring_status'])) === 'HIRED') {
+            return 'LULUS';
+        }
+
+        // If overall_status is provided in the file, use it.
+        $overallStatusFromFile = $this->normalizeStatus($this->getFieldValue($row, ['overall_status']));
+        if ($overallStatusFromFile) {
+            return $overallStatusFromFile;
+        }
+
+        return 'DALAM PROSES';
+    }
+
+    private function fillPreviousStages(array $row): array
+    {
+        $stages = [
+            'psikotes' => ['field' => 'psikotes_result', 'pass' => 'LULUS'],
+            'interview_hc' => ['field' => 'hc_interview_status', 'pass' => 'DISARANKAN'],
+            'interview_user' => ['field' => 'user_interview_status', 'pass' => 'DISARANKAN'],
+            'interview_bod' => ['field' => 'bod_interview_status', 'pass' => 'DISARANKAN'],
+            'offering_letter' => ['field' => 'offering_letter_status', 'pass' => 'DITERIMA'],
+            'mcu' => ['field' => 'mcu_status', 'pass' => 'LULUS'],
+            'hiring' => ['field' => 'hiring_status', 'pass' => 'HIRED'],
+        ];
+
+        $stageKeys = array_keys($stages);
+        $lastStageIndex = -1;
+
+        // Find the last stage that has a result in the row
+        for ($i = count($stageKeys) - 1; $i >= 0; $i--) {
+            $stageField = $stages[$stageKeys[$i]]['field'];
+            if (!empty($row[$stageField])) {
+                $lastStageIndex = $i;
+                break;
+            }
+        }
+
+        // If a stage with a result is found, fill previous stages
+        if ($lastStageIndex > 0) {
+            for ($i = 0; $i < $lastStageIndex; $i++) {
+                $stageField = $stages[$stageKeys[$i]]['field'];
+                if (empty($row[$stageField])) {
+                    $row[$stageField] = $stages[$stageKeys[$i]]['pass'];
+                }
+            }
+        }
+
+        return $row;
     }
 
     protected function normalizeStatus($value)

@@ -62,7 +62,7 @@
         
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <!-- Background overlay -->
-            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true"></div>
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" @click="closeModal()"></div>
             
             <!-- Center modal -->
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
@@ -75,9 +75,7 @@
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 
-                <form @submit.prevent="submitForm()" id="stageUpdateForm" method="POST" action="{{ route('candidates.updateStage', $candidate) }}">
-                    @csrf
-                    @method('PATCH')
+                <form @submit.prevent="submitForm()" id="stageUpdateForm">
                     <input type="hidden" name="stage" x-model="stageData.stage">
                     
                     <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
@@ -90,15 +88,6 @@
                             <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900" x-text="'Update ' + selectedStage"></h3>
                                 <div class="mt-4 space-y-4">
-                                    <!-- Date Field -->
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700">Tanggal</label>
-                                        <input type="date" 
-                                               name="date" 
-                                               x-model="stageData.date"
-                                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                    </div>
-                                    
                                     <!-- Result Field -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
@@ -112,6 +101,18 @@
                                             </template>
                                         </select>
                                     </div>
+
+                                    <!-- Next Test Fields -->
+                                    <div x-show="isPassingResult(stageData.result)" x-transition class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div>
+                                            <label class="block text-sm font-medium text-blue-700">Tahap Tes Berikutnya</label>
+                                            <input type="text" name="next_test_stage" x-model="stageData.next_test_stage" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 sm:text-sm" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-blue-700">Tanggal Tes Berikutnya <span class="text-red-500">*</span></label>
+                                            <input type="date" name="next_test_date" x-model="stageData.next_test_date" class="mt-1 block w-full border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        </div>
+                                    </div>
                                     
                                     <!-- Notes Field -->
                                     <div>
@@ -122,7 +123,6 @@
                                                   maxlength="1000"
                                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
                                                   placeholder="Tambahkan catatan (opsional)..."></textarea>
-                                        <p class="mt-1 text-xs text-gray-500">Maksimal 1000 karakter</p>
                                     </div>
                                 </div>
                             </div>
@@ -176,10 +176,9 @@
                         <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
                             <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                            </svg>
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900">Catatan</h3>
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Catatan
                             <div class="mt-2">
                                 <div class="text-sm text-gray-700 bg-gray-50 p-3 rounded-md max-h-40 overflow-y-auto">
                                     <p x-text="selectedComment || 'Tidak ada catatan'" class="whitespace-pre-wrap"></p>
@@ -470,6 +469,7 @@
                                     $isFailed = $hasResult && in_array($stage['result'], ['TIDAK LULUS', 'DITOLAK', 'CANCEL', 'TIDAK DISARANKAN', 'TIDAK DIHIRING']);
                                     $isPending = $hasResult && in_array($stage['result'], ['PENDING', 'DIPERTIMBANGKAN', 'SENT']);
                                     $isInProgress = $isEditable && !$hasResult;
+                                    $isSkipped = $stage['status'] === 'skipped';
                                     // If user is not Team HC and the stage already has a result, lock editing
                                     if ($hasResult && !$userCanMultiEdit) {
                                         $isEditable = false;
@@ -487,7 +487,13 @@
                                     <div class="relative flex space-x-3">
                                         <!-- Stage Icon -->
                                         <div class="flex-shrink-0">
-                                            @if($isCompleted)
+                                            @if($isSkipped)
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 ring-4 ring-white shadow">
+                                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" />
+                                                    </svg>
+                                                </div>
+                                            @elseif($isCompleted)
                                                 <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-4 ring-white shadow">
                                                     <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -571,7 +577,6 @@
                                                             <span class="text-gray-300 cursor-not-allowed" title="Selesaikan tahapan sebelumnya terlebih dahulu">
                                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                                                </svg>
                                                             </span>
                                                         @endif
                                                     @endcanany
@@ -620,199 +625,233 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal pop-up input tanggal tes berikutnya -->
+    <div x-show="showNextTestDateModal" 
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         style="display: none;"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="next-test-date-modal-title">
+        
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Background overlay -->
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" @click="closeNextTestDateModal()"></div>
+            
+            <!-- Center modal -->
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                
+                <form id="nextTestDateForm" method="POST" action="{{ route('candidates.setNextTestDate', $candidate->id) }}">
+                    @csrf
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                <h3 class="text-lg leading-6 font-medium text-gray-900" id="next-test-date-modal-title">Isi Tanggal Tes Berikutnya</h3>
+                                <div class="mt-2">
+                                    <p class="text-sm text-gray-500">Kandidat telah lulus tahap ini. Silakan tentukan tanggal tes untuk tahap berikutnya.</p>
+                                </div>
+                                <div class="mt-4">
+                                    <label for="next_test_date" class="block text-sm font-medium text-gray-700">Tanggal Tes Berikutnya <span class="text-red-500">*</span></label>
+                                    <input type="date" 
+                                           name="next_test_date" 
+                                           id="next_test_date"
+                                           x-model="nextTestDate"
+                                           required
+                                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal Footer -->
+                    <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button type="submit" 
+                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                            Simpan
+                        </button>
+                        <button type="button" 
+                                @click="closeNextTestDateModal()" 
+                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 @endcan
 
 @push('scripts')
-<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.data('candidateDetail', () => ({
-        selectedStage: null,
         showModal: false,
         showCommentModal: false,
+        selectedStage: null,
         selectedComment: '',
         isSubmitting: false,
-            // Options per stage
-            stageOptions: {
-                psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-                interview_hc: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                interview_user: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-                offering_letter: ['DITERIMA', 'DITOLAK', 'SENT'],
-                mcu: ['LULUS', 'TIDAK LULUS'],
-                hiring: ['HIRED', 'TIDAK DIHIRING']
-            },
-            labelMap: {
-                'LULUS': 'Lulus',
-                'TIDAK LULUS': 'Tidak Lulus',
-                'DIPERTIMBANGKAN': 'Dipertimbangkan',
-                'DISARANKAN': 'Disarankan',
-                'TIDAK DISARANKAN': 'Tidak Disarankan',
-                'CANCEL': 'Cancel',
-                'DITERIMA': 'Diterima',
-                'DITOLAK': 'Ditolak',
-                'SENT': 'Sent',
-                'HIRED': 'Hired',
-                'TIDAK DIHIRING': 'Tidak Dihiring'
-            },
-            availableResults: [],
+
         stageData: {
             stage: '',
-            date: '',
             result: '',
             notes: '',
-            field_date: '',
-            field_result: '',
-            field_notes: ''
+            next_test_stage: '',
+            next_test_date: ''
         },
 
-        openStageModal(stage, stageKey, currentDate, currentResult, currentNotes, fieldDate, fieldResult, fieldNotes) {
-            console.log('Opening modal for stage:', stage, {
-                stageKey, currentDate, currentResult, currentNotes, fieldDate, fieldResult, fieldNotes
-            });
-            
+        // Static data for stage logic
+        passingResults: ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'],
+        stageOrder: ['psikotes', 'interview_hc', 'interview_user', 'interview_bod', 'offering_letter', 'mcu', 'hiring'],
+        stageDisplayNames: {
+            'psikotes': 'Psikotes',
+            'interview_hc': 'Interview HC',
+            'interview_user': 'Interview User',
+            'interview_bod': 'Interview BOD/GM',
+            'offering_letter': 'Offering Letter',
+            'mcu': 'Medical Check Up',
+            'hiring': 'Hiring',
+            'Selesai': 'Selesai'
+        },
+        stageOptions: {
+            psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+            interview_hc: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            interview_user: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            offering_letter: ['DITERIMA', 'DITOLAK', 'SENT'],
+            mcu: ['LULUS', 'TIDAK LULUS'],
+            hiring: ['HIRED', 'TIDAK DIHIRING']
+        },
+        labelMap: {
+            'LULUS': 'Lulus',
+            'TIDAK LULUS': 'Tidak Lulus',
+            'DIPERTIMBANGKAN': 'Dipertimbangkan',
+            'DISARANKAN': 'Disarankan',
+            'TIDAK DISARANKAN': 'Tidak Disarankan',
+            'CANCEL': 'Cancel',
+            'DITERIMA': 'Diterima',
+            'DITOLAK': 'Ditolak',
+            'SENT': 'Sent',
+            'HIRED': 'Hired',
+            'TIDAK DIHIRING': 'Tidak Dihiring'
+        },
+        availableResults: [],
+
+        // Method to check if a result is a passing one
+        isPassingResult(result) {
+            return this.passingResults.includes(result);
+        },
+
+        // Open the modal to update a stage
+        openStageModal(stage, stageKey, currentResult, currentNotes) {
             this.selectedStage = stage;
+            this.availableResults = this.stageOptions[stageKey] || [];
+            
+            const currentIndex = this.stageOrder.indexOf(stageKey);
+            let nextStageKey = 'Selesai';
+            if (currentIndex !== -1 && currentIndex < this.stageOrder.length - 1) {
+                nextStageKey = this.stageOrder[currentIndex + 1];
+            }
+
             this.stageData = {
                 stage: stageKey,
-                date: currentDate || '',
                 result: currentResult || '',
                 notes: currentNotes || '',
-                field_date: fieldDate || '',
-                field_result: fieldResult || '',
-                field_notes: fieldNotes || ''
+                next_test_stage: this.stageDisplayNames[nextStageKey] || nextStageKey,
+                next_test_date: ''
             };
-            // set available results based on stage
-            this.availableResults = this.stageOptions[stageKey] || [];
+
             this.showModal = true;
-            this.isSubmitting = false;
-            
-            // Focus on first input when modal opens
-            this.$nextTick(() => {
-                const firstInput = document.querySelector('#stageUpdateForm input[type="date"]');
-                if (firstInput) firstInput.focus();
-            });
         },
 
+        // Close the main modal
+        closeModal() {
+            if (this.isSubmitting) return;
+            this.showModal = false;
+        },
+
+        // Show the comment modal
         showComment(comment) {
             this.selectedComment = comment;
             this.showCommentModal = true;
         },
 
-        closeModal() {
-            if (this.isSubmitting) return;
-            
-            this.showModal = false;
-            this.selectedStage = null;
-            this.resetStageData();
-        },
-
-        resetStageData() {
-            this.stageData = {
-                stage: '',
-                date: '',
-                result: '',
-                notes: '',
-                field_date: '',
-                field_result: '',
-                field_notes: ''
-            };
-        },
-
+        // Handle form submission
         async submitForm() {
             if (this.isSubmitting) return;
 
-            // Validate required fields
+            // Basic validation
             if (!this.stageData.result) {
-                alert('Hasil harus diisi!');
+                alert('Hasil harus diisi.');
+                return;
+            }
+            if (this.isPassingResult(this.stageData.result) && !this.stageData.next_test_date) {
+                alert('Tanggal tes berikutnya harus diisi jika hasil lulus.');
                 return;
             }
 
             this.isSubmitting = true;
 
+            const formData = new FormData();
+            formData.append('_method', 'PATCH');
+            formData.append('stage', this.stageData.stage);
+            formData.append('result', this.stageData.result);
+            formData.append('notes', this.stageData.notes);
+            
+            if (this.isPassingResult(this.stageData.result)) {
+                formData.append('next_test_stage', this.stageData.next_test_stage);
+                formData.append('next_test_date', this.stageData.next_test_date);
+            }
+
             try {
-                // Get form element
-                const form = document.getElementById('stageUpdateForm');
-                if (!form) {
-                    throw new Error('Form not found');
+                const response = await fetch("{{ route('candidates.updateStage', $candidate) }}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    let errorMessage = 'Gagal memperbarui data.';
+                    if (errorData.errors) {
+                        errorMessage = Object.values(errorData.errors).flat().join('\n');
+                    }
+                    throw new Error(errorMessage);
                 }
 
-                console.log('Submitting form with data:', this.stageData);
-                
-                // Submit the form
-                form.submit();
-                
+                // Success, reload the page to see changes
+                window.location.reload();
+
             } catch (error) {
-                console.error('Error submitting form:', error);
-                alert('Terjadi kesalahan saat menyimpan data. Silakan coba lagi.');
+                alert('Terjadi kesalahan: ' + error.message);
+            } finally {
                 this.isSubmitting = false;
             }
-        },
-
-        // Keyboard shortcuts
-        handleKeydown(event) {
-            if (event.key === 'Escape') {
-                if (this.showModal) {
-                    this.closeModal();
-                } else if (this.showCommentModal) {
-                    this.showCommentModal = false;
-                }
-            }
-        },
-
-        init() {
-            // Add keyboard event listener
-            document.addEventListener('keydown', this.handleKeydown.bind(this));
-            
-            // Debug info
-            console.log('Candidate Detail initialized');
-            console.log('Update route:', '{{ route("candidates.updateStage", $candidate) }}');
-            console.log('Candidate ID:', '{{ $candidate->id }}');
         }
     }))
 });
-
-// Form submission debugging
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('stageUpdateForm');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            console.log('Form submission started...');
-            
-            // Log form data
-            const formData = new FormData(form);
-            console.log('Form data:');
-            for (let [key, value] of formData.entries()) {
-                console.log(`${key}: ${value}`);
-            }
-        });
-    }
-});
-
-// Auto-hide alerts
-function initializeAlerts() {
-    // Success alerts
-    const successAlert = document.getElementById('success-alert');
-    if (successAlert) {
-        setTimeout(() => successAlert.remove(), 5000);
-    }
-    
-    // Error alerts
-    const errorAlert = document.getElementById('error-alert');
-    if (errorAlert) {
-        setTimeout(() => errorAlert.remove(), 8000);
-    }
-    
-    // Validation errors
-    const validationErrors = document.getElementById('validation-errors');
-    if (validationErrors) {
-        setTimeout(() => validationErrors.remove(), 10000);
-    }
-}
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeAlerts);
 </script>
 
 <!-- Alert Messages -->
@@ -822,7 +861,6 @@ document.addEventListener('DOMContentLoaded', initializeAlerts);
         <div class="flex-shrink-0">
             <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
         </div>
         <div class="flex-1">
             <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
@@ -833,6 +871,15 @@ document.addEventListener('DOMContentLoaded', initializeAlerts);
             </ul>
         </div>
         <button onclick="document.getElementById('validation-errors').remove()" 
+                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </div>
+        <div class="flex-1">
+            <p class="font-medium">Terjadi kesalahan!</p>
+            <p class="text-sm">{{ session('error') }}</p>
+        </div>
+        <button onclick="document.getElementById('error-alert').remove()" 
                 class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -870,7 +917,6 @@ document.addEventListener('DOMContentLoaded', initializeAlerts);
         <div class="flex-shrink-0">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
         </div>
         <div class="flex-1">
             <p class="font-medium">Terjadi kesalahan!</p>

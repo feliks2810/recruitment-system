@@ -55,7 +55,7 @@
                         </div>
                         <div>
                             <label for="applicant_id" class="block text-sm font-medium text-gray-700">Applicant ID *</label>
-                            <input type="text" name="applicant_id" id="applicant_id" value="{{ old('applicant_id') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                            <input type="text" name="applicant_id" id="applicant_id" value="{{ old('applicant_id', $applicantId ?? '') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required readonly>
                         </div>
                         <div>
                             <label for="jk" class="block text-sm font-medium text-gray-700">Jenis Kelamin</label>

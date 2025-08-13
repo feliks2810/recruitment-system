@@ -87,6 +87,39 @@
     </div>
 </div>
 
+@if(Auth::user()->hasRole('Team_HC'))
+<!-- Jadwal Tes Akan Datang (To-Do List) -->
+<div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Jadwal Tes Akan Datang (To-Do List)</h3>
+        @if($upcoming_tests && count($upcoming_tests) > 0)
+        <span class="bg-blue-100 text-blue-600 text-sm font-medium px-3 py-1 rounded-full">{{ count($upcoming_tests) }} Agenda</span>
+        @endif
+    </div>
+    <div class="space-y-3">
+        @forelse($upcoming_tests ?? [] as $candidate)
+        <a href="{{ route('candidates.show', $candidate->id) }}" class="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0 flex-1">
+                    <p class="font-medium text-gray-900 truncate">{{ $candidate->nama }}</p>
+                    <p class="text-sm text-gray-600 truncate">{{ $candidate->vacancy }}</p>
+                </div>
+                <div class="mt-2 sm:mt-0 sm:ml-4 flex-shrink-0">
+                    <p class="text-sm font-semibold text-blue-600">{{ $candidate->next_test_stage }}</p>
+                    <p class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($candidate->next_test_date)->isoFormat('dddd, D MMMM Y') }}</p>
+                </div>
+            </div>
+        </a>
+        @empty
+        <div class="text-center py-8 text-gray-500">
+            <i class="fas fa-calendar-check text-3xl sm:text-4xl mb-2 text-gray-300"></i>
+            <p class="text-sm">Tidak ada jadwal tes yang akan datang.</p>
+        </div>
+        @endforelse
+    </div>
+</div>
+@endif
+
 <!-- Recent Activity & Chart -->
 <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6">
     <!-- Recent Candidates -->
@@ -167,6 +200,7 @@
         </a>
     </div>
 </div>
+
 @endsection
 
 @push('scripts')

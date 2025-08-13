@@ -38,7 +38,7 @@ class CandidateRequest extends FormRequest
                 'string',
                 'max:50',
             ],
-            'vacancy' => 'required|string|max:255',
+            'vacancy_airsys' => 'required|string|max:255',
             'internal_position' => 'nullable|string|max:255',
             'on_process_by' => 'nullable|string|max:255',
             'source' => 'nullable|string|max:100',

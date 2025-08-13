@@ -6,6 +6,11 @@
             <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 active:scale-95">
                 <i class="fas fa-bars text-lg"></i>
             </button>
+
+            <!-- Desktop menu button -->
+            <button onclick="toggleDesktopSidebar()" class="hidden lg:block p-2 rounded-lg text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 active:scale-95">
+                <i class="fas fa-bars text-lg"></i>
+            </button>
             
             <!-- Page Title -->
             <div class="min-w-0 flex-1">

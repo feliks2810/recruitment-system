@@ -1,71 +1,142 @@
 <?php
 
-     namespace App\Http\Controllers;
+namespace App\Http\Controllers;
 
-     use App\Models\Candidate;
-     use Illuminate\Http\Request;
-     use Illuminate\Support\Facades\DB;
+use App\Models\Candidate;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
-     class StatisticsController extends Controller
-     {
-         public function index(Request $request)
-         {
-             $year = $request->get('year', date('Y'));
-             $type = $request->get('type', 'all');
+class StatisticsController extends Controller
+{
+    public function index(Request $request)
+    {
+        $year = $request->get('year', date('Y'));
+        $source = $request->get('source');
 
-             // KPI Cards
-             $totalApplications = Candidate::whereYear('created_at', $year)->count();
-             $passingRate = $totalApplications ? (Candidate::where('overall_status', 'LULUS')->whereYear('created_at', $year)->count() / $totalApplications * 100) : 0;
-             $avgProcessTime = Candidate::whereNotNull('psikotest_date')
-                 ->whereYear('created_at', $year)
-                 ->selectRaw('AVG(DATEDIFF(psikotest_date, created_at)) as avg_days')
-                 ->first()->avg_days ?? 0;
-             $activeCandidates = Candidate::where('overall_status', 'DALAM PROSES')->whereYear('created_at', $year)->count();
+        // Base query for the selected year
+        $baseQuery = Candidate::whereYear('created_at', $year);
+        if ($source) {
+            $baseQuery->where('source', $source);
+        }
 
-             // Monthly Trend
-             $monthlyData = DB::table('candidates')
-                 ->select(
-                     DB::raw('MONTH(created_at) as month'),
-                     DB::raw('COUNT(*) as aplikasi'),
-                     DB::raw('COUNT(CASE WHEN overall_status = "LULUS" THEN 1 END) / COUNT(*) * 100 as tingkatLulus')
-                 )
-                 ->whereYear('created_at', $year)
-                 ->groupBy('month')
-                 ->get()
-                 ->map(function ($item) {
-                     return [
-                         'month' => date('M', mktime(0, 0, 0, $item->month, 1)),
-                         'aplikasi' => $item->aplikasi,
-                         'tingkatLulus' => round($item->tingkatLulus, 1),
-                     ];
-                 });
+        $kpiData = $this->getKpiData(clone $baseQuery);
+        $funnelData = $this->getRecruitmentFunnelData(clone $baseQuery);
+        $sourceData = $this->getSourceEffectivenessData($year);
+        $genderData = $this->getGenderDistributionData(clone $baseQuery);
+        $monthlyData = $this->getMonthlyApplicationData($year, $source);
 
-             // Department Distribution
-             $departmentData = DB::table('candidates')
-                 ->select('vacancy as name', DB::raw('COUNT(*) as value'))
-                 ->whereYear('created_at', $year)
-                 ->groupBy('vacancy')
-                 ->get()
-                 ->map(function ($item, $index) {
-                     $colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-                     return [
-                         'name' => $item->name,
-                         'value' => $item->value,
-                         'color' => $colors[$index % count($colors)],
-                     ];
-                 });
+        $sources = Candidate::whereNotNull('source')->distinct()->pluck('source');
 
-             // Conversion Funnel
-             $stageConversionData = [
-                 ['stage' => 'Aplikasi', 'jumlah' => Candidate::whereYear('created_at', $year)->count(), 'konversi' => 100],
-                 ['stage' => 'Seleksi Berkas', 'jumlah' => Candidate::whereNotNull('created_at')->whereYear('created_at', $year)->count(), 'konversi' => 79.7],
-                 ['stage' => 'Psikotes', 'jumlah' => Candidate::whereNotNull('psikotest_date')->whereYear('created_at', $year)->count(), 'konversi' => 63.4],
-                 ['stage' => 'Interview HC', 'jumlah' => Candidate::whereNotNull('hc_interview_date')->whereYear('created_at', $year)->count(), 'konversi' => 70.9],
-                 ['stage' => 'Interview Teknis', 'jumlah' => Candidate::whereNotNull('user_interview_date')->whereYear('created_at', $year)->count(), 'konversi' => 66.4],
-                 ['stage' => 'Interview Akhir', 'jumlah' => Candidate::where('overall_status', 'LULUS')->whereYear('created_at', $year)->count(), 'konversi' => 62.9],
-                 ['stage' => 'Lulus', 'jumlah' => Candidate::where('overall_status', 'LULUS')->whereYear('created_at', $year)->count(), 'konversi' => 62.5],
-             ];
+        return view('statistics.index', compact(
+            'kpiData',
+            'funnelData',
+            'sourceData',
+            'genderData',
+            'monthlyData',
+            'sources',
+            'year',
+            'source'
+        ));
+    }
 
-             return view('statistics.index', compact('monthlyData', 'departmentData', 'stageConversionData', 'totalApplications', 'passingRate', 'avgProcessTime', 'activeCandidates', 'year', 'type'));
-         }
-     }
+    private function getKpiData($query)
+    {
+        $totalApplications = (clone $query)->count();
+        $hiredCandidatesQuery = (clone $query)->where('overall_status', 'LULUS');
+        $totalHired = $hiredCandidatesQuery->count();
+
+        $avgTimeToHire = $hiredCandidatesQuery->selectRaw('AVG(DATEDIFF(hiring_date, created_at)) as avg_days')
+            ->value('avg_days');
+
+        return [
+            'total_applications' => $totalApplications,
+            'total_hired' => $totalHired,
+            'avg_time_to_hire' => round($avgTimeToHire ?? 0),
+            'conversion_rate' => $totalApplications > 0 ? round(($totalHired / $totalApplications) * 100, 1) : 0,
+        ];
+    }
+
+    private function getRecruitmentFunnelData($query)
+    {
+        $stages = [
+            'Aplikasi' => (clone $query)->count(),
+            'Psikotes' => (clone $query)->whereNotNull('psikotest_date')->count(),
+            'Interview HC' => (clone $query)->whereNotNull('hc_interview_date')->count(),
+            'Interview User' => (clone $query)->whereNotNull('user_interview_date')->count(),
+            'Offering' => (clone $query)->whereNotNull('offering_letter_date')->count(),
+            'Hired' => (clone $query)->where('overall_status', 'LULUS')->count(),
+        ];
+
+        $funnel = [];
+        $previousStageCount = $stages['Aplikasi'];
+
+        foreach ($stages as $stageName => $count) {
+            $conversionRate = $previousStageCount > 0 ? round(($count / $previousStageCount) * 100, 1) : 0;
+            $funnel[] = [
+                'stage' => $stageName,
+                'count' => $count,
+                'conversion' => $conversionRate,
+            ];
+            $previousStageCount = $count;
+        }
+
+        return $funnel;
+    }
+
+    private function getSourceEffectivenessData($year)
+    {
+        return DB::table('candidates')
+            ->select('source', 
+                DB::raw('COUNT(*) as total_applications'),
+                DB::raw('SUM(CASE WHEN overall_status = \'LULUS\' THEN 1 ELSE 0 END) as hired_count')
+            )
+            ->whereYear('created_at', $year)
+            ->whereNotNull('source')
+            ->groupBy('source')
+            ->orderBy('hired_count', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                $item->hire_rate = $item->total_applications > 0 ? round(($item->hired_count / $item->total_applications) * 100, 1) : 0;
+                return $item;
+            });
+    }
+
+    private function getGenderDistributionData($query)
+    {
+        return (clone $query)->select('jk', DB::raw('COUNT(*) as count'))
+            ->whereIn('jk', ['L', 'P'])
+            ->groupBy('jk')
+            ->get()
+            ->mapWithKeys(function ($item) {
+                $gender = $item->jk === 'L' ? 'Laki-laki' : 'Perempuan';
+                return [$gender => $item->count];
+            });
+    }
+
+    private function getMonthlyApplicationData($year, $source)
+    {
+        $query = DB::table('candidates')
+            ->select(DB::raw('MONTH(created_at) as month'), DB::raw('COUNT(*) as count'))
+            ->whereYear('created_at', $year)
+            ->groupBy('month')
+            ->orderBy('month');
+
+        if ($source) {
+            $query->where('source', $source);
+        }
+
+        $data = $query->get()->keyBy('month');
+        
+        $result = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $result[] = [
+                'month' => Carbon::create()->month($m)->format('M'),
+                'count' => $data->get($m)->count ?? 0,
+            ];
+        }
+
+        return $result;
+    }
+}

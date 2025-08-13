@@ -23,7 +23,7 @@
 
 @section('content')
 @can('view-candidates')
-    <div x-data="bulkOperations()" id="candidates-scope">
+    <div x-data="bulkOperations()" x-init="init()" id="candidates-scope">
     <!-- Bulk Operations Bar -->
     <div id="bulk-operations" class="bg-blue-50 border border-blue-200 px-4 sm:px-6 py-4 mb-4 rounded-lg hidden">
         <div class="flex items-center justify-between">
@@ -39,7 +39,10 @@
             <div class="flex items-center gap-2">
                 <!-- Bulk Update Status -->
                 @can('edit-candidates')
-                <button @click="showBulkUpdateModal" class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm flex items-center gap-2">
+                <button @click="showBulkUpdateModal" 
+                        :disabled="!isSameStatus"
+                        class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+                        :class="{ 'hover:bg-blue-700': isSameStatus, 'opacity-50 cursor-not-allowed': !isSameStatus }">
                     <i class="fas fa-edit"></i>
                     Update Status
                 </button>
@@ -70,32 +73,24 @@
 
     <!-- Filters & Search -->
     <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 shadow-sm">
-        <form method="GET" class="flex items-center gap-3 sm:gap-4 flex-wrap">
+        <form method="GET" class="flex items-center gap-3 sm:gap-4 flex-wrap" id="filterForm">
             <div class="flex-1 min-w-64">
                 <input type="text" 
                        name="search" 
                        value="{{ request('search') }}" 
                        placeholder="Cari nama, email, atau posisi..." 
-                       class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                       class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       oninput="document.getElementById('filterForm').submit()">
             </div>
             <div class="min-w-[150px]">
-                <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onchange="document.getElementById('filterForm').submit()">
                     <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
-                    <option value="psikotes" {{ request('status') == 'psikotes' ? 'selected' : '' }}>Psikotes</option>
-                    <option value="interview_hc" {{ request('status') == 'interview_hc' ? 'selected' : '' }}>Interview HC</option>
-                    <option value="interview_user" {{ request('status') == 'interview_user' ? 'selected' : '' }}>Interview User</option>
-                    <option value="final" {{ request('status') == 'final' ? 'selected' : '' }}>Final</option>
-                    <option value="hired" {{ request('status') == 'hired' ? 'selected' : '' }}>Hired</option>
+                    @foreach($statuses as $statusOption)
+                        <option value="{{ $statusOption }}" {{ request('status') == $statusOption ? 'selected' : '' }}>{{ $statusOption }}</option>
+                    @endforeach
                 </select>
             </div>
-            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
-                <i class="fas fa-search text-sm"></i>
-                <span>Cari</span>
-            </button>
-            <a href="{{ route('candidates.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors">
-                <i class="fas fa-refresh text-sm"></i>
-                <span>Reset</span>
-            </a>
         </form>
     </div>
 
@@ -118,7 +113,7 @@
                 <div class="flex items-center justify-between">
                     <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Dalam Proses</p>
-                        <p class="text-xl sm:text-2xl font-bold text-yellow-600 truncate">{{ $stats['proses'] ?? 0 }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-yellow-600 truncate">{{ $stats['dalam_proses'] ?? 0 }}</p>
                     </div>
                     <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
                         <i class="fas fa-clock text-yellow-600"></i>
@@ -140,7 +135,7 @@
                 <div class="flex items-center justify-between">
                     <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Ditolak</p>
-                        <p class="text-xl sm:text-2xl font-bold text-red-600 truncate">{{ $stats['rejected'] ?? 0 }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-red-600 truncate">{{ $stats['ditolak'] ?? 0 }}</p>
                     </div>
                     <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
                         <i class="fas fa-times-circle text-red-600"></i>
@@ -219,7 +214,7 @@
                             @if($type === 'duplicate')
                             <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant ID</th>
                             @endif
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -232,6 +227,7 @@
                                 <input type="checkbox"
                                        data-candidate-checkbox
                                        value="{{ $candidate->id }}"
+                                       data-status="{{ $candidate->overall_status }}"
                                        @change="toggleCandidate({{ $candidate->id }}, $event.target.checked)"
                                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                             </td>
@@ -261,16 +257,16 @@
                                 @endif
                             </td>
                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                @if($candidate->hiring_status == 'HIRED')
-                                    <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Hired</span>
-                                @elseif($candidate->hiring_status == 'TIDAK DIHIRING')
-                                    <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Tidak Lulus</span>
+                                @if($candidate->overall_status == 'LULUS')
+                                    <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Lulus</span>
+                                @elseif($candidate->overall_status == 'DITOLAK')
+                                    <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ditolak</span>
                                 @else
                                     <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Proses</span>
                                 @endif
                             </td>
                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ ucfirst(str_replace('_', ' ', $candidate->hiring_status)) }}
+                                {{ $candidate->current_stage }}
                             </td>
                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ $candidate->created_at->format('d M Y') }}
@@ -286,7 +282,7 @@
                                 </div>
                             </td>
                             @endif
-                            <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50">
                                 <div class="flex items-center gap-1 sm:gap-2">
                                     @can('import-excel')
                                     <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
@@ -552,12 +548,22 @@
     <script>
         function bulkOperations() {
             return {
-                selectedCandidates: new Set(),
+                selectedCandidates: new Map(),
                 selectedCount: 0,
+                isSameStatus: false,
+                allCandidates: {},
+
+                init() {
+                    document.querySelectorAll('[data-candidate-checkbox]').forEach(el => {
+                        this.allCandidates[el.value] = {
+                            status: el.dataset.status
+                        };
+                    });
+                },
                 
                 toggleCandidate(id, checked) {
                     if (checked) {
-                        this.selectedCandidates.add(id);
+                        this.selectedCandidates.set(id, this.allCandidates[id].status);
                     } else {
                         this.selectedCandidates.delete(id);
                     }
@@ -569,10 +575,11 @@
                     const checkboxes = document.querySelectorAll('#candidates-scope input[type="checkbox"][data-candidate-checkbox]');
                     checkboxes.forEach(checkbox => {
                         checkbox.checked = checked;
+                        const id = parseInt(checkbox.value);
                         if (checked) {
-                            this.selectedCandidates.add(parseInt(checkbox.value));
+                            this.selectedCandidates.set(id, this.allCandidates[id].status);
                         } else {
-                            this.selectedCandidates.delete(parseInt(checkbox.value));
+                            this.selectedCandidates.delete(id);
                         }
                     });
                     this.selectedCount = this.selectedCandidates.size;
@@ -583,6 +590,8 @@
                     const bulkBar = document.getElementById('bulk-operations');
                     if (this.selectedCount > 0) {
                         bulkBar.classList.remove('hidden');
+                        const statuses = new Set(this.selectedCandidates.values());
+                        this.isSameStatus = statuses.size === 1;
                     } else {
                         bulkBar.classList.add('hidden');
                     }

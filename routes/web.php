@@ -134,6 +134,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_view_reports' => $user->can('view-reports'),
         ]);
     });
+
+    Route::post('candidates/{id}/next-test-date', [App\Http\Controllers\CandidateController::class, 'setNextTestDate'])->name('candidates.setNextTestDate');
 });
 
 // Logout

@@ -123,7 +123,7 @@ class ImportController extends Controller
             if ($status === 'failed') {
                 return back()->with('error', $message);
             } else {
-                return redirect()->route('import.index')->with('success', $message);
+                return redirect()->route('candidates.index')->with('success', $message);
             }
 
         } catch (\Exception $e) {

@@ -131,6 +131,62 @@
                     </div>
                 </div>
 
+                <!-- Tahap Psikotes -->
+                <div class="bg-gray-50 rounded-lg p-4 mt-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-4">Tahap Psikotes</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="psikotest_date" class="block text-sm font-medium text-gray-700">Tanggal Psikotes</label>
+                            <input type="date" name="psikotest_date" id="psikotest_date" value="{{ old('psikotest_date', $candidate->psikotest_date ? \Carbon\Carbon::parse($candidate->psikotest_date)->format('Y-m-d') : '') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label for="psikotes_result" class="block text-sm font-medium text-gray-700">Hasil Psikotes</label>
+                            <select name="psikotes_result" id="psikotes_result" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Pilih Hasil</option>
+                                <option value="LULUS" {{ old('psikotes_result', $candidate->psikotes_result) == 'LULUS' ? 'selected' : '' }}>LULUS</option>
+                                <option value="TIDAK LULUS" {{ old('psikotes_result', $candidate->psikotes_result) == 'TIDAK LULUS' ? 'selected' : '' }}>TIDAK LULUS</option>
+                                <option value="PENDING" {{ old('psikotes_result', $candidate->psikotes_result) == 'PENDING' ? 'selected' : '' }}>PENDING</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tahap Interview HC -->
+                <div class="bg-gray-50 rounded-lg p-4 mt-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-4">Interview HC</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="hc_interview_date" class="block text-sm font-medium text-gray-700">Tanggal Interview HC</label>
+                            <input type="date" name="hc_interview_date" id="hc_interview_date" value="{{ old('hc_interview_date', $candidate->hc_interview_date ? \Carbon\Carbon::parse($candidate->hc_interview_date)->format('Y-m-d') : '') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label for="hc_interview_status" class="block text-sm font-medium text-gray-700">Hasil Interview HC</label>
+                            <select name="hc_interview_status" id="hc_interview_status" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Pilih Hasil</option>
+                                <option value="LULUS" {{ old('hc_interview_status', $candidate->hc_interview_status) == 'LULUS' ? 'selected' : '' }}>LULUS</option>
+                                <option value="TIDAK LULUS" {{ old('hc_interview_status', $candidate->hc_interview_status) == 'TIDAK LULUS' ? 'selected' : '' }}>TIDAK LULUS</option>
+                                <option value="PENDING" {{ old('hc_interview_status', $candidate->hc_interview_status) == 'PENDING' ? 'selected' : '' }}>PENDING</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tahap Interview User, muncul jika hasil Interview HC sudah diisi -->
+                @if(old('hc_interview_status', $candidate->hc_interview_status))
+                <div class="bg-blue-50 rounded-lg p-4 mt-6 border border-blue-200">
+                    <h4 class="text-md font-medium text-blue-900 mb-4">Interview User (To Do List)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="user_interview_date" class="block text-sm font-medium text-blue-700">Tanggal Interview User</label>
+                            <input type="date" name="user_interview_date" id="user_interview_date" value="{{ old('user_interview_date', $candidate->user_interview_date ? \Carbon\Carbon::parse($candidate->user_interview_date)->format('Y-m-d') : '') }}" class="mt-1 w-full border border-blue-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                    </div>
+                </div>
+                @endif
+
+                <!-- Field Tanggal Tes Berikutnya -->
+                <!-- Catatan: Tanggal tes berikutnya sekarang diatur melalui popup timeline rekrutmen saat hasil tes "LULUS" atau "DIPERTIMBANGKAN" -->
+
                 <!-- Submit Button -->
                 <div class="flex justify-end">
                     <div class="flex space-x-3">
