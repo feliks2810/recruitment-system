@@ -308,7 +308,7 @@ class CandidateController extends Controller
 
         // Apply status filter
         if ($status) {
-            $query->where('current_stage', $status);
+            $query->where('overall_status', $status);
         }
 
         // Get duplicate candidate IDs with improved logic
@@ -324,10 +324,14 @@ class CandidateController extends Controller
             $query->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
         }
 
-        $candidates = $query->orderBy('created_at', 'desc')->paginate(10);
+        $candidates = $query->orderByRaw("CASE WHEN overall_status = 'LULUS' THEN 2 WHEN overall_status = 'DITOLAK' THEN 3 ELSE 1 END")
+                            ->orderBy('created_at', 'desc')
+                            ->paginate(10);
 
         // Calculate statistics
         $stats = $this->calculateStats($latestDuplicateCandidateIds);
+
+        $statuses = Candidate::select('overall_status')->distinct()->pluck('overall_status');
 
         return view('candidates.index', compact(
             'candidates', 
@@ -335,7 +339,8 @@ class CandidateController extends Controller
             'search', 
             'status', 
             'type', 
-            'latestDuplicateCandidateIds'
+            'latestDuplicateCandidateIds',
+            'statuses'
         ));
     }
 
@@ -424,7 +429,6 @@ class CandidateController extends Controller
         try {
             $validated = $request->validate([
                 'stage' => 'required|string|in:' . implode(',', array_keys(self::STAGE_FIELDS)),
-                'date' => 'nullable|date',
                 'result' => 'required|string',
                 'notes' => 'nullable|string|max:1000',
             ]);
@@ -462,9 +466,7 @@ class CandidateController extends Controller
             $fields = self::STAGE_FIELDS[$stageKey];
 
             // Update fields directly to avoid mass-assignment quirks
-            if (!empty($validated['date'])) {
-                $candidate->{$fields['date']} = $validated['date'];
-            }
+            $candidate->{$fields['date']} = now();
             $candidate->{$fields['result']} = $resultValue;
             $candidate->{$fields['notes']} = $validated['notes'];
 
@@ -479,7 +481,7 @@ class CandidateController extends Controller
                 if ($resultValue === 'HIRED') {
                     $candidate->overall_status = 'LULUS';
                 } elseif ($resultValue === 'TIDAK DIHIRING') {
-                    $candidate->overall_status = 'TIDAK LULUS';
+                    $candidate->overall_status = 'DITOLAK';
                 }
                 $candidate->current_stage = 'Hiring';
                 $candidate->save();
@@ -568,31 +570,61 @@ class CandidateController extends Controller
             'pending' => Candidate::where('overall_status', 'PENDING')->count(),
             'lulus' => Candidate::where('overall_status', 'LULUS')->count(),
             'hired' => Candidate::where('overall_status', 'LULUS')->count(),
-            'tidak_lulus' => Candidate::where('overall_status', 'TIDAK LULUS')->count(),
+            'ditolak' => Candidate::where('overall_status', 'DITOLAK')->count(),
             'duplicate' => count($duplicateIds),
         ];
     }
 
     private function generateTimeline(Candidate $candidate): array
     {
-        return [
-            [
-                'stage' => 'Seleksi Berkas',
-                'stage_key' => 'seleksi_berkas',
-                'status' => 'completed',
-                'date' => $candidate->created_at,
-                'notes' => 'Berkas lengkap dan sesuai kualifikasi',
-                'evaluator' => 'HR Team',
-                'result' => 'LULUS',
-            ],
-            $this->createTimelineStage('Psikotes', 'psikotes', $candidate, 'Psikolog'),
-            $this->createTimelineStage('Interview HC', 'interview_hc', $candidate, 'HC Team'),
-            $this->createTimelineStage('Interview User', 'interview_user', $candidate, 'Department Team'),
-            $this->createTimelineStage('Interview BOD/GM', 'interview_bod', $candidate, 'BOD/GM'),
-            $this->createTimelineStage('Offering Letter', 'offering_letter', $candidate, 'HR Team'),
-            $this->createTimelineStage('Medical Check Up', 'mcu', $candidate, 'Medical Team'),
-            $this->createTimelineStage('Hiring', 'hiring', $candidate, 'HR Team'),
+        $timeline = [];
+        $timeline[] = [
+            'stage' => 'Seleksi Berkas',
+            'stage_key' => 'seleksi_berkas',
+            'status' => 'completed',
+            'date' => $candidate->created_at,
+            'notes' => 'Berkas lengkap dan sesuai kualifikasi',
+            'evaluator' => 'HR Team',
+            'result' => 'LULUS',
         ];
+
+        $stages = [
+            ['Psikotes', 'psikotes', 'Psikolog'],
+            ['Interview HC', 'interview_hc', 'HC Team'],
+            ['Interview User', 'interview_user', 'Department Team'],
+            ['Interview BOD/GM', 'interview_bod', 'BOD/GM'],
+            ['Offering Letter', 'offering_letter', 'HR Team'],
+            ['Medical Check Up', 'mcu', 'Medical Team'],
+            ['Hiring', 'hiring', 'HR Team'],
+        ];
+
+        $failed = false;
+        foreach ($stages as $stageInfo) {
+            if ($failed) {
+                $timeline[] = [
+                    'stage' => $stageInfo[0],
+                    'stage_key' => $stageInfo[1],
+                    'status' => 'skipped',
+                    'date' => null,
+                    'notes' => 'Tidak diproses karena gagal pada tahap sebelumnya',
+                    'evaluator' => $stageInfo[2],
+                    'result' => null,
+                    'field_date' => '',
+                    'field_result' => '',
+                    'field_notes' => '',
+                ];
+                continue;
+            }
+
+            $stageData = $this->createTimelineStage($stageInfo[0], $stageInfo[1], $candidate, $stageInfo[2]);
+            $timeline[] = $stageData;
+
+            if (isset($stageData['result']) && in_array($stageData['result'], self::FAILED_RESULTS)) {
+                $failed = true;
+            }
+        }
+
+        return $timeline;
     }
 
     private function createTimelineStage(string $stageName, string $stageKey, Candidate $candidate, string $evaluator): array
@@ -651,7 +683,7 @@ class CandidateController extends Controller
             $result = $candidate->{$fields['result']};
             
             if ($result && in_array($result, self::FAILED_RESULTS)) {
-                $overallStatus = 'TIDAK LULUS';
+                $overallStatus = 'DITOLAK';
                 $currentStage = $this->getStageDisplayName($stageKey);
                 break;
             }
