@@ -50,17 +50,26 @@
                     <div>
                         <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
                                                 <select name="role" id="role" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" onchange="toggleDepartment(this.value)">
-                            <option value="admin" {{ $account->role == 'admin' ? 'selected' : '' }}>Admin</option>
-                            <option value="team_hc" {{ $account->role == 'team_hc' ? 'selected' : '' }}>Team HC</option>
-                            <option value="user" {{ $account->role == 'user' ? 'selected' : '' }}>Staf Departemen</option>
-                            <option value="department" {{ $account->role == 'department' ? 'selected' : '' }}>Kepala Departemen</option>
+                            @foreach($roles as $role)
+                            <option value="{{ $role->name }}" {{ $account->hasRole($role->name) ? 'selected' : '' }}>
+                                @if($role->name === 'admin')
+                                    Administrator
+                                @elseif($role->name === 'team_hc')
+                                    Team HC
+                                @elseif($role->name === 'department')
+                                    Kepala Departemen
+                                @else
+                                    {{ ucfirst(str_replace('_', ' ', $role->name)) }}
+                                @endif
+                            </option>
+                            @endforeach
                         </select>
                     </div>
-                    <div id="department-field" style="display: {{ $account->role === 'department' ? 'block' : 'none' }};">
-                        <label for="department" class="block text-sm font-medium text-gray-700">Department</label>
-                        <select name="department" id="department" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <div id="department-field" style="display: {{ $account->hasRole('department') ? 'block' : 'none' }};">
+                        <label for="department_id" class="block text-sm font-medium text-gray-700">Department</label>
+                        <select name="department_id" id="department_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             @foreach($departments as $dept)
-                                <option value="{{ $dept }}" {{ $account->department == $dept ? 'selected' : '' }}>{{ $dept }}</option>
+                                <option value="{{ $dept->id }}" {{ $account->department_id == $dept->id ? 'selected' : '' }}>{{ $dept->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -92,5 +101,9 @@
                 departmentField.style.display = 'none';
             }
         }
+        // Initial check on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleDepartment(document.getElementById('role').value);
+        });
     </script>
 @endpush

@@ -3,800 +3,843 @@
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
-use App\Http\Requests\CandidateRequest;
+use App\Models\ImportHistory;
+use App\Imports\CandidatesImport;
+use App\Exports\CandidatesExport; // Add this import
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class CandidateController extends Controller
 {
-    // Stage field mapping for cleaner code
-    private const STAGE_FIELDS = [
-        'psikotes' => [
-            'date' => 'psikotest_date',
-            'result' => 'psikotes_result',
-            'notes' => 'psikotes_notes'
-        ],
-        'interview_hc' => [
-            'date' => 'hc_interview_date',
-            'result' => 'hc_interview_status',
-            'notes' => 'hc_interview_notes'
-        ],
-        'interview_user' => [
-            'date' => 'user_interview_date',
-            'result' => 'user_interview_status',
-            'notes' => 'user_interview_notes'
-        ],
-        'interview_bod' => [
-            'date' => 'bodgm_interview_date',
-            'result' => 'bod_interview_status',
-            'notes' => 'bod_interview_notes'
-        ],
-        'offering_letter' => [
-            'date' => 'offering_letter_date',
-            'result' => 'offering_letter_status',
-            'notes' => 'offering_letter_notes'
-        ],
-        'mcu' => [
-            'date' => 'mcu_date',
-            'result' => 'mcu_status',
-            'notes' => 'mcu_notes'
-        ],
-        'hiring' => [
-            'date' => 'hiring_date',
-            'result' => 'hiring_status',
-            'notes' => 'hiring_notes'
-        ],
-    ];
-
-    // Valid result values for each type
-    private const PASSED_RESULTS = ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'];
-    private const FAILED_RESULTS = ['TIDAK LULUS', 'TIDAK DISARANKAN', 'DITOLAK', 'TIDAK DIHIRING', 'CANCEL'];
-    private const PENDING_RESULTS = ['PENDING', 'DIPERTIMBANGKAN', 'SENT'];
+    const PASSING_STATUSES = ['LULUS', 'DITERIMA', 'HIRED', 'DISARANKAN'];
 
     /**
-     * Bulk update status for multiple candidates
+     * Display a listing of the candidates.
      */
-    public function bulkUpdateStatus(Request $request)
-    {
-        $request->validate([
-            'candidate_ids' => 'required|array|min:1',
-            'candidate_ids.*' => 'exists:candidates,id',
-            'status' => 'required|string',
-            'stage' => 'required|string',
-            'notes' => 'nullable|string|max:1000',
-        ]);
-
-        $candidateIds = $request->input('candidate_ids');
-        $status = $request->input('status');
-        $stage = $request->input('stage');
-        $notes = $request->input('notes');
-
-        $candidates = Candidate::whereIn('id', $candidateIds)->get();
-        $updatedCount = 0;
-
-        foreach ($candidates as $candidate) {
-            if ($this->canUpdateStage($candidate, $stage)) {
-                $fields = self::STAGE_FIELDS[$stage] ?? null;
-                
-                if ($fields) {
-                    $candidate->{$fields['date']} = now();
-                    $candidate->{$fields['result']} = $status;
-                    $candidate->{$fields['notes']} = $notes;
-                    
-                    // Update current stage and overall status
-                    $this->updateCandidateStatus($candidate);
-                    
-                    $candidate->save();
-                    $updatedCount++;
-                }
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "Berhasil update status {$updatedCount} kandidat",
-            'updated_count' => $updatedCount
-        ]);
-    }
-
-    /**
-     * Bulk move candidates to next stage
-     */
-    public function bulkMoveStage(Request $request)
-    {
-        $request->validate([
-            'candidate_ids' => 'required|array|min:1',
-            'candidate_ids.*' => 'exists:candidates,id',
-            'target_stage' => 'required|string',
-            'notes' => 'nullable|string|max:1000',
-        ]);
-
-        $candidateIds = $request->input('candidate_ids');
-        $targetStage = $request->input('target_stage');
-        $notes = $request->input('notes');
-
-        $candidates = Candidate::whereIn('id', $candidateIds)->get();
-        $movedCount = 0;
-
-        foreach ($candidates as $candidate) {
-            if ($this->canUpdateStage($candidate, $targetStage)) {
-                $fields = self::STAGE_FIELDS[$targetStage] ?? null;
-                
-                if ($fields) {
-                    $candidate->{$fields['date']} = now();
-                    $candidate->{$fields['result']} = 'PENDING';
-                    $candidate->{$fields['notes']} = $notes ?: "Dipindahkan ke stage {$targetStage}";
-                    
-                    // Update current stage
-                    $candidate->current_stage = $targetStage;
-                    $candidate->save();
-                    
-                    $movedCount++;
-                }
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "Berhasil pindahkan {$movedCount} kandidat ke stage {$targetStage}",
-            'moved_count' => $movedCount
-        ]);
-    }
-
-    /**
-     * Bulk delete candidates
-     */
-    public function bulkDelete(Request $request)
-    {
-        $request->validate([
-            'candidate_ids' => 'required|array|min:1',
-            'candidate_ids.*' => 'exists:candidates,id',
-        ]);
-
-        $candidateIds = $request->input('candidate_ids');
-        $candidates = Candidate::whereIn('id', $candidateIds)->get();
-        $deletedCount = 0;
-
-        foreach ($candidates as $candidate) {
-            try {
-                $this->deleteFiles($candidate);
-                $candidate->delete();
-                $deletedCount++;
-            } catch (\Exception $e) {
-                Log::error("Failed to delete candidate {$candidate->id}: " . $e->getMessage());
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "Berhasil hapus {$deletedCount} kandidat",
-            'deleted_count' => $deletedCount
-        ]);
-    }
-
-    /**
-     * Bulk export candidates with filters
-     */
-    public function bulkExport(Request $request)
-    {
-        $request->validate([
-            'filters' => 'nullable|array',
-            'columns' => 'nullable|array',
-            'format' => 'nullable|string|in:excel,csv,pdf',
-        ]);
-
-        $filters = $request->input('filters', []);
-        $columns = $request->input('columns', []);
-        $format = $request->input('format', 'excel');
-
-        $query = Candidate::query();
-
-        // Apply filters
-        if (!empty($filters['search'])) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('nama', 'like', "%{$filters['search']}%")
-                  ->orWhere('alamat_email', 'like', "%{$filters['search']}%")
-                  ->orWhere('vacancy', 'like', "%{$filters['search']}%");
-            });
-        }
-
-        if (!empty($filters['status'])) {
-            $query->where('current_stage', $filters['status']);
-        }
-
-        if (!empty($filters['department'])) {
-            $query->where('department', $filters['department']);
-        }
-
-        if (!empty($filters['date_from'])) {
-            $query->where('created_at', '>=', $filters['date_from']);
-        }
-
-        if (!empty($filters['date_to'])) {
-            $query->where('created_at', '<=', $filters['date_to']);
-        }
-
-        $candidates = $query->get();
-
-        // If no specific columns selected, use default
-        if (empty($columns)) {
-            $columns = ['nama', 'vacancy', 'department', 'current_stage', 'overall_status', 'created_at'];
-        }
-
-        $filename = 'candidates_export_' . date('Y-m-d_H-i-s');
-
-        if ($format === 'csv') {
-            return $this->exportToCsv($candidates, $columns, $filename);
-        } elseif ($format === 'pdf') {
-            return $this->exportToPdf($candidates, $columns, $filename);
-        } else {
-            return $this->exportToExcel($candidates, $columns, $filename);
-        }
-    }
-
-    /**
-     * Export to CSV
-     */
-    private function exportToCsv($candidates, $columns, $filename)
-    {
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}.csv\"",
-        ];
-
-        $callback = function() use ($candidates, $columns) {
-            $file = fopen('php://output', 'w');
-            
-            // Write headers
-            fputcsv($file, $columns);
-            
-            // Write data
-            foreach ($candidates as $candidate) {
-                $row = [];
-                foreach ($columns as $column) {
-                    $row[] = $candidate->{$column} ?? '';
-                }
-                fputcsv($file, $row);
-            }
-            
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
-    }
-
-    /**
-     * Export to PDF
-     */
-    private function exportToPdf($candidates, $columns, $filename)
-    {
-        // For now, return CSV as PDF is more complex
-        // You can implement PDF generation using packages like DomPDF or Snappy
-        return $this->exportToCsv($candidates, $columns, $filename);
-    }
-
-    /**
-     * Export to Excel
-     */
-    private function exportToExcel($candidates, $columns, $filename)
-    {
-        // Use existing export logic
-        return $this->export(request());
-    }
-
     public function index(Request $request)
     {
-        $search = $request->input('search');
-        $status = $request->input('status');
-        $type = $request->input('type', 'organic');
-
-        $query = Candidate::query();
-
+        // Get the type from request, default to 'organic'
+        $type = $request->get('type', 'organic');
+        
+        // Initialize query
+        $query = Candidate::with(['department']);
+        
+        // Apply type filter
+        switch ($type) {
+            case 'organic':
+                $query->where('airsys_internal', 'Yes');
+                break;
+            case 'non-organic':
+                $query->where('airsys_internal', 'No');
+                break;
+            case 'duplicate':
+                // Logic for duplicate candidates
+                $query->whereRaw('applicant_id IN (
+                    SELECT applicant_id 
+                    FROM candidates 
+                    GROUP BY applicant_id 
+                    HAVING COUNT(*) > 1
+                )');
+                break;
+        }
+        
         // Apply search filter
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('nama', 'like', "%$search%")
-                  ->orWhere('alamat_email', 'like', "%$search%")
-                  ->orWhere('vacancy', 'like', "%$search%")
-                  ->orWhere('applicant_id', 'like', "%$search%");
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nama', 'like', "%{$search}%")
+                  ->orWhere('alamat_email', 'like', "%{$search}%")
+                  ->orWhere('vacancy', 'like', "%{$search}%")
+                  ->orWhere('applicant_id', 'like', "%{$search}%");
             });
         }
-
+        
         // Apply status filter
-        if ($status) {
-            $query->where('overall_status', $status);
+        if ($request->filled('status')) {
+            $query->where('overall_status', $request->status);
         }
-
-        // Get duplicate candidate IDs with improved logic
-        $latestDuplicateCandidateIds = $this->getDuplicateCandidateIds();
-
-        // Apply role-based and type-based filters
-        $user = Auth::user();
-        if ($user && $user->hasRole('department')) {
-            $query->where('department', $user->department);
-        } elseif ($type === 'duplicate') {
-            $query->whereIn('id', $latestDuplicateCandidateIds);
-        } else {
-            $query->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
+        
+        // Apply vacancy filter
+        if ($request->filled('vacancy')) {
+            $query->where('vacancy', 'like', '%' . $request->vacancy . '%');
         }
-
-        $candidates = $query->orderByRaw("CASE WHEN overall_status = 'LULUS' THEN 2 WHEN overall_status = 'DITOLAK' THEN 3 ELSE 1 END")
-                            ->orderBy('created_at', 'desc')
-                            ->paginate(10);
-
-        // Calculate statistics
-        $stats = $this->calculateStats($latestDuplicateCandidateIds);
-
-        $statuses = Candidate::select('overall_status')->distinct()->pluck('overall_status');
-
+        
+        // Apply department filter for department role users
+        if (Auth::user()->hasRole('department')) {
+            $query->where('department_id', Auth::user()->department_id);
+        }
+        
+        // Get paginated candidates
+        $candidates = $query->latest()->paginate(20)->appends($request->query());
+        
+        // Get statistics
+        $stats = $this->getCandidateStats();
+        
+        // Get all possible statuses for filter dropdown
+        $statuses = Candidate::distinct('overall_status')
+                             ->whereNotNull('overall_status')
+                             ->pluck('overall_status')
+                             ->toArray();
+        
+        // Get all possible vacancies for filter dropdown
+        $vacancies = Candidate::select('vacancy')->distinct()->pluck('vacancy');
+        
+        // Get latest duplicate candidate IDs for highlighting
+        $latestDuplicateCandidateIds = [];
+        if ($type === 'duplicate') {
+            $latestDuplicateCandidateIds = Candidate::selectRaw('MAX(id) as latest_id')
+                ->whereRaw('applicant_id IN (
+                    SELECT applicant_id 
+                    FROM candidates 
+                    GROUP BY applicant_id 
+                    HAVING COUNT(*) > 1
+                )')
+                ->groupBy('applicant_id')
+                ->pluck('latest_id')
+                ->toArray();
+        }
+        
         return view('candidates.index', compact(
-            'candidates', 
-            'stats', 
-            'search', 
-            'status', 
-            'type', 
-            'latestDuplicateCandidateIds',
-            'statuses'
+            'candidates',
+            'stats',
+            'statuses',
+            'vacancies',
+            'type',
+            'latestDuplicateCandidateIds'
         ));
     }
-
-    public function show($id)
+    
+    /**
+     * Get candidate statistics
+     */
+    private function getCandidateStats()
     {
-        $candidate = Candidate::findOrFail($id);
-        $timeline = $this->generateTimeline($candidate);
+        $stats = [];
         
+        // Base query
+        $baseQuery = Candidate::query();
+        
+        // Apply department filter for department role users
+        if (Auth::user()->hasRole('department')) {
+            $baseQuery->where('department_id', Auth::user()->department_id);
+        }
+        
+        // Total candidates
+        $stats['total_candidates'] = (clone $baseQuery)->count();
+        
+        // Count by type
+        $stats['organic_candidates'] = (clone $baseQuery)
+            ->where('airsys_internal', 'Yes')
+            ->count();
+            
+        $stats['non_organic_candidates'] = (clone $baseQuery)
+            ->where('airsys_internal', 'No')
+            ->count();
+        
+        // Count by status
+        $stats['dalam_proses'] = (clone $baseQuery)
+            ->whereIn('overall_status', ['PENDING', 'DALAM PROSES'])
+            ->count();
+            
+        $stats['hired'] = (clone $baseQuery)
+            ->whereIn('overall_status', ['HIRED', 'LULUS'])
+            ->count();
+            
+        $stats['ditolak'] = (clone $baseQuery)
+            ->whereIn('overall_status', ['DITOLAK', 'TIDAK LULUS'])
+            ->count();
+            
+        $stats['on_hold'] = (clone $baseQuery)
+            ->where('overall_status', 'ON HOLD')
+            ->count();
+            
+        // Count duplicates
+        $stats['duplicate'] = Candidate::selectRaw('COUNT(DISTINCT applicant_id) as duplicate_count')
+            ->whereRaw('applicant_id IN (
+                SELECT applicant_id 
+                FROM candidates 
+                GROUP BY applicant_id 
+                HAVING COUNT(*) > 1
+            )')
+            ->value('duplicate_count') ?? 0;
+        
+        return $stats;
+    }
+
+    /**
+     * Show the form for creating a new candidate.
+     */
+    public function create()
+    {
+        return view('candidates.create');
+    }
+
+    /**
+     * Store a newly created candidate in storage.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'alamat_email' => 'nullable|email|max:255',
+            'vacancy' => 'required|string|max:255',
+            'jk' => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'ipk' => 'nullable|numeric|min:0|max:4',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:255',
+            'jurusan' => 'nullable|string|max:255',
+            'source' => 'nullable|string|max:255',
+            'current_stage' => 'nullable|string|max:100',
+            'overall_status' => 'nullable|in:DALAM PROSES,LULUS,DITOLAK,ON HOLD',
+            'department_id' => 'nullable|exists:departments,id',
+        ]);
+
+        // Generate applicant_id if not provided
+        if (!isset($validated['applicant_id'])) {
+            do {
+                $validated['applicant_id'] = 'CAND-' . strtoupper(\Illuminate\Support\Str::random(6));
+            } while (Candidate::where('applicant_id', $validated['applicant_id'])->exists());
+        }
+
+        // Set defaults
+        $validated['current_stage'] = 'Psikotes'; // Set to next stage since CV Review is auto-passed
+        $validated['overall_status'] = 'DALAM PROSES';
+        $validated['airsys_internal'] = 'Yes'; // Default for manual entry
+        $validated['candidate_type'] = 'organic'; // Default for manual entry
+
+        // Set department for department role users
+        if (Auth::user()->hasRole('department') && !isset($validated['department_id'])) {
+            $validated['department_id'] = Auth::user()->department_id;
+        }
+
+        // Add CV Review fields - automatically set as LULUS
+        $validated['cv_review_status'] = 'LULUS';
+        $validated['cv_review_date'] = now();
+        $validated['cv_review_by'] = Auth::id();
+
+        $candidate = Candidate::create($validated);
+        
+        return redirect()->route('candidates.index')
+            ->with('success', 'Candidate berhasil ditambahkan.');
+    }
+
+    /**
+     * Display the specified candidate.
+     */
+    /**
+     * Get the status of a recruitment stage based on its result
+     */
+    private function getStageStatus(?string $result): string
+    {
+        if (empty($result)) {
+            return 'locked';
+        }
+
+        if (in_array($result, ['LULUS', 'DITERIMA', 'HIRED', 'DISARANKAN'])) {
+            return 'completed';
+        }
+
+        if (in_array($result, ['TIDAK LULUS', 'DITOLAK', 'CANCEL', 'TIDAK DISARANKAN', 'TIDAK DIHIRING'])) {
+            return 'failed';
+        }
+
+        if (in_array($result, ['PENDING', 'DIPERTIMBANGKAN', 'SENT'])) {
+            return 'pending';
+        }
+
+        return 'in_progress';
+    }
+
+    public function show(Candidate $candidate)
+    {
+        // Define recruitment timeline stages
+        $passing = self::PASSING_STATUSES;
+        $timeline = [
+            [
+                'stage' => 'CV Review',
+                'display_name' => 'CV Review',
+                'result' => $candidate->cv_review_status,
+                'status_field' => 'cv_review_status',
+                'date' => $candidate->cv_review_date,
+                'notes' => $candidate->cv_review_notes,
+                'evaluator' => $candidate->cv_review_by,
+                'stage_key' => 'cv_review',
+                'field_result' => 'cv_review_status',
+                'field_date' => 'cv_review_date', 
+                'field_notes' => 'cv_review_notes',
+                'status' => $this->getStageStatus($candidate->cv_review_status),
+                'is_locked' => false,
+            ],
+            [
+                'stage' => 'Psikotes',
+                'display_name' => 'Psikotes',
+                'result' => $candidate->psikotes_result,
+                'status_field' => 'psikotes_result',
+                'date' => $candidate->psikotes_date,
+                'notes' => $candidate->psikotes_notes,
+                'evaluator' => $candidate->psikotes_by,
+                'stage_key' => 'psikotes',
+                'field_result' => 'psikotes_result',
+                'field_date' => 'psikotes_date',
+                'field_notes' => 'psikotes_notes',
+                'status' => $this->getStageStatus($candidate->psikotes_result),
+                'is_locked' => empty($candidate->cv_review_status) || !in_array($candidate->cv_review_status, $passing),
+            ],
+            [
+                'stage' => 'HC Interview',
+                'display_name' => 'HC Interview',
+                'result' => $candidate->hc_interview_status,
+                'status_field' => 'hc_interview_status',
+                'date' => $candidate->hc_interview_date,
+                'notes' => $candidate->hc_interview_notes,
+                'evaluator' => $candidate->hc_interview_by,
+                'stage_key' => 'interview_hc',
+                'field_result' => 'hc_interview_status',
+                'field_date' => 'hc_interview_date',
+                'field_notes' => 'hc_interview_notes',
+                'status' => $this->getStageStatus($candidate->hc_interview_status),
+                'is_locked' => empty($candidate->psikotes_result) || !in_array($candidate->psikotes_result, $passing),
+            ],
+            [
+                'stage' => 'User Interview',
+                'display_name' => 'User Interview',
+                'result' => $candidate->user_interview_status,
+                'status_field' => 'user_interview_status',
+                'date' => $candidate->user_interview_date,
+                'notes' => $candidate->user_interview_notes,
+                'evaluator' => $candidate->user_interview_by,
+                'stage_key' => 'interview_user',
+                'field_result' => 'user_interview_status',
+                'field_date' => 'user_interview_date',
+                'field_notes' => 'user_interview_notes',
+                'status' => $this->getStageStatus($candidate->user_interview_status),
+                'is_locked' => empty($candidate->hc_interview_status) || !in_array($candidate->hc_interview_status, $passing),
+            ],
+            [
+                'stage' => 'BOD Interview',
+                'display_name' => 'BOD Interview',
+                'result' => $candidate->bod_interview_status,
+                'status_field' => 'bod_interview_status',
+                'date' => $candidate->bod_interview_date,
+                'notes' => $candidate->bod_interview_notes,
+                'evaluator' => $candidate->bod_interview_by,
+                'stage_key' => 'interview_bod',
+                'field_result' => 'bod_interview_status',
+                'field_date' => 'bod_interview_date',
+                'field_notes' => 'bod_interview_notes',
+                'status' => $this->getStageStatus($candidate->bod_interview_status),
+                'is_locked' => empty($candidate->user_interview_status) || !in_array($candidate->user_interview_status, $passing),
+            ],
+            [
+                'stage' => 'Offering Letter',
+                'display_name' => 'Offering Letter',
+                'result' => $candidate->offering_letter_status,
+                'status_field' => 'offering_letter_status',
+                'date' => $candidate->offering_letter_date,
+                'notes' => $candidate->offering_letter_notes,
+                'evaluator' => $candidate->offering_letter_by,
+                'stage_key' => 'offering_letter',
+                'field_result' => 'offering_letter_status',
+                'field_date' => 'offering_letter_date',
+                'field_notes' => 'offering_letter_notes',
+                'status' => $this->getStageStatus($candidate->offering_letter_status),
+                'is_locked' => empty($candidate->bod_interview_status) || !in_array($candidate->bod_interview_status, $passing),
+            ],
+            [
+                'stage' => 'MCU',
+                'display_name' => 'MCU',
+                'result' => $candidate->mcu_status,
+                'status_field' => 'mcu_status',
+                'date' => $candidate->mcu_date,
+                'notes' => $candidate->mcu_notes,
+                'evaluator' => $candidate->mcu_by,
+                'stage_key' => 'mcu',
+                'field_result' => 'mcu_status',
+                'field_date' => 'mcu_date',
+                'field_notes' => 'mcu_notes',
+                'status' => $this->getStageStatus($candidate->mcu_status),
+                'is_locked' => empty($candidate->offering_letter_status) || !in_array($candidate->offering_letter_status, $passing),
+            ],
+            [
+                'stage' => 'Hiring',
+                'display_name' => 'Hiring',
+                'result' => $candidate->hiring_status,
+                'status_field' => 'hiring_status',
+                'date' => $candidate->hiring_date,
+                'notes' => $candidate->hiring_notes,
+                'evaluator' => $candidate->hiring_by,
+                'stage_key' => 'hiring',
+                'field_result' => 'hiring_status',
+                'field_date' => 'hiring_date',
+                'field_notes' => 'hiring_notes',
+                'status' => $this->getStageStatus($candidate->hiring_status),
+                'is_locked' => empty($candidate->mcu_status) || !in_array($candidate->mcu_status, $passing),
+            ],
+        ];
+
         return view('candidates.show', compact('candidate', 'timeline'));
     }
 
-    public function create()
-    {
-        // Generate applicant_id otomatis
-        $today = now()->format('dm');
-        $countToday = Candidate::whereDate('created_at', now()->toDateString())->count() + 1;
-        $applicantId = $today . '-' . str_pad($countToday, 3, '0', STR_PAD_LEFT);
-        return view('candidates.create', compact('applicantId'));
-    }
-
-    public function store(CandidateRequest $request)
-    {
-        try {
-            $candidateData = $request->validated();
-            
-            // Handle file uploads
-            $candidateData = $this->handleFileUploads($request, $candidateData);
-
-            // Set initial values
-            $candidateData['current_stage'] = 'CV Review';
-            $candidateData['overall_status'] = 'DALAM PROSES';
-            $candidateData['no'] = Candidate::count() + 1;
-
-            Candidate::create($candidateData);
-
-            return redirect()->route('candidates.index')
-                            ->with('success', 'Kandidat berhasil ditambahkan.');
-        } catch (\Exception $e) {
-            Log::error('Error creating candidate: ' . $e->getMessage());
-            return redirect()->back()
-                            ->withInput()
-                            ->with('error', 'Terjadi kesalahan saat menambah kandidat.');
-        }
-    }
-
+    /**
+     * Show the form for editing the specified candidate.
+     */
     public function edit(Candidate $candidate)
     {
         return view('candidates.edit', compact('candidate'));
     }
 
-    public function update(CandidateRequest $request, Candidate $candidate)
+    /**
+     * Update the specified candidate in storage.
+     */
+    public function update(Request $request, Candidate $candidate)
     {
-        try {
-            $candidateData = $request->validated();
-            // Validasi next_test_date jika hasil tes tahap manapun = LULUS
-            $nextTestRequired = false;
-            $nextTestStages = [
-                'psikotes_result',
-                'hc_interview_status',
-                'user_interview_status',
-                'bod_interview_status',
-                'mcu_status',
-                'offering_letter_status',
-                'hiring_status',
-            ];
-            foreach ($nextTestStages as $stage) {
-                if ($request->has($stage) && strtoupper($request->input($stage)) === 'LULUS') {
-                    $nextTestRequired = true;
-                    break;
-                }
-            }
-            $rules = [];
-            if ($nextTestRequired) {
-                $rules['next_test_date'] = 'required|date';
-                $validator = \Validator::make($request->all(), $rules);
-                if ($validator->fails()) {
-                    return redirect()->back()
-                        ->withErrors($validator)
-                        ->withInput();
-                }
-            }
-            // Handle file uploads with deletion of old files
-            $candidateData = $this->handleFileUploads($request, $candidateData, $candidate);
-            $candidate->update($candidateData);
-            $candidate->next_test_date = $request->input('next_test_date');
-            $candidate->save();
-            return redirect()->route('candidates.show', $candidate)
-                            ->with('success', 'Kandidat berhasil diperbarui.');
-        } catch (\Exception $e) {
-            Log::error('Error updating candidate: ' . $e->getMessage());
-            return redirect()->back()
-                            ->withInput()
-                            ->with('error', 'Terjadi kesalahan saat memperbarui kandidat.');
-        }
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'alamat_email' => 'nullable|email|max:255',
+            'vacancy' => 'required|string|max:255',
+            'jk' => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'ipk' => 'nullable|numeric|min:0|max:4',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:255',
+            'jurusan' => 'nullable|string|max:255',
+            'source' => 'nullable|string|max:255',
+            'current_stage' => 'nullable|string|max:100',
+            'overall_status' => 'nullable|in:DALAM PROSES,LULUS,DITOLAK,ON HOLD',
+            'psikotes_result' => 'nullable|string|max:50',
+            'hc_interview_status' => 'nullable|string|max:50',
+            'user_interview_status' => 'nullable|string|max:50',
+            'bod_interview_status' => 'nullable|string|max:50',
+            'offering_letter_status' => 'nullable|string|max:50',
+            'mcu_status' => 'nullable|string|max:50',
+            'hiring_status' => 'nullable|string|max:50',
+            'department_id' => 'nullable|exists:departments,id',
+        ]);
+
+        $candidate->update($validated);
+        
+        return redirect()->route('candidates.index')
+            ->with('success', 'Candidate berhasil diperbarui.');
     }
 
+    /**
+     * Remove the specified candidate from storage.
+     */
     public function destroy(Candidate $candidate)
     {
-        try {
-            // Delete associated files
-            $this->deleteFiles($candidate);
-            
-            $candidate->delete();
-
-            return redirect()->route('candidates.index')
-                            ->with('success', 'Kandidat berhasil dihapus.');
-        } catch (\Exception $e) {
-            Log::error('Error deleting candidate: ' . $e->getMessage());
-            return redirect()->back()
-                            ->with('error', 'Terjadi kesalahan saat menghapus kandidat.');
-        }
+        $candidate->delete();
+        
+        return redirect()->route('candidates.index')
+            ->with('success', 'Candidate berhasil dihapus.');
     }
 
+    /**
+     * Update a specific recruitment stage for a candidate.
+     */
     public function updateStage(Request $request, Candidate $candidate)
     {
-        try {
-            $passingResults = implode(',', self::PASSED_RESULTS);
+        $request->validate([
+            'stage' => 'required|string',
+            'result' => 'required|string',
+            'notes' => 'nullable|string',
+            'next_test_stage' => 'nullable|string',
+            'next_test_date' => 'nullable|date'
+        ]);
 
-            $validated = $request->validate([
-                'stage' => 'required|string|in:' . implode(',', array_keys(self::STAGE_FIELDS)),
-                'result' => 'required|string',
-                'notes' => 'nullable|string|max:1000',
-                'next_test_stage' => 'nullable|string',
-                'next_test_date' => ['nullable', 'date', "required_if:result,{$passingResults}"],
-            ], [
-                'next_test_date.required_if' => 'Tanggal tes berikutnya wajib diisi jika hasil tes lulus.'
-            ]);
+        $stage = $request->stage;
+        $result = $request->result;
+        $notes = $request->notes;
+        $nextTestStage = $request->next_test_stage;
+        $nextTestDate = $request->next_test_date;
 
-            $stageKey = $validated['stage'];
-            
-            if (!isset(self::STAGE_FIELDS[$stageKey])) {
-                return response()->json(['success' => false, 'message' => 'Tahapan tidak valid.'], 400);
-            }
+        // Update based on stage
+        switch ($stage) {
+            case 'cv_review':
+                $candidate->update([
+                    'cv_review_status' => $result,
+                    'cv_review_notes' => $notes,
+                    'cv_review_date' => now(),
+                    'cv_review_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'LULUS' ? 'Psikotes' : 'CV Review',
+                    'overall_status' => $result === 'LULUS' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                break;
+                
+            case 'psikotes':
+                $candidate->update([
+                    'psikotes_result' => $result,
+                    'psikotes_notes' => $notes,
+                    'psikotes_date' => now(),
+                    'psikotes_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'LULUS' ? 'HC Interview' : 'Psikotes',
+                    'overall_status' => $result === 'LULUS' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                // Set next test date if passed
+                if ($result === 'LULUS' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'interview_hc':
+                $candidate->update([
+                    'hc_interview_status' => $result,
+                    'hc_interview_notes' => $notes,
+                    'hc_interview_date' => now(),
+                    'hc_interview_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'DISARANKAN' ? 'User Interview' : 'HC Interview',
+                    'overall_status' => $result === 'DISARANKAN' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                if ($result === 'DISARANKAN' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'interview_user':
+                $candidate->update([
+                    'user_interview_status' => $result,
+                    'user_interview_notes' => $notes,
+                    'user_interview_date' => now(),
+                    'user_interview_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'DISARANKAN' ? 'BOD Interview' : 'User Interview',
+                    'overall_status' => $result === 'DISARANKAN' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                if ($result === 'DISARANKAN' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'interview_bod':
+                $candidate->update([
+                    'bod_interview_status' => $result,
+                    'bod_interview_notes' => $notes,
+                    'bod_interview_date' => now(),
+                    'bod_interview_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'DISARANKAN' ? 'Offering Letter' : 'BOD Interview',
+                    'overall_status' => $result === 'DISARANKAN' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                if ($result === 'DISARANKAN' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'offering_letter':
+                $candidate->update([
+                    'offering_letter_status' => $result,
+                    'offering_letter_notes' => $notes,
+                    'offering_letter_date' => now(),
+                    'offering_letter_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'DITERIMA' ? 'MCU' : 'Offering Letter',
+                    'overall_status' => $result === 'DITERIMA' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                if ($result === 'DITERIMA' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'mcu':
+                $candidate->update([
+                    'mcu_status' => $result,
+                    'mcu_notes' => $notes,
+                    'mcu_date' => now(),
+                    'mcu_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'LULUS' ? 'Hiring' : 'MCU',
+                    'overall_status' => $result === 'LULUS' ? 'DALAM PROSES' : 'DITOLAK'
+                ]);
+                
+                if ($result === 'LULUS' && $nextTestStage && $nextTestDate) {
+                    $this->setNextTestDateForStage($candidate, $nextTestStage, $nextTestDate);
+                }
+                break;
+                
+            case 'hiring':
+                $candidate->update([
+                    'hiring_status' => $result,
+                    'hiring_notes' => $notes,
+                    'hiring_date' => now(),
+                    'hiring_by' => Auth::user()->name ?? Auth::user()->email,
+                    'current_stage' => $result === 'HIRED' ? 'Selesai' : 'Hiring',
+                    'overall_status' => $result === 'HIRED' ? 'LULUS' : 'TIDAK LULUS'
+                ]);
+                break;
+                
+            default:
+                return response()->json(['error' => 'Invalid stage'], 400);
+        }
 
-            if (!$this->canUpdateStage($candidate, $stageKey)) {
-                return response()->json(['success' => false, 'message' => 'Selesaikan tahapan sebelumnya terlebih dahulu.'], 400);
-            }
+        return response()->json(['success' => true, 'message' => "Status $stage berhasil diperbarui."]);
+    }
 
-            $fields = self::STAGE_FIELDS[$stageKey];
-            $resultValue = strtoupper(trim($validated['result']));
-
-            // Update stage fields
-            $candidate->{$fields['date']} = now();
-            $candidate->{$fields['result']} = $resultValue;
-            $candidate->{$fields['notes']} = $validated['notes'];
-
-            // Update next test info if passed
-            if (in_array($resultValue, self::PASSED_RESULTS)) {
-                $candidate->next_test_stage = $validated['next_test_stage'];
-                $candidate->next_test_date = $validated['next_test_date'];
-            } else {
-                // If failed or pending, clear any future test dates that might have been set previously
-                $candidate->next_test_stage = null;
-                $candidate->next_test_date = null;
-            }
-
-            $candidate->save();
-
-            // Update overall status and current stage after saving
-            $this->updateCandidateStatus($candidate);
-
-            return response()->json([
-                'success' => true, 
-                'message' => 'Tahapan berhasil diperbarui.',
-            ]);
-                            
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['success' => false, 'message' => 'Data tidak valid.', 'errors' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            Log::error('Error updating stage: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan saat memperbarui tahapan.'], 500);
+    /**
+     * Set next test date for a specific stage
+     */
+    private function setNextTestDateForStage($candidate, $stage, $date)
+    {
+        switch ($stage) {
+            case 'Psikotes':
+                $candidate->update(['psikotes_date' => $date]);
+                break;
+            case 'HC Interview':
+                $candidate->update(['hc_interview_date' => $date]);
+                break;
+            case 'User Interview':
+                $candidate->update(['user_interview_date' => $date]);
+                break;
+            case 'BOD Interview':
+                $candidate->update(['bod_interview_date' => $date]);
+                break;
+            case 'Offering Letter':
+                $candidate->update(['offering_letter_date' => $date]);
+                break;
+            case 'MCU':
+                $candidate->update(['mcu_date' => $date]);
+                break;
+            case 'Hiring':
+                $candidate->update(['hiring_date' => $date]);
+                break;
         }
     }
 
+    /**
+     * Set next test date for a candidate
+     */
+    public function setNextTestDate(Request $request, Candidate $candidate)
+    {
+        $request->validate([
+            'next_test_date' => 'required|date'
+        ]);
+
+        $candidate->update([
+            'next_test_date' => $request->next_test_date
+        ]);
+
+        return redirect()->back()->with('success', 'Tanggal tes berikutnya berhasil diatur.');
+    }
+
+    /**
+     * Toggle duplicate status for a candidate
+     */
+    public function toggleDuplicate(Candidate $candidate)
+    {
+        $candidate->update([
+            'is_duplicate' => !$candidate->is_duplicate
+        ]);
+
+        $status = $candidate->is_duplicate ? 'ditandai sebagai duplikat' : 'tidak lagi ditandai sebagai duplikat';
+        return redirect()->back()->with('success', "Kandidat berhasil {$status}.");
+    }
+
+    /**
+     * Switch candidate type (organic/non-organic)
+     */
     public function switchType(Candidate $candidate)
     {
-        try {
-            $candidate->airsys_internal = ($candidate->airsys_internal === 'Yes') ? 'No' : 'Yes';
-            $candidate->save();
+        $newType = $candidate->airsys_internal === 'Yes' ? 'No' : 'Yes';
+        $candidate->update(['airsys_internal' => $newType]);
 
-            $newType = ($candidate->airsys_internal === 'Yes') ? 'organic' : 'non-organic';
+        $typeName = $newType === 'Yes' ? 'Organik' : 'Non-Organik';
+        return redirect()->back()->with('success', "Tipe kandidat berhasil diubah menjadi {$typeName}.");
+    }
 
-            return redirect()->route('candidates.index', ['type' => $newType])
-                            ->with('success', "Kandidat berhasil dipindahkan ke {$newType}.");
-        } catch (\Exception $e) {
-            Log::error('Error switching candidate type: ' . $e->getMessage());
-            return redirect()->back()
-                            ->with('error', 'Terjadi kesalahan saat memindahkan kandidat.');
+    /**
+     * Bulk delete candidates.
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id'
+        ]);
+
+        $deletedCount = Candidate::whereIn('id', $request->candidate_ids)->delete();
+        
+        return back()->with('success', "{$deletedCount} candidates berhasil dihapus.");
+    }
+
+    /**
+     * Bulk update status for multiple candidates.
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id',
+            'status' => 'required|string|in:LULUS,TIDAK LULUS,DALAM PROSES,PENDING,ON HOLD'
+        ]);
+
+        $updatedCount = Candidate::whereIn('id', $request->candidate_ids)
+            ->update(['overall_status' => $request->status]);
+
+        return back()->with('success', "Status {$request->status} berhasil diterapkan pada {$updatedCount} kandidat.");
+    }
+
+    /**
+     * Bulk move candidates to a specific stage.
+     */
+    public function bulkMoveStage(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id',
+            'stage' => 'required|string|in:CV Review,Psikotes,HC Interview,User Interview,BOD Interview,Offering Letter,MCU,Hiring'
+        ]);
+
+        $updatedCount = Candidate::whereIn('id', $request->candidate_ids)
+            ->update(['current_stage' => $request->stage]);
+
+        return back()->with('success', "{$updatedCount} kandidat berhasil dipindahkan ke tahap {$request->stage}.");
+    }
+
+    /**
+     * Bulk export candidates.
+     */
+    public function bulkExport(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id',
+            'format' => 'required|string|in:excel,csv,pdf'
+        ]);
+
+        $candidates = Candidate::whereIn('id', $request->candidate_ids)->get();
+        
+        if ($request->format === 'excel') {
+            return Excel::download(new CandidatesExport($candidates), 'candidates_' . now()->format('Y-m-d_H-i-s') . '.xlsx');
+        } elseif ($request->format === 'csv') {
+            return Excel::download(new CandidatesExport($candidates), 'candidates_' . now()->format('Y-m-d_H-i-s') . '.csv');
+        } else {
+            // PDF export logic here
+            return back()->with('error', 'Export PDF belum tersedia.');
         }
     }
 
+    /**
+     * Bulk switch candidate type (organic/non-organic).
+     */
+    public function bulkSwitchType(Request $request)
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id'
+        ]);
+
+        $candidates = Candidate::whereIn('id', $request->candidate_ids)->get();
+        $switchedCount = 0;
+
+        foreach ($candidates as $candidate) {
+            $newType = $candidate->airsys_internal === 'Yes' ? 'No' : 'Yes';
+            $candidate->update(['airsys_internal' => $newType]);
+            $switchedCount++;
+        }
+
+        return back()->with('success', "Tipe {$switchedCount} kandidat berhasil diubah.");
+    }
+
+    /**
+     * Export candidates to Excel.
+     */
     public function export(Request $request)
     {
+        // Implementation for exporting candidates
+        // You can use Laravel Excel for this
+        return response()->json(['message' => 'Export feature will be implemented']);
+    }
+
+    /**
+     * Show candidate statistics dashboard.
+     */
+    public function dashboard()
+    {
+        $stats = [
+            'total_candidates' => Candidate::count(),
+            'organic_candidates' => Candidate::where('airsys_internal', 'Yes')->count(),
+            'non_organic_candidates' => Candidate::where('airsys_internal', 'No')->count(),
+            'hired_candidates' => Candidate::whereIn('overall_status', ['LULUS', 'HIRED'])->count(),
+            'rejected_candidates' => Candidate::whereIn('overall_status', ['DITOLAK', 'TIDAK LULUS'])->count(),
+            'in_process_candidates' => Candidate::whereIn('overall_status', ['DALAM PROSES', 'PENDING'])->count(),
+            'on_hold_candidates' => Candidate::where('overall_status', 'ON HOLD')->count(),
+        ];
+
+        // Get recent candidates
+        $recent_candidates = Candidate::with('department')->latest()->limit(10)->get();
+
+        // Get status distribution
+        $status_distribution = Candidate::select('overall_status')
+            ->selectRaw('count(*) as count')
+            ->whereNotNull('overall_status')
+            ->groupBy('overall_status')
+            ->pluck('count', 'overall_status')
+            ->toArray();
+
+        // Get vacancy distribution (top 10)
+        $vacancy_distribution = Candidate::select('vacancy')
+            ->selectRaw('count(*) as count')
+            ->whereNotNull('vacancy')
+            ->groupBy('vacancy')
+            ->orderBy('count', 'desc')
+            ->limit(10)
+            ->pluck('count', 'vacancy')
+            ->toArray();
+
+        // Get monthly hiring trends (last 12 months)
+        $monthly_trends = Candidate::selectRaw('MONTH(created_at) as month, YEAR(created_at) as year, count(*) as count')
+            ->where('created_at', '>=', now()->subMonths(12))
+            ->groupByRaw('YEAR(created_at), MONTH(created_at)')
+            ->orderByRaw('YEAR(created_at), MONTH(created_at)')
+            ->get();
+
+        // Get department distribution
+        $department_distribution = Candidate::with('department')
+            ->select('department_id')
+            ->selectRaw('count(*) as count')
+            ->whereNotNull('department_id')
+            ->groupBy('department_id')
+            ->get()
+            ->pluck('count', 'department.name')
+            ->toArray();
+
+        return view('candidates.dashboard', compact(
+            'stats', 
+            'recent_candidates', 
+            'status_distribution', 
+            'vacancy_distribution',
+            'monthly_trends',
+            'department_distribution'
+        ));
+    }
+
+    /**
+     * Import candidates from Excel file.
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:10240', // 10MB max
+        ]);
+
         try {
-            return Excel::download(new \App\Exports\CandidatesExport, 'kandidat_' . now()->format('Ymd_His') . '.xlsx');
-        } catch (\Exception $e) {
-            Log::error('Error exporting candidates: ' . $e->getMessage());
-            return redirect()->back()
-                            ->with('error', 'Terjadi kesalahan saat mengekspor data.');
+            Excel::import(new CandidatesImport, $request->file('file'));
+            
+            return redirect()->back()->with('success', 'Candidates imported successfully.');
+        } catch (Exception $e) {
+            Log::error('Import failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
 
     /**
-     * Set the next test date for a candidate
+     * Show import form.
      */
-    public function setNextTestDate(Request $request, $id)
+    public function showImportForm()
     {
-        $request->validate(['next_test_date' => 'required|date']);
-        $candidate = Candidate::findOrFail($id);
-        $candidate->next_test_date = $request->next_test_date;
-        $candidate->save();
-        return redirect()->route('candidates.show', $candidate->id)->with('success', 'Tanggal tes berikutnya berhasil disimpan.');
-    }
-
-    // Private helper methods
-
-    private function getDuplicateCandidateIds(): array
-    {
-        $duplicateApplicantIds = Candidate::select('applicant_id')
-            ->groupBy('applicant_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('applicant_id');
-
-        if ($duplicateApplicantIds->isEmpty()) {
-            return [];
-        }
-
-        $candidatesByAppId = Candidate::whereIn('applicant_id', $duplicateApplicantIds)->pluck('id')->toArray();
-        return $candidatesByAppId;
-    }
-
-    private function createTimelineStage(string $stageName, string $stageKey, Candidate $candidate, string $evaluator): array
-    {
-        $fields = self::STAGE_FIELDS[$stageKey];
-        
-        return [
-            'stage' => $stageName,
-            'stage_key' => $stageKey,
-            'status' => $this->getStageStatus($candidate->{$fields['result']}),
-            'date' => $candidate->{$fields['date']},
-            'notes' => $candidate->{$fields['notes']},
-            'evaluator' => $evaluator,
-            'result' => $candidate->{$fields['result']},
-            'field_date' => $fields['date'],
-            'field_result' => $fields['result'],
-            'field_notes' => $fields['notes'],
-        ];
-    }
-
-    private function getStageStatus(?string $result): string
-    {
-        if (!$result) return 'pending';
-        
-        if (in_array($result, self::PASSED_RESULTS)) return 'completed';
-        if (in_array($result, self::PENDING_RESULTS)) return 'current';
-        if (in_array($result, self::FAILED_RESULTS)) return 'failed';
-        
-        return 'pending';
-    }
-
-    /**
-     * Delete all files associated with a candidate
-     */
-    private function deleteFiles(Candidate $candidate): void
-    {
-        $fileFields = [
-            'cv_file',
-            'ijazah_file',
-            'transkrip_file',
-            'ktp_file',
-            'foto_file',
-            'skck_file',
-            'surat_keterangan_sehat_file',
-        ];
-
-        foreach ($fileFields as $field) {
-            if ($candidate->$field && Storage::exists($candidate->$field)) {
-                Storage::delete($candidate->$field);
-            }
-        }
-    }
-
-    /**
-     * Calculate recruitment statistics
-     */
-    private function calculateStats(array $duplicateIds): array
-    {
-        return [
-            'dalam_proses' => Candidate::where('overall_status', 'DALAM PROSES')->count(),
-            'hired' => Candidate::where('overall_status', 'LULUS')->count(),
-            'ditolak' => Candidate::whereIn('overall_status', ['TIDAK LULUS', 'DITOLAK'])->count(),
-            'duplicate' => count($duplicateIds),
-        ];
-    }
-
-    /**
-     * Handle file uploads for a candidate
-     */
-    private function handleFileUploads(Request $request, array $data, ?Candidate $candidate = null): array
-    {
-        $fileFields = [
-            'cv_file',
-            'ijazah_file',
-            'transkrip_file',
-            'ktp_file',
-            'foto_file',
-            'skck_file',
-            'surat_keterangan_sehat_file',
-        ];
-
-        foreach ($fileFields as $field) {
-            if ($request->hasFile($field)) {
-                // Delete old file if exists
-                if ($candidate && $candidate->$field) {
-                    Storage::delete($candidate->$field);
-                }
-
-                $file = $request->file($field);
-                $path = $file->store('public/candidates');
-                $data[$field] = $path;
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * Get display name for a stage
-     */
-    private function getStageDisplayName(string $stageKey): string
-    {
-        $displayNames = [
-            'psikotes' => 'Psikotes',
-            'interview_hc' => 'Interview HC',
-            'interview_user' => 'Interview User',
-            'interview_bod' => 'Interview BOD/GM',
-            'offering_letter' => 'Offering Letter',
-            'mcu' => 'Medical Check Up',
-            'hiring' => 'Hiring',
-        ];
-
-        return $displayNames[$stageKey] ?? $stageKey;
-    }
-
-    private function canUpdateStage(Candidate $candidate, string $stageKey): bool
-    {
-        $stageOrder = array_keys(self::STAGE_FIELDS);
-        $currentIndex = array_search($stageKey, $stageOrder);
-        
-        if ($currentIndex === false || $currentIndex === 0) {
-            return true; // First stage or invalid stage
-        }
-
-        // Check if previous stage is completed successfully
-        $previousStageKey = $stageOrder[$currentIndex - 1];
-        $previousFields = self::STAGE_FIELDS[$previousStageKey];
-        $previousResult = $candidate->{$previousFields['result']};
-
-        return $previousResult && in_array($previousResult, self::PASSED_RESULTS);
-    }
-
-    private function updateCandidateStatus(Candidate $candidate): void
-    {
-        $currentStage = 'Seleksi Berkas';
-        $overallStatus = 'DALAM PROSES';
-
-        // Check each stage for failures
-        foreach (self::STAGE_FIELDS as $stageKey => $fields) {
-            $result = $candidate->{$fields['result']};
-            if ($result && in_array($result, self::FAILED_RESULTS)) {
-                $overallStatus = 'DITOLAK';
-                $currentStage = $this->getStageDisplayName($stageKey);
-                break;
-            }
-        }
-
-        // If not failed, determine current stage
-        if ($overallStatus !== 'TIDAK LULUS') {
-            $stageNames = [
-                'psikotes' => 'Psikotes',
-                'interview_hc' => 'Interview HC',
-                'interview_user' => 'Interview User',
-                'interview_bod' => 'Interview BOD/GM',
-                'offering_letter' => 'Offering Letter',
-                'mcu' => 'Medical Check Up',
-                'hiring' => 'Hiring',
-            ];
-            foreach (self::STAGE_FIELDS as $stageKey => $fields) {
-                $result = $candidate->{$fields['result']};
-                if (!$result || !in_array($result, self::PASSED_RESULTS)) {
-                    $currentStage = $stageNames[$stageKey];
-                    break;
-                }
-            }
-            // Check if fully completed (hired)
-            if ($candidate->hiring_status === 'HIRED') {
-                $overallStatus = 'LULUS';
-            }
-        }
-        $candidate->current_stage = $currentStage;
-        $candidate->overall_status = $overallStatus;
-        $candidate->save();
-    }
-
-    /**
-     * Generate timeline array for candidate stages
-     */
-    private function generateTimeline(Candidate $candidate)
-    {
-        $timeline = [];
-        $timeline[] = [
-            'stage' => 'Seleksi Berkas',
-            'stage_key' => 'seleksi_berkas',
-            'status' => 'completed',
-            'date' => $candidate->created_at,
-            'notes' => 'Berkas lengkap dan sesuai kualifikasi',
-            'evaluator' => 'HR Team',
-            'result' => 'LULUS',
-        ];
-
-        $stages = [
-            ['Psikotes', 'psikotes', 'Psikolog'],
-            ['Interview HC', 'interview_hc', 'HC Team'],
-            ['Interview User', 'interview_user', 'Department Team'],
-            ['Interview BOD/GM', 'interview_bod', 'BOD/GM'],
-            ['Offering Letter', 'offering_letter', 'HR Team'],
-            ['Medical Check Up', 'mcu', 'Medical Team'],
-            ['Hiring', 'hiring', 'HR Team'],
-        ];
-
-        $failed = false;
-        foreach ($stages as $stageInfo) {
-            if ($failed) {
-                $timeline[] = [
-                    'stage' => $stageInfo[0],
-                    'stage_key' => $stageInfo[1],
-                    'status' => 'skipped',
-                    'date' => null,
-                    'notes' => 'Tidak diproses karena gagal pada tahap sebelumnya',
-                    'evaluator' => $stageInfo[2],
-                    'result' => null,
-                    'field_date' => '',
-                    'field_result' => '',
-                    'field_notes' => '',
-                ];
-                continue;
-            }
-
-            $stageData = $this->createTimelineStage($stageInfo[0], $stageInfo[1], $candidate, $stageInfo[2]);
-            $timeline[] = $stageData;
-
-            if (isset($stageData['result']) && in_array($stageData['result'], self::FAILED_RESULTS)) {
-                $failed = true;
-            }
-        }
-
-        return $timeline;
+        return view('candidates.import');
     }
 }

@@ -14,4 +14,12 @@ class ImportHistory extends Model
         'status',
         'user_id',
     ];
+
+    /**
+     * Get the user who performed the import.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

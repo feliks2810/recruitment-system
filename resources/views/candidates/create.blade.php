@@ -77,8 +77,17 @@
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="vacancy_airsys" class="block text-sm font-medium text-gray-700">Vacancy *</label>
-                            <input type="text" name="vacancy_airsys" id="vacancy_airsys" value="{{ old('vacancy_airsys') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                            <label for="vacancy" class="block text-sm font-medium text-gray-700">Vacancy *</label>
+                            <input type="text" name="vacancy" id="vacancy" value="{{ old('vacancy') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                        </div>
+                        <div>
+                            <label for="department_id" class="block text-sm font-medium text-gray-700">Departemen *</label>
+                            <select name="department_id" id="department_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                <option value="">Pilih Departemen</option>
+                                @foreach($departments as $department)
+                                    <option value="{{ $department->id }}" {{ old('department_id') == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div>
                             <label for="airsys_internal" class="block text-sm font-medium text-gray-700">Tipe Kandidat *</label>
@@ -191,4 +200,40 @@
         }, 5000);
     </script>
     @endif
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const namaInput = document.getElementById('nama');
+        const tanggalLahirInput = document.getElementById('tanggal_lahir');
+
+        function checkDuplicate() {
+            const nama = namaInput.value;
+            const tanggalLahir = tanggalLahirInput.value;
+
+            if (nama && tanggalLahir) {
+                fetch('{{ route("candidates.checkDuplicate") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({ nama: nama, tanggal_lahir: tanggalLahir })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        namaInput.classList.add('border-red-500');
+                        tanggalLahirInput.classList.add('border-red-500');
+                    } else {
+                        namaInput.classList.remove('border-red-500');
+                        tanggalLahirInput.classList.remove('border-red-500');
+                    }
+                });
+            }
+        }
+
+        namaInput.addEventListener('blur', checkDuplicate);
+        tanggalLahirInput.addEventListener('change', checkDuplicate);
+    });
+</script>
 @endpush

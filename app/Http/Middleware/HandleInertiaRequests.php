@@ -37,7 +37,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                     // Tambahkan field lain yang diperlukan
-                    'role' => $request->user()->role ?? null,
+                    'role' => $request->user()->getRoleNames()->first() ?? null,
                 ] : null,
             ],
             'flash' => [

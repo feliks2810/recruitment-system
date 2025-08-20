@@ -59,12 +59,14 @@ class ImportController extends Controller
                 'excel_file' => 'required|mimes:xlsx,xls,csv|max:10240',
                 'import_mode' => 'required|in:insert,update,upsert',
                 'header_row' => 'required|in:1,2,3,4',
+                'candidate_type' => 'required|in:organic,non-organic', // Make this required
             ], [
                 'excel_file.required' => 'Silakan pilih file Excel untuk diimpor.',
                 'excel_file.mimes' => 'File harus berformat Excel (.xlsx, .xls) atau CSV.',
                 'excel_file.max' => 'Ukuran file maksimal 10MB.',
                 'import_mode.required' => 'Mode import harus dipilih.',
                 'header_row.required' => 'Header row harus dipilih.',
+                'candidate_type.required' => 'Tipe kandidat harus dipilih.',
             ]);
 
             Log::info('Validation passed:', $validated);
@@ -81,10 +83,11 @@ class ImportController extends Controller
 
         DB::beginTransaction();
         try {
-            $type = $request->input('candidate_type', 'organic');
+            // Get type from validated input, with fallback
+            $type = $validated['candidate_type'] ?? 'organic';
             Log::info('Selected candidate type: ' . $type);
 
-            $import = new CandidatesImport($type, $request->import_mode, (int)$request->header_row);
+            $import = new CandidatesImport($type, $validated['import_mode'], (int)$validated['header_row']);
 
             Log::info('Starting Excel import...');
             Excel::import($import, $file);
@@ -111,14 +114,18 @@ class ImportController extends Controller
                 $message = "Impor gagal: {$errorCount} baris tidak dapat diproses. Periksa format data.";
             }
 
-            ImportHistory::create([
-                'filename' => $file->getClientOriginalName(),
-                'total_rows' => $successCount + $errorCount,
-                'success_rows' => $successCount,
-                'failed_rows' => $errorCount,
-                'status' => $status,
-                'user_id' => Auth::id(),
-            ]);
+            // Create import history record
+            if (class_exists('App\Models\ImportHistory')) {
+                ImportHistory::create([
+                    'filename' => $file->getClientOriginalName(),
+                    'total_rows' => $successCount + $errorCount,
+                    'success_rows' => $successCount,
+                    'failed_rows' => $errorCount,
+                    'status' => $status,
+                    'type' => $type, // Add type to history
+                    'user_id' => Auth::id(),
+                ]);
+            }
 
             if ($status === 'failed') {
                 return back()->with('error', $message);
@@ -128,15 +135,12 @@ class ImportController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            if ($e->getMessage() === 'Empty row detected, stopping import.' || 
-                $e->getMessage() === 'Missing nama field, stopping import.') {
+            if ($e->getMessage() === 'Missing nama field, stopping import.') {
                 Log::info('Import stopped due to empty row or missing nama', [
                     'message' => $e->getMessage(),
-                    'success_count' => $import->getSuccessCount(),
-                    'error_count' => $import->getErrorCount()
                 ]);
                 return redirect()->route('candidates.index')->with('success',
-                    "Impor selesai: {$import->getSuccessCount()} data berhasil diimpor sebelum menemukan baris kosong atau nama kosong.");
+                    "Impor dihentikan karena menemukan baris tanpa nama. Sebagian data mungkin telah berhasil diimpor.");
             }
 
             Log::error('Critical error during import:', [
@@ -158,13 +162,16 @@ class ImportController extends Controller
         return $this->store($request);
     }
 
-    
-
     /**
      * Download template file for import.
      */
     public function downloadTemplate($type = 'organic')
     {
+        // Validate type parameter
+        if (!in_array($type, ['organic', 'non-organic'])) {
+            $type = 'organic';
+        }
+
         $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
 
         if (!is_dir(dirname($templatePath))) {
@@ -244,32 +251,12 @@ class ImportController extends Controller
             $genderValidation->setErrorTitle('Invalid Input');
             $genderValidation->setError('Please select from the dropdown list.');
             $genderValidation->setFormula1('"L,P"');
-
-            $stageValidation = $sheet->getCell('AK2')->getDataValidation();
-            $stageValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
-            $stageValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
-            $stageValidation->setAllowBlank(false);
-            $stageValidation->setShowInputMessage(true);
-            $stageValidation->setShowErrorMessage(true);
-            $stageValidation->setErrorTitle('Invalid Input');
-            $stageValidation->setError('Please select from the dropdown list.');
-            $stageValidation->setFormula1('"CV Review,Psychotest,HC Interview,User Interview,BOD Interview,Offering,MCU,Hired"');
-
-            $statusValidation = $sheet->getCell('AL2')->getDataValidation();
-            $statusValidation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
-            $statusValidation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
-            $statusValidation->setAllowBlank(false);
-            $statusValidation->setShowInputMessage(true);
-            $statusValidation->setShowErrorMessage(true);
-            $statusValidation->setErrorTitle('Invalid Input');
-            $statusValidation->setError('Please select from the dropdown list.');
-            $statusValidation->setFormula1('"DALAM PROSES,HIRED,REJECTED,ON HOLD"');
         }
 
         $writer = new Xlsx($spreadsheet);
         $templatePath = storage_path('app/templates/candidates_template_' . $type . '.xlsx');
         $writer->save($templatePath);
         
-        Log::info('Template successfully created', ['path' => $templatePath]);
+        Log::info('Template successfully created', ['path' => $templatePath, 'type' => $type]);
     }
 }

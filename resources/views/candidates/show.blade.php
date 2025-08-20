@@ -103,7 +103,7 @@
                                     </div>
 
                                     <!-- Next Test Fields -->
-                                    <div x-show="isPassingResult(stageData.result)" x-transition class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div x-show="isPassingResult(stageData.result) && stageData.stage !== 'hiring'" x-transition class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                         <div>
                                             <label class="block text-sm font-medium text-blue-700">Tahap Tes Berikutnya</label>
                                             <input type="text" name="next_test_stage" x-model="stageData.next_test_stage" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 sm:text-sm" readonly>
@@ -308,8 +308,8 @@
                 <div class="px-6 py-4">
                     <dl class="space-y-4">
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Vacancy Airsys</dt>
-                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $candidate->vacancy_airsys }}</dd>
+                            <dt class="text-sm font-medium text-gray-500">Vacancy</dt>
+                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $candidate->vacancy }}</dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Internal Position</dt>
@@ -325,7 +325,7 @@
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Department</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->department ?? '-' }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->department->name ?? '-' }}</dd>
                         </div>
                     </dl>
                 </div>
@@ -451,88 +451,69 @@
                 </div>
                 <div class="px-6 py-6">
                     <div class="flow-root">
-                        <ul class="space-y-6">
-                            @php $userCanMultiEdit = Auth::user()->hasRole('Team_HC'); @endphp
+                        <ul class="space-y-8">
                             @foreach($timeline as $index => $stage)
-                                @php
-                                    // Determine if this stage can be edited
-                                    $isEditable = true;
-                                    if ($index > 0) {
-                                        $prevStage = $timeline[$index - 1];
-                                        $isEditable = isset($prevStage['result']) && 
-                                                    in_array($prevStage['result'], ['LULUS', 'DITERIMA', 'HIRED', 'DISARANKAN']);
-                                    }
-                                    
-                                    // Stage status logic
-                                    $hasResult = isset($stage['result']) && !empty($stage['result']);
-                                    $isCompleted = $hasResult && in_array($stage['result'], ['LULUS', 'DITERIMA', 'HIRED', 'DISARANKAN']);
-                                    $isFailed = $hasResult && in_array($stage['result'], ['TIDAK LULUS', 'DITOLAK', 'CANCEL', 'TIDAK DISARANKAN', 'TIDAK DIHIRING']);
-                                    $isPending = $hasResult && in_array($stage['result'], ['PENDING', 'DIPERTIMBANGKAN', 'SENT']);
-                                    $isInProgress = $isEditable && !$hasResult;
-                                    $isSkipped = $stage['status'] === 'skipped';
-                                    // If user is not Team HC and the stage already has a result, lock editing
-                                    if ($hasResult && !$userCanMultiEdit) {
-                                        $isEditable = false;
-                                    }
-                                @endphp
-                                
                                 <li class="relative">
+                                    <!-- Vertical line -->
                                     @if(!$loop->last)
                                         @php
-                                            $lineColor = $isCompleted ? 'bg-green-400' : ($hasResult ? 'bg-yellow-400' : 'bg-gray-300');
+                                            $lineColor = 'bg-gray-300';
+                                            if ($stage['status'] === 'completed') {
+                                                $lineColor = 'bg-green-500';
+                                            } elseif ($stage['status'] === 'failed') {
+                                                $lineColor = 'bg-red-500';
+                                            }
                                         @endphp
-                                        <div class="absolute left-4 mt-0.5 -ml-px h-full w-0.5 {{ $lineColor }}"></div>
+                                        <div class="absolute left-4 top-4 -ml-px mt-0.5 h-full w-0.5 {{ $lineColor }}"></div>
                                     @endif
-                                    
-                                    <div class="relative flex space-x-3">
+
+                                    <div class="relative flex items-start space-x-4">
                                         <!-- Stage Icon -->
                                         <div class="flex-shrink-0">
-                                            @if($isSkipped)
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 ring-4 ring-white shadow">
-                                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" />
+                                            @if($stage['status'] === 'completed')
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-8 ring-white">
+                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                                     </svg>
                                                 </div>
-                                            @elseif($isCompleted)
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-4 ring-white shadow">
-                                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                            @elseif($stage['status'] === 'failed')
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 ring-8 ring-white">
+                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                                                     </svg>
                                                 </div>
-                                            @elseif($isFailed)
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 ring-4 ring-white shadow">
-                                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                            @elseif($stage['status'] === 'in_progress')
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-500 bg-white ring-8 ring-white">
+                                                    <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                                                </div>
+                                            @elseif($stage['status'] === 'pending')
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500 ring-8 ring-white">
+                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
                                                     </svg>
                                                 </div>
-                                            @elseif($isPending)
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500 ring-4 ring-white shadow">
-                                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            @else {{-- locked --}}
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 ring-8 ring-white">
+                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
                                                     </svg>
-                                                </div>
-                                            @elseif($isInProgress)
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-500 bg-white ring-4 ring-white shadow">
-                                                    <div class="h-3 w-3 rounded-full border-2 border-blue-500 bg-transparent animate-pulse"></div>
-                                                </div>
-                                            @else
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 ring-4 ring-white shadow">
-                                                    <div class="h-2.5 w-2.5 rounded-full bg-gray-500"></div>
                                                 </div>
                                             @endif
                                         </div>
                                         
                                         <!-- Stage Content -->
-                                        <div class="min-w-0 flex-1">
+                                        <div class="min-w-0 flex-1 pt-1.5">
                                             <div class="flex items-center justify-between">
                                                 <div class="flex items-center space-x-2">
-                                                    <h4 class="text-sm font-medium text-gray-900">{{ $stage['stage'] }}</h4>
-                                                    @if(!$isEditable && $stage['stage'] !== 'Seleksi Berkas')
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
-                                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                                    <h4 class="text-sm font-medium {{ $stage['status'] === 'locked' ? 'text-gray-500' : 'text-gray-900' }}">
+                                                        {{ $stage['display_name'] }}
+                                                    </h4>
+                                                    @if($stage['status'] === 'locked')
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="Tahap ini terkunci sampai tahap sebelumnya lulus.">
+                                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
                                                             </svg>
-                                                            Locked
+                                                            Terkunci
                                                         </span>
                                                     @endif
                                                 </div>
@@ -541,7 +522,7 @@
                                                 <div class="flex items-center space-x-2">
                                                     @if($stage['date'])
                                                         <span class="text-xs text-gray-500">
-                                                            {{ \Carbon\Carbon::parse($stage['date'])->format('d/m/Y') }}
+                                                            {{ \Carbon\Carbon::parse($stage['date'])->format('d M Y') }}
                                                         </span>
                                                     @endif
                                                     
@@ -549,70 +530,60 @@
                                                         <button @click="showComment(`{{ addslashes($stage['notes']) }}`)" 
                                                                 class="text-gray-400 hover:text-gray-600 transition-colors"
                                                                 title="Lihat catatan">
-                                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.02-3.11A8.841 8.841 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.5 10a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z" clip-rule="evenodd" />
                                                             </svg>
                                                         </button>
                                                     @endif
                                                     
                                                     @canany(['edit-candidates','edit-timeline'])
-                                                        @if($stage['stage'] !== 'Seleksi Berkas' && $isEditable)
+                                                        @if(!$stage['is_locked'])
                                                             <button @click="openStageModal(
-                                                                '{{ $stage['stage'] }}', 
-                                                                '{{ $stage['stage_key'] ?? $stage['stage'] }}', 
+                                                                '{{ $stage['display_name'] }}', 
+                                                                '{{ $stage['stage_key'] }}', 
                                                                 '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}', 
                                                                 '{{ $stage['result'] ?? '' }}', 
-                                                                {{ json_encode($stage['notes'] ?? '') }}, 
-                                                                '{{ $stage['field_date'] ?? '' }}', 
-                                                                '{{ $stage['field_result'] ?? '' }}', 
-                                                                '{{ $stage['field_notes'] ?? '' }}'
+                                                                {{ json_encode($stage['notes'] ?? '') }}
                                                             )" 
-                                                            class="text-blue-600 hover:text-blue-800 transition-colors"
-                                                            title="Edit tahapan">
-                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                            class="text-blue-600 hover:text-blue-800 transition-colors {{ $stage['status'] === 'locked' ? 'hidden' : '' }}"
+                                                            title="Update status {{ $stage['display_name'] }}">
+                                                                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                                                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
                                                                 </svg>
                                                             </button>
-                                                        @elseif($stage['stage'] !== 'Seleksi Berkas')
-                                                            <span class="text-gray-300 cursor-not-allowed" title="Selesaikan tahapan sebelumnya terlebih dahulu">
-                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                                            </span>
                                                         @endif
                                                     @endcanany
                                                 </div>
                                             </div>
                                             
                                             <!-- Stage Details -->
-                                            <div class="mt-1">
-                                                @if($stage['evaluator'])
-                                                    <p class="text-xs text-gray-500">Evaluator: {{ $stage['evaluator'] }}</p>
-                                                @endif
-                                                
-                                                @if(isset($stage['result']) && $stage['result'])
-                                                    <div class="mt-1">
+                                            <div class="mt-2 text-sm">
+                                                @if($stage['result'])
+                                                    <div class="flex items-center space-x-2">
                                                         @php
                                                             $resultConfig = [
-                                                                'LULUS' => 'bg-green-100 text-green-800',
-                                                                'DISARANKAN' => 'bg-green-100 text-green-800',
-                                                                'DITERIMA' => 'bg-green-100 text-green-800',
-                                                                'HIRED' => 'bg-green-100 text-green-800',
-                                                                'PENDING' => 'bg-blue-100 text-blue-800',
-                                                                'SENT' => 'bg-blue-100 text-blue-800',
-                                                                'DIPERTIMBANGKAN' => 'bg-yellow-100 text-yellow-800',
+                                                                'LULUS' => ['bg-green-100 text-green-800', '✓'],
+                                                                'DISARANKAN' => ['bg-green-100 text-green-800', '✓'],
+                                                                'DITERIMA' => ['bg-green-100 text-green-800', '✓'],
+                                                                'HIRED' => ['bg-green-100 text-green-800', '✓'],
+                                                                'PENDING' => ['bg-blue-100 text-blue-800', '…'],
+                                                                'SENT' => ['bg-blue-100 text-blue-800', '…'],
+                                                                'DIPERTIMBANGKAN' => ['bg-yellow-100 text-yellow-800', '…'],
+                                                                'default' => ['bg-red-100 text-red-800', '✗']
                                                             ];
-                                                            $resultClass = $resultConfig[$stage['result']] ?? 'bg-red-100 text-red-800';
+                                                            $config = $resultConfig[$stage['result']] ?? $resultConfig['default'];
                                                         @endphp
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $resultClass }}">
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $config[0] }}">
+                                                            <span class="mr-1">{{ $config[1] }}</span>
                                                             {{ $stage['result'] }}
                                                         </span>
+                                                        @if($stage['evaluator'])
+                                                            <p class="text-gray-500">oleh {{ $stage['evaluator'] }}</p>
+                                                        @endif
                                                     </div>
-                                                @endif
-                                                
-                                                @if($stage['notes'] && strlen($stage['notes']) <= 100)
-                                                    <p class="mt-1 text-xs text-gray-600 italic">{{ $stage['notes'] }}</p>
-                                                @elseif($stage['notes'])
-                                                    <p class="mt-1 text-xs text-gray-600 italic">{{ Str::limit($stage['notes'], 100) }}</p>
+                                                @else
+                                                    <p class="text-gray-500">Menunggu hasil...</p>
                                                 @endif
                                             </div>
                                         </div>
@@ -701,15 +672,24 @@
 </div>
 @endcan
 
+
+
 @push('scripts')
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.data('candidateDetail', () => ({
         showModal: false,
         showCommentModal: false,
+        showCVReviewModal: false,
         selectedStage: null,
         selectedComment: '',
         isSubmitting: false,
+        
+        cvReviewData: {
+            status: '',
+            notes: '',
+            date: new Date().toISOString().split('T')[0]
+        },
 
         stageData: {
             stage: '',
@@ -721,18 +701,21 @@ document.addEventListener('alpine:init', () => {
 
         // Static data for stage logic
         passingResults: ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'],
-        stageOrder: ['psikotes', 'interview_hc', 'interview_user', 'interview_bod', 'offering_letter', 'mcu', 'hiring'],
+        stageOrder: ['CV Review', 'Psikotes', 'HC Interview', 'User Interview', 'BoD Interview', 'Offering Letter', 'MCU', 'Hiring'],
         stageDisplayNames: {
-            'psikotes': 'Psikotes',
-            'interview_hc': 'Interview HC',
-            'interview_user': 'Interview User',
-            'interview_bod': 'Interview BOD/GM',
-            'offering_letter': 'Offering Letter',
-            'mcu': 'Medical Check Up',
+            'CV Review': 'CV Review',
+            'Psikotes': 'Psikotes',
+            'HC Interview': 'HC Interview',
+            'User Interview': 'User Interview',
+            'BoD Interview': 'Interview BOD/GM',
+            'Offering Letter': 'Offering Letter',
+            'MCU': 'Medical Check Up',
+            'Hiring': 'Hiring',
             'hiring': 'Hiring',
             'Selesai': 'Selesai'
         },
         stageOptions: {
+            cv_review: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             interview_hc: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
             interview_user: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
@@ -762,11 +745,11 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Open the modal to update a stage
-        openStageModal(stage, stageKey, currentResult, currentNotes) {
+        openStageModal(stage, stageKey, date, result, notes, fieldDate, fieldResult, fieldNotes) {
             this.selectedStage = stage;
             this.availableResults = this.stageOptions[stageKey] || [];
             
-            const currentIndex = this.stageOrder.indexOf(stageKey);
+            const currentIndex = this.stageOrder.indexOf(stage);
             let nextStageKey = 'Selesai';
             if (currentIndex !== -1 && currentIndex < this.stageOrder.length - 1) {
                 nextStageKey = this.stageOrder[currentIndex + 1];
@@ -774,10 +757,13 @@ document.addEventListener('alpine:init', () => {
 
             this.stageData = {
                 stage: stageKey,
-                result: currentResult || '',
-                notes: currentNotes || '',
+                result: result || '',
+                notes: notes || '',
                 next_test_stage: this.stageDisplayNames[nextStageKey] || nextStageKey,
-                next_test_date: ''
+                next_test_date: date || '',
+                field_date: fieldDate,
+                field_result: fieldResult,
+                field_notes: fieldNotes
             };
 
             this.showModal = true;
@@ -795,6 +781,47 @@ document.addEventListener('alpine:init', () => {
             this.showCommentModal = true;
         },
 
+        // Open CV Review modal
+        openCVReviewModal(currentStatus, currentNotes, currentDate) {
+            this.cvReviewData = {
+                status: currentStatus || '',
+                notes: currentNotes || '',
+                date: currentDate || new Date().toISOString().split('T')[0]
+            };
+            this.showCVReviewModal = true;
+        },
+
+        // Submit CV Review
+        async submitCVReview() {
+            if (this.isSubmitting) return;
+            this.isSubmitting = true;
+
+            try {
+                const response = await fetch(`/candidates/{{ $candidate->id }}/stage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        stage: 'CV Review',
+                        status: this.cvReviewData.status,
+                        notes: this.cvReviewData.notes,
+                        date: this.cvReviewData.date
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to update CV Review');
+
+                window.location.reload();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan saat memperbarui CV Review');
+            } finally {
+                this.isSubmitting = false;
+            }
+        },
+
         // Handle form submission
         async submitForm() {
             if (this.isSubmitting) return;
@@ -804,7 +831,7 @@ document.addEventListener('alpine:init', () => {
                 alert('Hasil harus diisi.');
                 return;
             }
-            if (this.isPassingResult(this.stageData.result) && !this.stageData.next_test_date) {
+            if (this.isPassingResult(this.stageData.result) && this.stageData.stage !== 'hiring' && !this.stageData.next_test_date) {
                 alert('Tanggal tes berikutnya harus diisi jika hasil lulus.');
                 return;
             }
@@ -857,35 +884,27 @@ document.addEventListener('alpine:init', () => {
 <!-- Alert Messages -->
 @if ($errors->any())
 <div id="validation-errors" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md animate-slide-in-right">
-    <div class="flex items-start gap-3">
-        <div class="flex-shrink-0">
-            <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            <div class="flex items-start gap-3">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
+                <ul class="text-sm space-y-1 list-disc list-inside">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            <button onclick="document.getElementById('validation-errors').remove()" 
+                    class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
-        <div class="flex-1">
-            <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
-            <ul class="text-sm space-y-1 list-disc list-inside">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-        <button onclick="document.getElementById('validation-errors').remove()" 
-                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-        </div>
-        <div class="flex-1">
-            <p class="font-medium">Terjadi kesalahan!</p>
-            <p class="text-sm">{{ session('error') }}</p>
-        </div>
-        <button onclick="document.getElementById('error-alert').remove()" 
-                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
 </div>
 @endif
 

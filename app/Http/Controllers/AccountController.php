@@ -10,21 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
+use App\Models\Department;
 
 class AccountController extends Controller
 {
-    protected $departments = [
-        'Batam Production',
-        'Batam QA & QC',
-        'Engineering',
-        'Finance & Accounting',
-        'HCGAESRIT',
-        'MDRM Legal & Communication Function',
-        'Procurement & Subcontractor',
-        'Production Control',
-        'PE & Facility',
-        'Warehouse & Inventory'
-    ];
+    
 
     public function index()
     {
@@ -35,7 +25,6 @@ class AccountController extends Controller
             'admin' => User::role('admin')->count(),
             'team_hc' => User::role('team_hc')->count(),
             'department' => User::role('department')->count(),
-            'user' => User::role('user')->count(),
             'active' => User::where('status', true)->count(),
         ];
         
@@ -44,9 +33,10 @@ class AccountController extends Controller
 
     public function create()
     {
-        $roles = Role::all();
+        $roles = Role::where('name', '!=', 'admin')->get();
+        $departments = Department::all();
         return view('accounts.create', [
-            'departments' => $this->departments,
+            'departments' => $departments,
             'roles' => $roles
         ]);
     }
@@ -63,7 +53,7 @@ class AccountController extends Controller
 
         // Hanya tambahkan validasi department jika role adalah department
         if ($request->role === 'department') {
-            $validationRules['department'] = 'required|' . Rule::in($this->departments);
+            $validationRules['department_id'] = 'required|exists:departments,id';
         }
 
         $request->validate($validationRules);
@@ -73,7 +63,7 @@ class AccountController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'department' => $request->role === 'department' ? $request->department : null,
+            'department_id' => $request->role === 'department' ? $request->department_id : null,
             'status' => (bool) $request->status,
             'email_verified_at' => now(),
         ]);
@@ -87,12 +77,13 @@ class AccountController extends Controller
 
     public function edit(User $account)
     {
-        $roles = Role::all();
+        $roles = Role::where('name', '!=', 'admin')->get();
+        $departments = Department::all();
         $account->load('roles');
         
         return view('accounts.edit', [
             'account' => $account,
-            'departments' => $this->departments,
+            'departments' => $departments,
             'roles' => $roles
         ]);
     }
@@ -109,7 +100,7 @@ class AccountController extends Controller
 
         // Hanya tambahkan validasi department jika role adalah department
         if ($request->role === 'department') {
-            $validationRules['department'] = 'required|' . Rule::in($this->departments);
+            $validationRules['department_id'] = 'required|exists:departments,id';
         }
 
         $request->validate($validationRules);
@@ -117,7 +108,7 @@ class AccountController extends Controller
         $updateData = [
             'name' => $request->name,
             'email' => $request->email,
-            'department' => $request->role === 'department' ? $request->department : null,
+            'department_id' => $request->role === 'department' ? $request->department_id : null,
             'status' => (bool) $request->status,
         ];
 

@@ -8,988 +8,506 @@
 <div class="flex items-center gap-2">
     <label for="year" class="text-sm font-medium text-gray-700 hidden sm:block">Tahun:</label>
     <select name="year" id="yearFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[80px]">
-        <option value="2025" selected>2025</option>
-        <option value="2024">2024</option>
-        <option value="2023">2023</option>
-        <option value="2022">2022</option>
+        @php
+            $currentYear = date('Y');
+            for ($year = $currentYear + 1; $year >= $currentYear - 2; $year--) {
+                echo '<option value="' . $year . '"' . (request('year', $currentYear) == $year ? ' selected' : '') . '>' . $year . '</option>';
+            }
+        @endphp
     </select>
 </div>
 @endpush
 
 @push('styles')
+{{-- CSS untuk Kalender dan Modal --}}
 <style>
-.calendar-cell {
-    @apply py-2 px-1 border border-gray-200 bg-white transition-all duration-200 text-gray-700 relative;
-    height: 50px;
-    vertical-align: middle;
+.calendar-table {
+    border-collapse: collapse;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.calendar-cell-wrapper {
+    border: 1px solid #e5e7eb;
     position: relative;
-    cursor: default;
+    padding: 2px;
 }
-
-/* Current month dates - clickable */
-.calendar-cell.current-month {
-    @apply cursor-pointer hover:bg-gray-100;
-}
-
-.calendar-cell.today {
-    @apply bg-blue-600 text-white font-bold hover:bg-blue-700;
-    border-radius: 8px;
-    border: 2px solid #1d4ed8;
-}
-
-.calendar-cell.past-date-current-month {
-    @apply text-gray-400 bg-gray-50;
-}
-
-.calendar-cell.future-date-current-month {
-    @apply text-gray-700;
-}
-
-.calendar-cell.has-event {
-    @apply bg-green-100 text-green-800 font-semibold border-green-300 hover:bg-green-200;
-}
-
-.calendar-cell.has-event::before {
-    content: '';
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 8px;
-    height: 8px;
-    background-color: #10b981;
-    border-radius: 50%;
-    border: 1px solid white;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-
-.calendar-cell.has-event.today::before {
-    background-color: #fbbf24;
-    border-color: rgba(255, 255, 255, 0.8);
-}
-
-.calendar-cell.selected {
-    @apply bg-blue-500 text-white font-semibold ring-2 ring-blue-300;
-}
-
-/* Other month dates - faded and not clickable */
-.calendar-cell.other-month {
-    @apply text-gray-300 bg-gray-50;
-    cursor: default;
-}
-
-.calendar-cell.other-month:hover {
-    @apply bg-gray-50;
-}
-
-.calendar-cell .date-number {
-    font-size: 14px;
+.calendar-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 3rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    color: #334155;
     font-weight: 500;
-    display: block;
-    margin-top: 2px;
+    position: relative;
 }
-
-.calendar-cell.today .date-number {
+.calendar-cell:hover:not(.other-month):not(.selected) {
+    background-color: #f1f5f9;
+}
+.calendar-cell.other-month {
+    color: #94a3b8;
+    cursor: default;
+}
+.calendar-cell.today {
+    background-color: #dbeafe;
+    color: #2563eb;
     font-weight: 700;
-    font-size: 15px;
 }
-
-.calendar-cell .event-count {
+.calendar-cell.selected {
+    background-color: #2563eb;
+    color: #fff;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+.calendar-cell.has-event::after {
+    content: '';
     position: absolute;
     bottom: 4px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 9px;
-    color: #059669;
-    font-weight: 600;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: #0891b2;
 }
-
-.calendar-cell.today .event-count {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.meeting-item {
-    transition: all 0.2s ease;
-}
-
-.meeting-item.hidden {
-    display: none;
-}
-
-/* Legend styles */
-.calendar-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 16px;
-    padding: 12px;
-    background: #f8fafc;
-    border-radius: 8px;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: #6b7280;
-}
-
-.legend-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    flex-shrink: 0;
-}
-
-.legend-dot.today-dot {
-    background: #3b82f6;
-    border-radius: 6px;
-    border: 2px solid #1d4ed8;
-}
-
-/* Modal styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-}
-
-.modal.show {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-content {
-    background-color: white;
-    margin: auto;
-    padding: 0;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 500px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-}
-
-/* Responsive adjustments */
-@media (max-width: 640px) {
-    .calendar-cell {
-        height: 45px;
-    }
-    
-    .calendar-cell .date-number {
-        font-size: 12px;
-    }
-    
-    .calendar-cell .event-count {
-        font-size: 8px;
-        bottom: 2px;
-    }
-}
+.calendar-cell.today.has-event::after { background-color: #1d4ed8; }
+.calendar-cell.selected.has-event::after { background-color: #fff; }
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); transition: opacity 0.3s ease; }
+.modal.show { display: flex; align-items: center; justify-content: center; }
+.modal-content { background-color: white; margin: auto; padding: 0; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: scale(0.95); opacity: 0; transition: all 0.3s ease; }
+.modal.show .modal-content { transform: scale(1); opacity: 1; }
 </style>
 @endpush
 
 @section('content')
-<!-- Quick Stats -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-    <!-- Total Kandidat -->
-    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-4">
-            <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-600">Total Kandidat</p>
-                <p class="text-2xl sm:text-3xl font-bold text-gray-900 truncate">{{ $stats['total_candidates'] ?? 0 }}</p>
+{{-- Statistik --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Total Kandidat</p>
+                <p class="text-3xl font-bold text-gray-800">{{ $stats['total_candidates'] ?? 0 }}</p>
             </div>
-            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-users text-blue-600 text-lg sm:text-xl"></i>
+            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-users text-blue-600 text-xl"></i>
             </div>
-        </div>
-        <div class="flex items-center gap-1">
-            <span class="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full font-medium">Semua kandidat</span>
         </div>
     </div>
-
-    <!-- Lulus -->
-    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-4">
-            <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-600">Lulus</p>
-                <p class="text-2xl sm:text-3xl font-bold text-green-600 truncate">{{ $stats['candidates_passed'] ?? 0 }}</p>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Dalam Proses</p>
+                <p class="text-3xl font-bold text-yellow-500">{{ $stats['candidates_in_process'] ?? 0 }}</p>
             </div>
-            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-check-circle text-green-600 text-lg sm:text-xl"></i>
+            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-clock text-yellow-500 text-xl"></i>
             </div>
-        </div>
-        <div class="flex items-center gap-1">
-            <span class="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_passed'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
-            <span class="text-xs text-gray-500">dari total</span>
         </div>
     </div>
-
-    <!-- Dalam Proses -->
-    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-4">
-            <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-600">Dalam Proses</p>
-                <p class="text-2xl sm:text-3xl font-bold text-yellow-600 truncate">{{ $stats['candidates_in_process'] ?? 0 }}</p>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Lulus</p>
+                <p class="text-3xl font-bold text-green-500">{{ $stats['candidates_passed'] ?? 0 }}</p>
             </div>
-            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-clock text-yellow-600 text-lg sm:text-xl"></i>
+            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-check-circle text-green-500 text-xl"></i>
             </div>
-        </div>
-        <div class="flex items-center gap-1">
-            <span class="bg-yellow-100 text-yellow-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_in_process'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
-            <span class="text-xs text-gray-500">sedang berjalan</span>
         </div>
     </div>
-
-    <!-- Tidak Lulus -->
-    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-4">
-            <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-600">Tidak Lulus</p>
-                <p class="text-2xl sm:text-3xl font-bold text-red-600 truncate">{{ $stats['candidates_failed'] ?? 0 }}</p>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Ditolak</p>
+                <p class="text-3xl font-bold text-red-500">{{ $stats['candidates_failed'] ?? 0 }}</p>
             </div>
-            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-times-circle text-red-600 text-lg sm:text-xl"></i>
+            <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-times-circle text-red-500 text-xl"></i>
             </div>
-        </div>
-        <div class="flex items-center gap-1">
-            <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-medium">{{ $stats['total_candidates'] > 0 ? round(($stats['candidates_failed'] / $stats['total_candidates']) * 100, 1) : 0 }}%</span>
-            <span class="text-xs text-gray-500">dari total</span>
         </div>
     </div>
 </div>
 
-@if(Auth::user()->hasRole('Team_HC'))
-<!-- Jadwal Tes Akan Datang (Calendar) -->
+{{-- Calendar Section - Only for team_hc --}}
+@if(Auth::user()->hasRole('team_hc'))
 <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm mb-6">
-    <div class="flex items-center justify-between mb-6">
-        <h3 class="text-lg font-semibold text-gray-900">Kalender Recruitment</h3>
-        <div class="flex items-center gap-2">
-            <button id="prevMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <i class="fas fa-chevron-left text-gray-600"></i>
-            </button>
-            <span id="currentMonth" class="text-sm font-medium text-gray-700 px-3 min-w-[100px] text-center">January 2025</span>
-            <button id="nextMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <i class="fas fa-chevron-right text-gray-600"></i>
-            </button>
-        </div>
-    </div>
-    
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Calendar - Now takes more space -->
-        <div class="lg:col-span-2 bg-gray-50 rounded-lg p-6">
-            <div class="flex justify-between items-center mb-6">
-                <button id="prevMonthCal" class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-white transition-all">
-                    <i class="fas fa-chevron-left text-lg"></i>
-                </button>
-                <h4 id="calendarMonth" class="text-xl font-bold text-gray-900">January 2025</h4>
-                <button id="nextMonthCal" class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-white transition-all">
-                    <i class="fas fa-chevron-right text-lg"></i>
-                </button>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Kalender Recruitment</h3>
+                <div class="flex items-center gap-2">
+                    <button id="prevMonth" class="p-2 w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors">
+                        <i class="fas fa-chevron-left text-gray-600"></i>
+                    </button>
+                    <span id="currentMonth" class="text-base font-bold text-gray-800 px-3 min-w-[150px] text-center"></span>
+                    <button id="nextMonth" class="p-2 w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors">
+                        <i class="fas fa-chevron-right text-gray-600"></i>
+                    </button>
+                </div>
             </div>
             
-            <!-- Calendar Table -->
-            <table class="w-full text-sm text-center border-collapse rounded-lg overflow-hidden shadow-sm bg-white">
+            <table class="w-full calendar-table">
                 <thead>
-                    <tr class="bg-gray-100">
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Sen</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Sel</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Rab</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Kam</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Jum</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Sab</th>
-                        <th class="py-3 px-2 font-semibold text-gray-700 border border-gray-200">Min</th>
+                    <tr>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-l-0 border-gray-200">Sen</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">Sel</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">Rab</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">Kam</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">Jum</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">Sab</th>
+                        <th class="py-3 text-xs font-semibold text-gray-500 uppercase border-b border-r-0 border-gray-200">Min</th>
                     </tr>
                 </thead>
-                <tbody id="calendarTableBody">
-                    <!-- Days will be generated by JavaScript -->
-                </tbody>
+                <tbody id="calendarTableBody"></tbody>
             </table>
-            
-            <!-- Calendar Legend -->
-            <div class="calendar-legend">
-                <div class="legend-item">
-                    <div class="legend-dot today-dot"></div>
-                    <span>Hari Ini</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot bg-green-100 border border-green-300"></div>
-                    <span>Ada Kandidat</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot bg-gray-100 border border-gray-300"></div>
-                    <span>Tidak Ada Jadwal</span>
-                </div>
-            </div>
-            
-            <div class="mt-6">
-                <button id="addEventBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors">
-                    <i class="fas fa-plus mr-2"></i>
-                    Tambah Jadwal Baru
-                </button>
-            </div>
         </div>
 
-        <!-- Meeting List - Now smaller -->
         <div class="lg:col-span-1">
-            <div class="mb-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-                <div class="flex items-center gap-2 mb-2">
-                    <div class="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
-                    <p class="text-sm font-semibold text-gray-800">Jadwal Terpilih</p>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-lg font-semibold text-gray-800" id="selectedDateText">Pilih Tanggal</p>
+                    <p class="text-sm text-gray-500" id="selectedDateInfo">Klik tanggal untuk melihat jadwal</p>
                 </div>
-                <p class="text-xs text-gray-600" id="selectedDateInfo">Klik tanggal untuk melihat jadwal</p>
+                <button id="addEventBtn" class="bg-blue-600 text-white w-10 h-10 rounded-full hover:bg-blue-700 transition-all shadow-md flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-plus"></i>
+                </button>
             </div>
             
-            <div id="meetingsList" class="space-y-3 max-h-96 overflow-y-auto">
-                @forelse($upcoming_tests ?? [] as $candidate)
-                <div class="meeting-item flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all cursor-pointer" 
-                     data-date="{{ \Carbon\Carbon::parse($candidate->next_test_date)->format('Y-m-d') }}"
-                     onclick="window.location='{{ route('candidates.show', $candidate->id) }}'">
-                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span class="text-xs font-medium text-white">{{ substr($candidate->nama, 0, 2) }}</span>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium text-gray-900 truncate text-sm">{{ $candidate->nama }}</p>
-                        <div class="flex items-center gap-1 text-xs text-gray-600 mt-1">
-                            <i class="fas fa-calendar text-xs"></i>
-                            <span>{{ \Carbon\Carbon::parse($candidate->next_test_date)->isoFormat('DD MMM') }}</span>
-                        </div>
-                        <div class="flex items-center gap-1 text-xs text-gray-500">
-                            <i class="fas fa-map-marker-alt text-xs"></i>
-                            <span>{{ $candidate->next_test_stage }}</span>
-                        </div>
-                    </div>
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-chevron-right text-gray-300 text-xs"></i>
-                    </div>
-                </div>
-                @empty
-                <div class="text-center py-8 text-gray-500" id="noMeetings">
-                    <i class="fas fa-calendar-check text-2xl mb-2 text-gray-300"></i>
-                    <p class="text-xs">Tidak ada jadwal</p>
-                </div>
-                @endforelse
+            <div id="meetingsList" class="space-y-3 max-h-[20rem] overflow-y-auto hidden pr-2"></div>
+            <div id="noMeetings" class="text-center pt-10 text-gray-400">
+                <i class="fas fa-calendar-check text-4xl mb-3"></i>
+                <p class="text-sm font-medium">Tidak ada jadwal</p>
             </div>
         </div>
     </div>
 </div>
+@endif
 
-<!-- Modal untuk Tambah Event -->
+{{-- Modal untuk Tambah Kegiatan --}}
 <div id="addEventModal" class="modal">
     <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-gray-900">Tambah Jadwal Baru</h3>
-                <button id="closeModal" class="text-gray-400 hover:text-gray-600 text-xl font-bold">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-gray-900">Tambah Jadwal Baru</h3>
+            <button id="closeModal" class="text-gray-400 hover:text-gray-600 text-xl">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        <form id="addEventForm" class="p-6">
-            <div class="space-y-4">
-                <div>
-                    <label for="eventTitle" class="block text-sm font-medium text-gray-700 mb-2">Judul Event</label>
-                    <input type="text" id="eventTitle" name="title" required 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                           placeholder="Masukkan judul event">
-                </div>
-                <div>
-                    <label for="eventDate" class="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
-                    <input type="date" id="eventDate" name="date" required 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label for="eventTime" class="block text-sm font-medium text-gray-700 mb-2">Waktu</label>
-                    <input type="time" id="eventTime" name="time" 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label for="eventDescription" class="block text-sm font-medium text-gray-700 mb-2">Deskripsi</label>
-                    <textarea id="eventDescription" name="description" rows="3" 
-                              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                              placeholder="Deskripsi event (opsional)"></textarea>
-                </div>
-                <div>
-                    <label for="eventLocation" class="block text-sm font-medium text-gray-700 mb-2">Lokasi</label>
-                    <input type="text" id="eventLocation" name="location" 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                           placeholder="Lokasi event (opsional)">
-                </div>
+        <form id="addEventForm" class="p-6 space-y-4">
+            @csrf
+            <div>
+                <label for="eventTitle" class="block text-sm font-medium text-gray-700 mb-1">Judul Kegiatan</label>
+                <input type="text" id="eventTitle" name="title" required 
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
             </div>
-            <div class="flex justify-end gap-3 mt-6">
-                <button type="button" id="cancelBtn" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <div>
+                <label for="eventDate" class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                <input type="date" id="eventDate" name="date" required 
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="eventDescription" class="block text-sm font-medium text-gray-700 mb-1">Deskripsi (Opsional)</label>
+                <textarea id="eventDescription" name="description" rows="3" 
+                          class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 pt-4">
+                <button type="button" id="cancelBtn" 
+                        class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                     Batal
                 </button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-save mr-2"></i>
-                    Simpan Event
+                <button type="submit" id="saveEventBtn" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Simpan Jadwal
                 </button>
             </div>
         </form>
     </div>
 </div>
-@endif
 
-<!-- Recent Activity & Chart -->
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6">
-    <!-- Recent Candidates -->
+{{-- Main Content Grid --}}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+    {{-- Recent Candidates --}}
     <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Kandidat Terbaru</h3>
-            <a href="{{ route('candidates.index') }}" class="text-blue-600 text-sm hover:text-blue-700 transition-colors">Lihat Semua</a>
-        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Kandidat Terbaru</h3>
         <div class="space-y-3">
             @forelse($recent_candidates ?? [] as $candidate)
-            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div class="flex items-center gap-3 min-w-0 flex-1">
-                    <div class="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span class="text-sm font-medium text-blue-600">{{ substr($candidate->nama, 0, 2) }}</span>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="font-medium text-gray-900 truncate">{{ $candidate->nama }}</p>
-                        <p class="text-sm text-gray-600 truncate">{{ $candidate->vacancy_airsys }}</p>
-                    </div>
+            <a href="{{ route('candidates.show', $candidate->id ?? '#') }}" 
+               class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-gray-900 truncate">{{ $candidate->nama ?? 'Unknown Name' }}</p>
+                    <p class="text-sm text-gray-600 truncate">{{ $candidate->vacancy ?? 'No Position' }}</p>
+                    @if($candidate->department)
+                        <p class="text-xs text-gray-500">{{ $candidate->department->name ?? 'No Department' }}</p>
+                    @endif
                 </div>
-                <span class="text-xs text-gray-500 flex-shrink-0 ml-2">{{ $candidate->created_at->diffForHumans() }}</span>
-            </div>
+                <div class="text-right flex-shrink-0">
+                    <span class="text-xs text-gray-500">
+                        {{ $candidate->created_at ? $candidate->created_at->diffForHumans() : 'Unknown Date' }}
+                    </span>
+                    @if($candidate->current_stage)
+                        <p class="text-xs text-blue-600 font-medium">{{ $candidate->current_stage_display }}</p>
+                    @endif
+                </div>
+            </a>
             @empty
-            <div class="text-center py-8 text-gray-500">
-                <i class="fas fa-users text-3xl sm:text-4xl mb-2 text-gray-300"></i>
-                <p class="text-sm">Belum ada kandidat terbaru</p>
+            <div class="text-center py-8">
+                <i class="fas fa-users text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500">Belum ada kandidat terbaru.</p>
             </div>
             @endforelse
         </div>
     </div>
 
-    <!-- Process Distribution -->
+    {{-- Process Distribution --}}
     <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Distribusi Tahapan</h3>
-        <div class="h-64">
-            <canvas id="processChart"></canvas>
+        <div class="space-y-3">
+            @forelse($process_distribution ?? [] as $dist)
+            <a href="{{ route('candidates.index', ['current_stage' => $dist['stage'] ?? '']) }}" 
+               class="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div class="flex justify-between items-center">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 truncate">
+                            {{ $dist['stage'] ?? 'Unknown Stage' }}
+                        </p>
+                        <p class="text-sm text-gray-500">
+                            {{ ($dist['count'] ?? 0) == 1 ? '1 kandidat' : ($dist['count'] ?? 0) . ' kandidat' }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-blue-600 text-lg">{{ $dist['count'] ?? 0 }}</span>
+                        <i class="fas fa-chevron-right text-gray-400 text-sm"></i>
+                    </div>
+                </div>
+            </a>
+            @empty
+            <div class="text-center py-8">
+                <i class="fas fa-chart-pie text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500">Data distribusi tidak tersedia.</p>
+            </div>
+            @endforelse
         </div>
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
-    <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Tambah Kandidat -->
-        <a href="{{ route('candidates.create') }}" class="group flex items-center gap-3 p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all duration-200">
-            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                <i class="fas fa-user-plus text-blue-600"></i>
-            </div>
-            <div class="min-w-0 flex-1">
-                <p class="font-medium text-gray-900">Tambah Kandidat</p>
-                <p class="text-sm text-gray-600">Daftarkan kandidat baru</p>
-            </div>
-        </a>
-
-        <!-- Import Data -->
-        @can('import-excel')
-        <a href="{{ route('import.index') }}" class="group flex items-center gap-3 p-4 border-2 border-dashed border-green-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200">
-            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                <i class="fas fa-file-excel text-green-600"></i>
-            </div>
-            <div class="min-w-0 flex-1">
-                <p class="font-medium text-gray-900">Import Data</p>
-                <p class="text-sm text-gray-600">Import dari Excel</p>
-            </div>
-        </a>
-        @endcan
-
-        <!-- Statistik -->
-        <a href="{{ route('statistics.index') }}" class="group flex items-center gap-3 p-4 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all duration-200">
-            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                <i class="fas fa-chart-line text-purple-600"></i>
-            </div>
-            <div class="min-w-0 flex-1">
-                <p class="font-medium text-gray-900">Lihat Statistik</p>
-                <p class="text-sm text-gray-600">Analisis data recruitment</p>
-            </div>
-        </a>
+{{-- Additional Stats for HC Role --}}
+@if(Auth::user()->hasRole('team_hc'))
+<div class="mt-6 bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Ringkasan Bulanan</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center">
+            <p class="text-2xl font-bold text-blue-600">
+                {{ \App\Models\Candidate::whereMonth('created_at', now()->month)->count() }}
+            </p>
+            <p class="text-sm text-gray-500">Kandidat Bulan Ini</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-green-600">
+                {{ \App\Models\Candidate::where('overall_status', 'LULUS')->whereMonth('updated_at', now()->month)->count() }}
+            </p>
+            <p class="text-sm text-gray-500">Lulus Bulan Ini</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-orange-600">
+                {{ \App\Models\Candidate::where('overall_status', 'DALAM PROSES')->count() }}
+            </p>
+            <p class="text-sm text-gray-500">Sedang Diproses</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-purple-600">
+                {{ \App\Models\Event::whereDate('date', '>=', now())->count() }}
+            </p>
+            <p class="text-sm text-gray-500">Jadwal Mendatang</p>
+        </div>
     </div>
 </div>
+@endif
 
 @endsection
 
 @push('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Process Distribution Chart
-        const processData = @json($process_distribution ?? []);
-
-        new Chart(document.getElementById('processChart'), {
-            type: 'doughnut',
-            data: {
-                labels: processData.map(d => d.stage),
-                datasets: [{
-                    data: processData.map(d => d.count),
-                    backgroundColor: [
-                        '#3b82f6',
-                        '#10b981',
-                        '#f59e0b',
-                        '#ef4444',
-                        '#8b5cf6',
-                        '#06b6d4'
-                    ],
-                    borderWidth: 0,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true,
-                            font: {
-                                size: 12
-                            }
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: 'white',
-                        bodyColor: 'white',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1,
-                    }
-                }
-            },
-            cutout: '60%',
-        });
-
-        // Year filter functionality
-        document.getElementById('yearFilter').addEventListener('change', function() {
-            const selectedYear = this.value;
+document.addEventListener('DOMContentLoaded', function() {
+    const yearFilter = document.getElementById('yearFilter');
+    if (yearFilter) {
+        yearFilter.addEventListener('change', function() {
             const currentUrl = new URL(window.location);
-            currentUrl.searchParams.set('year', selectedYear);
-
-            // Show loading state
-            document.body.style.cursor = 'wait';
-
-            // Redirect with year parameter
+            currentUrl.searchParams.set('year', this.value);
             window.location.href = currentUrl.toString();
         });
+    }
 
-        // Set current year from URL parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const yearFromUrl = urlParams.get('year');
-        if (yearFromUrl) {
-            document.getElementById('yearFilter').value = yearFromUrl;
-        }
+    if (!document.getElementById('calendarTableBody')) return;
 
-        // Calendar functionality
-        const months = [
-            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-        ];
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    let currentDate = new Date();
+    const yearFromUrl = new URLSearchParams(window.location.search).get('year');
+    if (yearFromUrl) currentDate.setFullYear(parseInt(yearFromUrl, 10));
+    let currentMonth = currentDate.getMonth();
+    let currentYear = currentDate.getFullYear();
+    let selectedDateKey = null;
+    const eventsByDate = {};
 
-        let currentDate = new Date();
-        let currentMonth = currentDate.getMonth();
-        let currentYear = currentDate.getFullYear();
-        let selectedDate = null;
+    function updateCalendar() {
+        const calendarBody = document.getElementById('calendarTableBody');
+        if (!calendarBody) return;
+        document.getElementById('currentMonth').textContent = `${months[currentMonth]} ${currentYear}`;
+        calendarBody.innerHTML = '';
+        const firstDay = new Date(currentYear, currentMonth, 1);
+        const startDayIndex = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate();
+        let dayCounter = 1;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        // Get upcoming tests data for calendar highlighting
-        const upcomingTests = @json($upcoming_tests ?? []);
-        const testsByDate = {};
-
-        // Group tests by date
-        upcomingTests.forEach(test => {
-            const date = new Date(test.next_test_date);
-            const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-            if (!testsByDate[dateKey]) {
-                testsByDate[dateKey] = [];
-            }
-            testsByDate[dateKey].push(test);
-        });
-
-        function updateCalendar() {
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-            const firstDayOfWeek = firstDay.getDay();
-            const daysInMonth = lastDay.getDate();
-
-            // Adjust for Monday start (0 = Sunday, 1 = Monday, etc.)
-            const startDay = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-            // Update month display
-            const monthYear = `${months[currentMonth]} ${currentYear}`;
-            document.getElementById('currentMonth').textContent = monthYear;
-            document.getElementById('calendarMonth').textContent = monthYear;
-
-            const calendarTableBody = document.getElementById('calendarTableBody');
-            calendarTableBody.innerHTML = '';
-
-            // Calculate total days needed (6 rows × 7 days = 42 days)
-            let dayCount = 0;
-
-            // Previous month's trailing days
-            const prevMonth = new Date(currentYear, currentMonth - 1, 0);
-            const prevMonthDays = prevMonth.getDate();
-
-            // Today's date for comparison
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            // Generate 6 rows of calendar
-            for (let week = 0; week < 6; week++) {
-                const row = document.createElement('tr');
-
-                for (let day = 0; day < 7; day++) {
-                    const cell = document.createElement('td');
-                    cell.className = 'calendar-cell';
-
-                    let cellDay, cellMonth, cellYear, dateKey;
-
-                    if (dayCount < startDay) {
-                        // Previous month days
-                        cellDay = prevMonthDays - (startDay - dayCount - 1);
-                        cellMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-                        cellYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-                        cell.classList.add('other-month');
-                    } else if (dayCount < startDay + daysInMonth) {
-                        // Current month days
-                        cellDay = dayCount - startDay + 1;
-                        cellMonth = currentMonth;
-                        cellYear = currentYear;
-                        cell.classList.add('current-month'); // Add this class for current month dates
-                    } else {
-                        // Next month days
-                        cellDay = dayCount - startDay - daysInMonth + 1;
-                        cellMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-                        cellYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-                        cell.classList.add('other-month');
-                    }
-
-                    dateKey = `${cellYear}-${String(cellMonth + 1).padStart(2, '0')}-${String(cellDay).padStart(2, '0')}`;
-                    
-                    // Create date number element
-                    const dateNumber = document.createElement('span');
-                    dateNumber.className = 'date-number';
-                    dateNumber.textContent = cellDay;
-                    cell.appendChild(dateNumber);
-
-                    // Only add interactions for current month days
-                    if (dayCount >= startDay && dayCount < startDay + daysInMonth) {
-                        const cellDate = new Date(cellYear, cellMonth, cellDay);
-                        cellDate.setHours(0, 0, 0, 0);
-
-                        // Check if it's today
-                        if (cellDate.getTime() === today.getTime()) {
-                            cell.classList.add('today');
-                        } else if (cellDate.getTime() < today.getTime()) {
-                            cell.classList.add('past-date-current-month');
-                        } else {
-                            cell.classList.add('future-date-current-month');
-                        }
-
-                        // Check if there are events on this date
-                        if (testsByDate[dateKey]) {
-                            cell.classList.add('has-event');
-                            
-                            // Add event count
-                            const eventCount = document.createElement('div');
-                            eventCount.className = 'event-count';
-                            const count = testsByDate[dateKey].length;
-                            eventCount.textContent = `${count} kandidat`;
-                            cell.appendChild(eventCount);
-                        }
-
-                        // Add click event only for current month dates
-                        cell.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            selectDate(dateKey, cellDay, cellMonth, cellYear, this);
-                        });
-                    }
-
-                    row.appendChild(cell);
-                    dayCount++;
-                }
-
-                calendarTableBody.appendChild(row);
-            }
-        }
-
-        function selectDate(dateKey, day, month, year, cellElement) {
-            // Remove previous selection
-            document.querySelectorAll('.calendar-cell.selected').forEach(el => {
-                el.classList.remove('selected');
-            });
-
-            // Add selection to clicked date
-            cellElement.classList.add('selected');
-            selectedDate = dateKey;
-
-            // Update selected date info
-            const monthName = months[month];
-            const selectedDateObj = new Date(year, month, day);
-            const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-            const dayName = dayNames[selectedDateObj.getDay()];
-
-            const candidateCount = testsByDate[dateKey] ? testsByDate[dateKey].length : 0;
-            document.getElementById('selectedDateInfo').innerHTML =
-                `<strong>${dayName}, ${day} ${monthName} ${year}</strong><br>
-                <span class="text-xs">${candidateCount} kandidat terjadwal</span>`;
-
-            // Filter meetings by selected date
-            filterMeetingsByDate(dateKey);
-        }
-
-        function filterMeetingsByDate(dateKey) {
-            const meetingItems = document.querySelectorAll('.meeting-item');
-            const noMeetings = document.getElementById('noMeetings');
-            let hasVisibleMeetings = false;
-
-            meetingItems.forEach(item => {
-                const itemDate = item.getAttribute('data-date');
-                if (itemDate === dateKey) {
-                    item.classList.remove('hidden');
-                    hasVisibleMeetings = true;
+        for (let i = 0; i < 6; i++) {
+            let row = document.createElement('tr');
+            for (let j = 0; j < 7; j++) {
+                let cellWrapper = document.createElement('td');
+                cellWrapper.className = 'calendar-cell-wrapper';
+                let cellContent = document.createElement('div');
+                cellContent.className = 'calendar-cell';
+                if (i === 0 && j < startDayIndex) {
+                    cellContent.classList.add('other-month');
+                    cellContent.textContent = prevMonthLastDay - startDayIndex + j + 1;
+                } else if (dayCounter > daysInMonth) {
+                    cellContent.classList.add('other-month');
+                    cellContent.textContent = dayCounter - daysInMonth;
+                    dayCounter++;
                 } else {
-                    item.classList.add('hidden');
+                    const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayCounter).padStart(2, '0')}`;
+                    cellContent.textContent = dayCounter;
+                    cellContent.dataset.dateKey = dateKey;
+                    const cellDate = new Date(currentYear, currentMonth, dayCounter);
+                    if (cellDate.getTime() === today.getTime()) cellContent.classList.add('today');
+                    if (eventsByDate[dateKey]) cellContent.classList.add('has-event');
+                    cellContent.addEventListener('click', () => selectDate(dateKey, cellContent));
+                    dayCounter++;
                 }
-            });
-
-            // Show/hide no meetings message
-            if (hasVisibleMeetings) {
-                noMeetings.classList.add('hidden');
-            } else {
-                noMeetings.classList.remove('hidden');
+                cellWrapper.appendChild(cellContent);
+                row.appendChild(cellWrapper);
             }
+            calendarBody.appendChild(row);
         }
+    }
 
-        // Filter meetings for today on initial load
-        function showTodaysMeetings() {
-            const today = new Date();
-            const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            
-            // Auto-select today's date
-            setTimeout(() => {
-                const todayCell = document.querySelector('.calendar-cell.today');
-                if (todayCell) {
-                    selectDate(todayKey, today.getDate(), today.getMonth(), today.getFullYear(), todayCell);
-                }
-            }, 100);
+    async function fetchAndMarkEvents() {
+        try {
+            const response = await fetch('{{ route("events.calendar") }}');
+            if (!response.ok) throw new Error('Failed to fetch events');
+            const allEventsData = await response.json();
+            processEvents(allEventsData);
+            markEventDays();
+            selectTodayIfVisible();
+        } catch (error) {
+            console.error('Error fetching calendar data:', error);
         }
+    }
 
-        // Navigation buttons (both sets)
-        document.getElementById('prevMonth').addEventListener('click', function() {
-            currentMonth--;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            updateCalendar();
-            showAllMeetings();
+    function processEvents(events) {
+        for (const key in eventsByDate) { delete eventsByDate[key]; }
+        if (!Array.isArray(events)) return;
+        events.forEach(item => {
+            if (!item || !item.date) return;
+            const date = new Date(item.date);
+            const localDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60000);
+            const dateKey = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+            if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
+            eventsByDate[dateKey].push(item);
         });
+    }
 
-        document.getElementById('nextMonth').addEventListener('click', function() {
-            currentMonth++;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            updateCalendar();
-            showAllMeetings();
-        });
-
-        // Calendar navigation buttons
-        document.getElementById('prevMonthCal').addEventListener('click', function() {
-            currentMonth--;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            updateCalendar();
-            showAllMeetings();
-        });
-
-        document.getElementById('nextMonthCal').addEventListener('click', function() {
-            currentMonth++;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            updateCalendar();
-            showAllMeetings();
-        });
-
-        function showAllMeetings() {
-            const meetingItems = document.querySelectorAll('.meeting-item');
-            const noMeetings = document.getElementById('noMeetings');
-
-            meetingItems.forEach(item => {
-                item.classList.remove('hidden');
-            });
-
-            if (meetingItems.length > 0) {
-                noMeetings.classList.add('hidden');
-            } else {
-                noMeetings.classList.remove('hidden');
-            }
-
-            document.getElementById('selectedDateInfo').innerHTML = 'Klik tanggal untuk melihat jadwal';
-
-            // Remove selection
-            document.querySelectorAll('.calendar-cell.selected').forEach(el => {
-                el.classList.remove('selected');
-            });
+    function markEventDays() {
+        document.querySelectorAll('.calendar-cell.has-event').forEach(c => c.classList.remove('has-event'));
+        for (const dateKey in eventsByDate) {
+            const cell = document.querySelector(`[data-date-key="${dateKey}"]`);
+            if (cell) cell.classList.add('has-event');
         }
+    }
 
-        // Modal functionality
-        const modal = document.getElementById('addEventModal');
-        const addEventBtn = document.getElementById('addEventBtn');
-        const closeModal = document.getElementById('closeModal');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const addEventForm = document.getElementById('addEventForm');
-
-        // Open modal
-        addEventBtn.addEventListener('click', function() {
-            modal.classList.add('show');
-
-            // Set default date to today or selected date
-            const eventDateInput = document.getElementById('eventDate');
-            if (selectedDate) {
-                eventDateInput.value = selectedDate;
-            } else {
-                const today = new Date();
-                eventDateInput.value = today.toISOString().split('T')[0];
-            }
-        });
-
-        // Close modal
-        function closeModalFunc() {
-            modal.classList.remove('show');
-            addEventForm.reset();
-        }
-
-        closeModal.addEventListener('click', closeModalFunc);
-        cancelBtn.addEventListener('click', closeModalFunc);
-
-        // Close modal when clicking outside
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                closeModalFunc();
-            }
-        });
-
-        // Handle form submission
-        addEventForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(addEventForm);
-            const eventData = {
-                title: formData.get('title'),
-                date: formData.get('date'),
-                time: formData.get('time'),
-                description: formData.get('description'),
-                location: formData.get('location')
-            };
-
-            // Show loading state
-            const submitBtn = addEventForm.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...';
-            submitBtn.disabled = true;
-
-            try {
-                const response = await fetch('{{ route("events.store") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify(eventData)
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    // Show success message
-                    showNotification('success', result.message);
-
-                    // Reset form and close modal
-                    closeModalFunc();
-
-                    // Refresh calendar display
-                    updateCalendar();
-
-                    // If event is today, update today's meetings
-                    const today = new Date();
-                    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                    if (eventData.date === todayKey) {
-                        showTodaysMeetings();
-                    }
-
-                } else {
-                    throw new Error(result.message || 'Terjadi kesalahan');
-                }
-
-            } catch (error) {
-                console.error('Error:', error);
-                showNotification('error', 'Terjadi kesalahan saat menyimpan event: ' + error.message);
-            } finally {
-                // Reset button
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }
-        });
-
-        // Notification function
-        function showNotification(type, message) {
-            // Create notification element
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all transform translate-x-full ${
-                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`;
-            notification.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
-                    <span>${message}</span>
-                    <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white hover:text-gray-200">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
-
-            document.body.appendChild(notification);
-
-            // Slide in
-            setTimeout(() => {
-                notification.classList.remove('translate-x-full');
-            }, 100);
-
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                notification.classList.add('translate-x-full');
-                setTimeout(() => {
-                    if (notification.parentElement) {
-                        notification.remove();
-                    }
-                }, 300);
-            }, 5000);
-        }
-
-        // Update today's date in header periodically
-        function updateTodayDate() {
-            // This function is no longer needed since we removed the today date header
-            // Just keeping it for backward compatibility
-        }
-
-        // Initialize calendar and show today's meetings
+    function initialize() {
         updateCalendar();
-        showTodaysMeetings();
-    });
-</script>   
+        fetchAndMarkEvents();
+        document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
+        document.getElementById('nextMonth').addEventListener('click', () => navigateMonth(1));
+    }
+    
+    initialize();
+    
+    // Other functions (selectDate, filterMeetingsByDate, etc.) remain the same
+    function selectDate(dateKey, cellElement) {
+        document.querySelectorAll('.calendar-cell.selected').forEach(c => c.classList.remove('selected'));
+        if (cellElement) cellElement.classList.add('selected');
+        selectedDateKey = dateKey;
+        const [year, month, day] = dateKey.split('-').map(Number);
+        document.getElementById('selectedDateText').textContent = `${new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(new Date(year, month - 1, day))}, ${day} ${months[month - 1]}`;
+        filterMeetingsByDate(dateKey);
+    }
+
+    function filterMeetingsByDate(dateKey) {
+        const meetingsList = document.getElementById('meetingsList');
+        const noMeetings = document.getElementById('noMeetings');
+        meetingsList.innerHTML = '';
+        const eventsForDate = eventsByDate[dateKey] || [];
+        if (eventsForDate.length > 0) {
+            noMeetings.classList.add('hidden');
+            meetingsList.classList.remove('hidden');
+            eventsForDate.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            eventsForDate.forEach(item => {
+                const isCustom = item.is_custom;
+                const title = isCustom ? item.title : item.title;
+                const subtitle = isCustom ? item.description : item.description;
+                const link = isCustom ? 'javascript:void(0);' : item.url;
+                const itemHtml = `
+                    <div class="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors">
+                        <a href="${link}" class="flex-1 min-w-0 ${isCustom ? 'cursor-default' : ''}">
+                            <p class="font-semibold text-slate-800 truncate text-sm">${title}</p>
+                            <p class="text-xs text-slate-500 truncate">${subtitle}</p>
+                        </a>
+                        ${isCustom ? `<button data-event-id="${item.id}" class="delete-event-btn text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><i class="fas fa-trash-alt"></i></button>` : `<i class="fas fa-chevron-right text-gray-400"></i>`}
+                    </div>`;
+                meetingsList.insertAdjacentHTML('beforeend', itemHtml);
+            });
+        } else {
+            meetingsList.classList.add('hidden');
+            noMeetings.classList.remove('hidden');
+        }
+    }
+
+    function navigateMonth(direction) {
+        currentMonth += direction;
+        if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        updateCalendar();
+        markEventDays(); // Re-mark events on month change
+        resetMeetingList();
+    }
+
+    function resetMeetingList() {
+        document.getElementById('meetingsList').classList.add('hidden');
+        document.getElementById('noMeetings').classList.remove('hidden');
+        document.getElementById('selectedDateText').textContent = 'Pilih Tanggal';
+        document.getElementById('selectedDateInfo').textContent = 'Klik tanggal untuk melihat jadwal';
+        selectedDateKey = null;
+    }
+
+    function selectTodayIfVisible() {
+        const todayCell = document.querySelector('.calendar-cell.today');
+        if (todayCell) {
+            const today = new Date();
+            if (currentMonth === today.getMonth() && currentYear === today.getFullYear()) {
+                todayCell.click();
+            } else {
+                resetMeetingList();
+            }
+        } else {
+            resetMeetingList();
+        }
+    }
+});
+</script>
+@endpush

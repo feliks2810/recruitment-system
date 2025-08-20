@@ -114,13 +114,13 @@
 
                     {{-- Department Field (Hidden by default) --}}
                     <div id="department-field" class="col-span-1" style="display: none;">
-                        <label for="department" class="block text-sm font-medium text-gray-700">Departemen *</label>
-                        <select name="department" 
-                                id="department" 
+                        <label for="department_id" class="block text-sm font-medium text-gray-700">Departemen *</label>
+                        <select name="department_id" 
+                                id="department_id" 
                                 class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                             <option value="">Pilih Departemen</option>
                             @foreach($departments as $dept)
-                            <option value="{{ $dept }}" {{ old('department') == $dept ? 'selected' : '' }}>{{ $dept }}</option>
+                            <option value="{{ $dept->id }}" {{ old('department_id') == $dept->id ? 'selected' : '' }}>{{ $dept->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -185,7 +185,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const roleSelect = document.getElementById('role');
     const departmentField = document.getElementById('department-field');
-    const departmentSelect = document.getElementById('department');
+    const departmentSelect = document.getElementById('department_id');
 
     function toggleDepartmentField() {
         const selectedRole = roleSelect.value;

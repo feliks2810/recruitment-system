@@ -30,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Events
     Route::prefix('events')->name('events.')->group(function () {
+        Route::get('/calendar', [EventController::class, 'getCalendarEvents'])->name('calendar');
         Route::post('/', [EventController::class, 'store'])->name('store');
         Route::get('/today', [EventController::class, 'getTodayEvents'])->name('today');
         Route::get('/upcoming', [EventController::class, 'getUpcomingEvents'])->name('upcoming');
@@ -48,9 +49,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:view-candidates')
         ->name('candidates.index');
 
+    Route::post('/candidates/{candidate}/stage', [CandidateController::class, 'updateStage'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.updateStage');
+
     Route::get('/candidates/create', [CandidateController::class, 'create'])
         ->middleware('can:edit-candidates')
         ->name('candidates.create');
+
+    Route::post('/candidates/check-duplicate', [CandidateController::class, 'checkDuplicate'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.checkDuplicate');
 
     Route::post('/candidates', [CandidateController::class, 'store'])
         ->middleware('can:edit-candidates')
@@ -72,9 +81,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:delete-candidates')
         ->name('candidates.destroy');
 
+    
+
     Route::patch('/candidates/{candidate}/update-stage', [CandidateController::class, 'updateStage'])
         ->middleware('can:edit-candidates')
         ->name('candidates.updateStage');
+
+    Route::patch('/candidates/{candidate}/toggle-duplicate', [CandidateController::class, 'toggleDuplicate'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.toggleDuplicate');
 
     Route::post('/candidates/{candidate}/switch-type', [CandidateController::class, 'switchType'])
         ->middleware('can:edit-candidates')
@@ -89,13 +104,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:edit-candidates')
         ->name('candidates.bulkMoveStage');
 
-    Route::delete('/candidates/bulk-delete', [CandidateController::class, 'bulkDelete'])
+    Route::delete('/candidates/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])
         ->middleware('can:delete-candidates')
         ->name('candidates.bulkDelete');
 
     Route::post('/candidates/bulk-export', [CandidateController::class, 'bulkExport'])
         ->middleware('can:view-candidates')
         ->name('candidates.bulkExport');
+
+    Route::post('/candidates/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])
+        ->middleware('can:edit-candidates')
+        ->name('candidates.bulkSwitchType');
 
     // ✅ Import Routes
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
@@ -143,7 +162,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     });
 
-    Route::post('candidates/{id}/next-test-date', [App\Http\Controllers\CandidateController::class, 'setNextTestDate'])->name('candidates.setNextTestDate');
+    Route::post('candidates/{candidate}/next-test-date', [CandidateController::class, 'setNextTestDate'])->name('candidates.setNextTestDate');
 });
 
 // Logout

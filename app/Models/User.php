@@ -20,7 +20,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'department',
+        'department_id',
         'status',
     ];
 
@@ -48,6 +48,11 @@ class User extends Authenticatable
         ];
     }
 
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
     /**
      * Get status display name
      */
@@ -69,9 +74,6 @@ class User extends Authenticatable
      */
     public function getRoleDisplayNameAttribute(): string
     {
-        if ($this->hasRole('user')) {
-            return 'Staf Departemen';
-        }
         if ($this->hasRole('department')) {
             return 'Kepala Departemen';
         }
@@ -105,7 +107,6 @@ class User extends Authenticatable
             'admin' => 'Administrator',
             'team_hc' => 'Team HC',
             'department' => 'Kepala Departemen',
-            'user' => 'Staf Departemen'
         ];
 
         return $roleNames[$primaryRole] ?? ucfirst(str_replace('_', ' ', $primaryRole));
@@ -122,7 +123,6 @@ class User extends Authenticatable
             'admin' => 'bg-red-100 text-red-800',
             'team_hc' => 'bg-blue-100 text-blue-800',
             'department' => 'bg-green-100 text-green-800',
-            'user' => 'bg-gray-100 text-gray-800'
         ];
 
         return $badgeClasses[$primaryRole] ?? 'bg-gray-100 text-gray-800';

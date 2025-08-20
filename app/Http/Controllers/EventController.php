@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Candidate;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -267,5 +268,52 @@ class EventController extends Controller
                 'message' => 'Terjadi kesalahan saat mengambil data event mendatang.'
             ], 500);
         }
+    }
+
+    public function getCalendarEvents(Request $request)
+    {
+        $user = Auth::user();
+
+        // 1. Get custom events
+        $customEvents = Event::all()->map(function ($event) {
+            return [
+                'id' => 'custom_'.$event->id,
+                'title' => $event->title,
+                'date' => $event->date->format('Y-m-d'),
+                'description' => $event->description,
+                'is_custom' => true,
+                'url' => '#'
+            ];
+        });
+
+        // 2. Get candidate test schedule events
+        $testEvents = collect();
+        $stagesConfig = (new CandidateController)->getStagesConfigForCalendar();
+
+        $candidatesInProcessQuery = Candidate::where('overall_status', 'DALAM PROSES');
+        if ($user->hasRole('department')) {
+            $candidatesInProcessQuery->where('department_id', $user->department_id);
+        }
+        $candidatesInProcess = $candidatesInProcessQuery->get();
+
+        foreach ($candidatesInProcess as $candidate) {
+            foreach ($stagesConfig as $stageKey => $config) {
+                $dateValue = $candidate->{$config['date_field']};
+                if ($dateValue && $dateValue->isFuture()) {
+                    $testEvents->push([
+                        'id' => 'candidate_'.$candidate->id . '_' . $stageKey,
+                        'title' => $candidate->nama,
+                        'date' => $dateValue->format('Y-m-d'),
+                        'description' => 'Jadwal: ' . $config['display'],
+                        'is_custom' => false,
+                        'url' => route('candidates.show', $candidate->id)
+                    ]);
+                }
+            }
+        }
+        
+        $allEvents = $customEvents->merge($testEvents);
+
+        return response()->json($allEvents);
     }
 }

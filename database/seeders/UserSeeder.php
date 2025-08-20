@@ -50,17 +50,7 @@ class UserSeeder extends Seeder
         ]);
         $department->assignRole('department');
 
-        // Create additional sample users
-        $john = User::firstOrCreate([
-            'email' => 'john@airsys.com',
-        ], [
-            'name' => 'John Smith',
-            'password' => Hash::make('password'),
-            'status' => true,
-            'email_verified_at' => now(),
-            'role' => 'user', // Added role
-        ]);
-        $john->assignRole('user');
+        
 
         $sarah = User::firstOrCreate([
             'email' => 'sarah@airsys.com',
