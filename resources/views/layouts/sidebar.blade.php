@@ -19,12 +19,12 @@
             </a>
 
             <!-- Kandidat -->
-            @can('view-candidates')
+            @canany(['view-candidates', 'view-own-department-candidates'])
             <a href="{{ route('candidates.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('candidates.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-users text-sm w-4 {{ request()->routeIs('candidates.*') ? 'text-white' : 'group-hover:text-green-600' }}"></i>
                 <span class="font-medium sidebar-text">Kandidat</span>
             </a>
-            @endcan
+            @endcanany
 
             <!-- Import Excel -->
             @can('import-excel')
@@ -35,10 +35,12 @@
             @endcan
 
             <!-- Statistik -->
+            @can('view-statistics')
             <a href="{{ route('statistics.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('statistics.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-chart-bar text-sm w-4 {{ request()->routeIs('statistics.*') ? 'text-white' : 'group-hover:text-yellow-600' }}"></i>
                 <span class="font-medium sidebar-text">Statistik</span>
             </a>
+            @endcan
 
             <!-- Manajemen Akun -->
             @can('manage-users')
@@ -64,12 +66,10 @@
         </div>
         
         <!-- Logout Button -->
-        <a href="{{ route('logout') }}" 
-           onclick="event.preventDefault(); document.getElementById('logout-form').submit();" 
-           class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 w-full group active:scale-95">
+        <button type="submit" form="logout-form" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 w-full group active:scale-95">
             <i class="fas fa-sign-out-alt text-sm w-4 group-hover:text-red-600"></i>
             <span class="font-medium sidebar-text">Logout</span>
-        </a>
+        </button>
         
         <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
             @csrf

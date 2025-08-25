@@ -102,7 +102,7 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
             $candidate->cv_review_status,
             $candidate->cv_review_date,
             $candidate->psikotes_result ?? $candidate->psikotest_result,
-            $candidate->psikotes_date ?? $candidate->psikotest_date,
+            $candidate->psikotes_date,
             $candidate->hc_interview_status,
             $candidate->hc_interview_date,
             $candidate->user_interview_status,

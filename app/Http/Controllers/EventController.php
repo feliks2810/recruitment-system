@@ -286,33 +286,31 @@ class EventController extends Controller
             ];
         });
 
-        // 2. Get candidate test schedule events
-        $testEvents = collect();
-        $stagesConfig = (new CandidateController)->getStagesConfigForCalendar();
+        // 2. Get candidate next test date events
+        $candidateTestEvents = collect();
+        $candidatesWithUpcomingTestsQuery = Candidate::whereNotNull('next_test_date');
 
-        $candidatesInProcessQuery = Candidate::where('overall_status', 'DALAM PROSES');
-        if ($user->hasRole('department')) {
-            $candidatesInProcessQuery->where('department_id', $user->department_id);
+        // Apply department filter if user has 'department' role
+        if ($user->hasRole('department') && $user->department_id) {
+            $candidatesWithUpcomingTestsQuery->where('department_id', $user->department_id);
         }
-        $candidatesInProcess = $candidatesInProcessQuery->get();
 
-        foreach ($candidatesInProcess as $candidate) {
-            foreach ($stagesConfig as $stageKey => $config) {
-                $dateValue = $candidate->{$config['date_field']};
-                if ($dateValue && $dateValue->isFuture()) {
-                    $testEvents->push([
-                        'id' => 'candidate_'.$candidate->id . '_' . $stageKey,
-                        'title' => $candidate->nama,
-                        'date' => $dateValue->format('Y-m-d'),
-                        'description' => 'Jadwal: ' . $config['display'],
-                        'is_custom' => false,
-                        'url' => route('candidates.show', $candidate->id)
-                    ]);
-                }
+        $candidatesWithUpcomingTests = $candidatesWithUpcomingTestsQuery->get();
+
+        foreach ($candidatesWithUpcomingTests as $candidate) {
+            if ($candidate->next_test_date && $candidate->current_stage_display) {
+                $candidateTestEvents->push([
+                    'id' => 'candidate_'.$candidate->id,
+                    'title' => $candidate->nama . ' - ' . $candidate->current_stage_display,
+                    'date' => $candidate->next_test_date->format('Y-m-d'),
+                    'description' => 'Tes Selanjutnya: ' . $candidate->current_stage_display,
+                    'is_custom' => false,
+                    'url' => route('candidates.show', $candidate->id)
+                ]);
             }
         }
         
-        $allEvents = $customEvents->merge($testEvents);
+        $allEvents = $customEvents->merge($candidateTestEvents);
 
         return response()->json($allEvents);
     }

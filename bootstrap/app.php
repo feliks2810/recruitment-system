@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom middleware aliases
         $middleware->alias([
             'role' => RoleMiddleware::class,
+            'permission' => \App\Http\Middleware\PermissionMiddleware::class,
         ]);
         
         // Web middleware group is automatically applied to web routes

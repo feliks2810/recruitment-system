@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class Candidate extends Model
@@ -30,7 +32,7 @@ class Candidate extends Model
         'cv_review_status',
         'cv_review_notes',
         'cv_review_by',
-        'psikotest_date',
+        'psikotes_date',
         'psikotes_result',
         'psikotes_notes',
         'hc_interview_date',
@@ -54,21 +56,34 @@ class Candidate extends Model
         'current_stage',
         'overall_status',
         'airsys_internal',
+        'next_test_date',
+        'next_test_stage',
+        'is_suspected_duplicate', // Tambahan field
+        'status', // Tambahan field untuk active/inactive
+        'phone', // Tambahan field
+        'gender', // Tambahan field
+        'birth_date', // Tambahan field
+        'address', // Tambahan field
+        'notes', // Tambahan field
+        'email' // Tambahan field
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'tanggal_lahir' => 'date',
+        'birth_date' => 'date', // Tambahan casting
         'cv_review_date' => 'date',
-        'psikotest_date' => 'date',
+        'psikotes_date' => 'date',
         'hc_interview_date' => 'date',
         'user_interview_date' => 'date',
         'bodgm_interview_date' => 'date',
         'offering_letter_date' => 'date',
         'mcu_date' => 'date',
         'hiring_date' => 'date',
+        'next_test_date' => 'date', // Tambahan casting
         'ipk' => 'float',
+        'is_suspected_duplicate' => 'boolean', // Tambahan casting
     ];
 
     /**
@@ -77,6 +92,22 @@ class Candidate extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Relationship with Educations
+     */
+    public function educations(): HasMany
+    {
+        return $this->hasMany(Education::class);
+    }
+
+    /**
+     * Relationship with Applications
+     */
+    public function applications(): HasMany
+    {
+        return $this->hasMany(Application::class);
     }
 
     /**
@@ -96,22 +127,110 @@ class Candidate extends Model
     }
 
     /**
-     * Get display name for current stage
+     * Get current stage display name dengan fallback yang lebih baik
      */
     public function getCurrentStageDisplayAttribute()
     {
         $stages = [
             'cv_review' => 'CV Review',
-            'psikotest' => 'Psikotes',
-            'hc_interview' => 'HC Interview',
-            'user_interview' => 'User Interview',
-            'bodgm_interview' => 'BOD/GM Interview',
+            'psikotes' => 'Psikotes', 
+            'interview_hc' => 'HC Interview',
+            'interview_user' => 'User Interview',
+            'interview_bod' => 'Interview BOD/GM',
             'offering_letter' => 'Offering Letter',
-            'mcu' => 'MCU',
+            'mcu' => 'Medical Check Up',
             'hiring' => 'Hiring'
         ];
 
+        if (!$this->current_stage) {
+            // Tentukan stage berdasarkan data yang ada
+            $currentStage = $this->determineCurrentStage();
+            return $stages[$currentStage] ?? 'Menunggu CV Review';
+        }
+
         return $stages[$this->current_stage] ?? $this->current_stage ?? 'Unknown Stage';
+    }
+
+    /**
+     * Tentukan current stage berdasarkan data yang ada
+     */
+    public function determineCurrentStage()
+    {
+        $stageOrder = [
+            'cv_review' => ['cv_review_status', ['LULUS']],
+            'psikotes' => ['psikotes_result', ['LULUS']],
+            'interview_hc' => ['hc_interview_status', ['DISARANKAN']],
+            'interview_user' => ['user_interview_status', ['DISARANKAN']],
+            'interview_bod' => ['bod_interview_status', ['DISARANKAN']],
+            'offering_letter' => ['offering_letter_status', ['DITERIMA']],
+            'mcu' => ['mcu_status', ['LULUS']],
+            'hiring' => ['hiring_status', ['HIRED']]
+        ];
+
+        $lastCompletedStage = null;
+        
+        foreach ($stageOrder as $stage => [$statusField, $passingValues]) {
+            $status = $this->{$statusField};
+            
+            if (in_array($status, $passingValues)) {
+                $lastCompletedStage = $stage;
+            } elseif ($status && !in_array($status, $passingValues)) {
+                // Jika ada status tapi bukan passing, maka kandidat gagal di stage ini
+                return $stage;
+            } else {
+                // Jika tidak ada status, maka ini adalah next stage
+                break;
+            }
+        }
+        
+        // Jika semua stage sudah lulus, return null (selesai)
+        if ($lastCompletedStage === 'hiring') {
+            return null;
+        }
+        
+        // Return next stage setelah last completed
+        $stageKeys = array_keys($stageOrder);
+        $lastIndex = array_search($lastCompletedStage, $stageKeys);
+        
+        if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
+            return $stageKeys[$lastIndex + 1];
+        }
+        
+        return 'cv_review'; // Default jika belum ada yang dikerjakan
+    }
+
+    /**
+     * Update overall_status berdasarkan current stage dan hasil
+     */
+    public function updateOverallStatus()
+    {
+        $failingStatuses = [
+            'cv_review_status' => ['TIDAK LULUS'],
+            'psikotes_result' => ['TIDAK LULUS'],
+            'hc_interview_status' => ['TIDAK DISARANKAN'],
+            'user_interview_status' => ['TIDAK DISARANKAN'],
+            'bod_interview_status' => ['TIDAK DISARANKAN'],
+            'offering_letter_status' => ['DITOLAK'],
+            'mcu_status' => ['TIDAK LULUS'],
+            'hiring_status' => ['TIDAK DIHIRING']
+        ];
+
+        // Cek apakah ada status yang menunjukkan kandidat ditolak
+        foreach ($failingStatuses as $field => $failValues) {
+            if (in_array($this->{$field}, $failValues)) {
+                $this->overall_status = 'DITOLAK';
+                return;
+            }
+        }
+
+        // Jika hiring status adalah HIRED, maka lulus
+        if ($this->hiring_status === 'HIRED') {
+            $this->overall_status = 'LULUS';
+            return;
+        }
+
+        // Jika masih ada stage yang belum selesai, maka masih proses
+        $this->overall_status = 'PROSES';
     }
 
     /**
@@ -121,10 +240,10 @@ class Candidate extends Model
     {
         $stageMapping = [
             'cv_review' => 'cv_review_date',
-            'psikotest' => 'psikotest_date',
-            'hc_interview' => 'hc_interview_date',
-            'user_interview' => 'user_interview_date',
-            'bodgm_interview' => 'bodgm_interview_date',
+            'psikotes' => 'psikotes_date',
+            'interview_hc' => 'hc_interview_date',
+            'interview_user' => 'user_interview_date',
+            'interview_bod' => 'bodgm_interview_date',
             'offering_letter' => 'offering_letter_date',
             'mcu' => 'mcu_date',
             'hiring' => 'hiring_date'
@@ -148,6 +267,47 @@ class Candidate extends Model
     }
 
     /**
+     * Scope for active candidates
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope for searching candidates.
+     */
+    public function scopeSearch($query, $term)
+    {
+        return $query->where(function ($query) use ($term) {
+            $query->where('nama', 'like', '%' . $term . '%')
+                  ->orWhere('alamat_email', 'like', '%' . $term . '%')
+                  ->orWhere('email', 'like', '%' . $term . '%') // Tambahan search field
+                  ->orWhere('source', 'like', '%' . $term . '%')
+                  ->orWhere('applicant_id', 'like', '%' . $term . '%'); // Tambahan search field
+        });
+    }
+
+    /**
+     * Scope for filtering by gender.
+     */
+    public function scopeByGender($query, $gender)
+    {
+        return $query->where(function($query) use ($gender) {
+            $query->where('jk', $gender)
+                  ->orWhere('gender', $gender); // Support both fields
+        });
+    }
+
+    /**
+     * Scope for filtering by source.
+     */
+    public function scopeBySource($query, $source)
+    {
+        return $query->where('source', $source);
+    }
+
+    /**
      * Scope for candidates in specific stage
      */
     public function scopeInStage($query, $stage)
@@ -168,7 +328,7 @@ class Candidate extends Model
      */
     public function scopeInProcess($query)
     {
-        return $query->where('overall_status', 'DALAM PROSES');
+        return $query->whereIn('overall_status', ['PROSES', 'PENDING', 'DALAM PROSES']);
     }
 
     /**
@@ -204,6 +364,35 @@ class Candidate extends Model
     }
 
     /**
+     * Check if the candidate can be accessed by the current user.
+     */
+    public function canBeAccessedByCurrentUser(): bool
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return false;
+        }
+
+        // Super Admin dapat akses semua
+        if ($user->hasRole('super_admin')) {
+            return true;
+        }
+
+        // Admin and Team HC can access all candidates
+        if ($user->hasRole('admin') || $user->hasRole('team_hc')) {
+            return true;
+        }
+
+        // Department users can only access candidates in their own department
+        if ($user->hasRole('department') && $user->department_id) {
+            return $this->department_id === $user->department_id;
+        }
+
+        return false;
+    }
+
+    /**
      * Check if candidate has upcoming test
      */
     public function hasUpcomingTest()
@@ -229,24 +418,19 @@ class Candidate extends Model
     }
 
     /**
-     * Handle missing attributes gracefully
+     * Mark candidate as suspected duplicate
      */
-    public function __get($key)
+    public function markAsSuspectedDuplicate()
     {
-        // Handle commonly accessed attributes that might not exist
-        if ($key === 'vacancy' && !isset($this->attributes[$key])) {
-            return 'No Position Specified';
-        }
+        $this->update(['is_suspected_duplicate' => true]);
+    }
 
-        if ($key === 'current_stage' && !isset($this->attributes[$key])) {
-            return 'unknown';
-        }
-
-        if ($key === 'overall_status' && !isset($this->attributes[$key])) {
-            return 'DALAM PROSES';
-        }
-
-        return parent::__get($key);
+    /**
+     * Remove duplicate mark from candidate
+     */
+    public function markAsNotDuplicate()
+    {
+        $this->update(['is_suspected_duplicate' => false]);
     }
 
     /**
@@ -256,7 +440,7 @@ class Candidate extends Model
     {
         return [
             'cv_review_date',
-            'psikotest_date',
+            'psikotes_date',
             'hc_interview_date',
             'user_interview_date',
             'bodgm_interview_date',
@@ -295,7 +479,7 @@ class Candidate extends Model
     {
         $mapping = [
             'cv_review_date' => 'CV Review',
-            'psikotest_date' => 'Psikotes',
+            'psikotes_date' => 'Psikotes',
             'hc_interview_date' => 'HC Interview',
             'user_interview_date' => 'User Interview',
             'bodgm_interview_date' => 'BOD/GM Interview',
@@ -305,5 +489,102 @@ class Candidate extends Model
         ];
 
         return $mapping[$field] ?? ucfirst(str_replace('_', ' ', $field));
+    }
+
+    /**
+     * Handle missing attributes gracefully
+     */
+    public function __get($key)
+    {
+        // Handle commonly accessed attributes that might not exist
+        if ($key === 'vacancy' && !isset($this->attributes[$key])) {
+            return 'No Position Specified';
+        }
+
+        if ($key === 'current_stage' && !isset($this->attributes[$key])) {
+            return $this->determineCurrentStage();
+        }
+
+        if ($key === 'overall_status' && !isset($this->attributes[$key])) {
+            return 'PROSES';
+        }
+
+        // Handle email field fallback
+        if ($key === 'email' && !isset($this->attributes[$key])) {
+            return $this->alamat_email;
+        }
+
+        // Handle phone field fallback  
+        if ($key === 'phone' && !isset($this->attributes[$key])) {
+            return null;
+        }
+
+        // Handle gender field fallback
+        if ($key === 'gender' && !isset($this->attributes[$key])) {
+            return $this->jk;
+        }
+
+        // Handle birth_date field fallback
+        if ($key === 'birth_date' && !isset($this->attributes[$key])) {
+            return $this->tanggal_lahir;
+        }
+
+        // Handle address field fallback
+        if ($key === 'address' && !isset($this->attributes[$key])) {
+            return null;
+        }
+
+        return parent::__get($key);
+    }
+
+    /**
+     * Override save method untuk auto-update current_stage dan overall_status
+     */
+    public function save(array $options = [])
+    {
+        // Update current_stage jika kosong atau tidak valid
+        if (!$this->current_stage) {
+            $this->current_stage = $this->determineCurrentStage();
+        }
+        
+        // Update overall_status
+        $this->updateOverallStatus();
+        
+        return parent::save($options);
+    }
+
+    /**
+     * Boot method untuk auto-update saat model dibuat
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($candidate) {
+            // Set default values jika belum ada
+            if (!$candidate->overall_status) {
+                $candidate->overall_status = 'PROSES';
+            }
+            
+            if (!$candidate->current_stage) {
+                $candidate->current_stage = 'cv_review';
+            }
+
+            if (!$candidate->status) {
+                $candidate->status = 'active';
+            }
+
+            if (!$candidate->airsys_internal) {
+                $candidate->airsys_internal = 'No';
+            }
+        });
+
+        static::updating(function ($candidate) {
+            // Auto-update current_stage dan overall_status saat update
+            if (!$candidate->current_stage) {
+                $candidate->current_stage = $candidate->determineCurrentStage();
+            }
+            $candidate->updateOverallStatus();
+        });
     }
 }

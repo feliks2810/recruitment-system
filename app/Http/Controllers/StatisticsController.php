@@ -61,7 +61,7 @@ class StatisticsController extends Controller
     {
         $stages = [
             'Aplikasi' => (clone $query)->count(),
-            'Psikotes' => (clone $query)->whereNotNull('psikotest_date')->count(),
+            'Psikotes' => (clone $query)->whereNotNull('psikotes_date')->count(),
             'Interview HC' => (clone $query)->whereNotNull('hc_interview_date')->count(),
             'Interview User' => (clone $query)->whereNotNull('user_interview_date')->count(),
             'Offering' => (clone $query)->whereNotNull('offering_letter_date')->count(),

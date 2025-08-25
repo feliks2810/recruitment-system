@@ -54,7 +54,7 @@ class CandidateRequest extends FormRequest
             'airsys_internal' => 'required|in:Yes,No',
             
             // Stage dates - optional
-            'psikotest_date' => 'nullable|date',
+            'psikotes_date' => 'nullable|date',
             'hc_interview_date' => 'nullable|date',
             'user_interview_date' => 'nullable|date',
             'bodgm_interview_date' => 'nullable|date',

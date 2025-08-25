@@ -90,7 +90,7 @@ class CandidateSeeder extends Seeder
                 'ipk' => 3.85,
                 'cv' => 'CV_Budi_Santoso.pdf',
                 'flk' => 'FLK_Budi_Santoso.pdf',
-                'psikotest_date' => '2024-01-10',
+                'psikotes_date' => '2024-01-10',
                 'psikotes_result' => 'LULUS',
                 'psikotes_notes' => 'Skor psikotes 90/100. Kemampuan problem solving excellent.',
                 'hc_interview_date' => '2024-01-12',

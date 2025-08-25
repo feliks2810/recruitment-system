@@ -18,8 +18,8 @@
 </div>
 
 <div class="flex items-center space-x-2">
-    @can('import-excel')
-    <a href="{{ route('candidates.edit', $candidate) }}" 
+    @can('edit-candidates')
+    <a href="{{ route('candidates.edit', $candidate) }}"
        class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -29,11 +29,11 @@
     @endcan
 
     @can('delete-candidates')
-    <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline" 
+    <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline"
           onsubmit="return confirm('Yakin ingin menghapus kandidat ini? Tindakan ini tidak dapat dibatalkan.')">
         @csrf
         @method('DELETE')
-        <button type="submit" 
+        <button type="submit"
                 class="inline-flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors duration-200">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -46,27 +46,27 @@
 @endpush
 
 @section('content')
+
+
 @can('show-candidates')
 <div x-data="candidateDetail()" class="space-y-6">
-    
-    <!-- Update Stage Modal -->
-    <div x-show="showModal" 
+
+    <!-- Modal untuk Update Stage -->
+    <div x-show="showModal"
          x-transition:enter="ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 overflow-y-auto" 
+         class="fixed inset-0 z-50 overflow-y-auto"
          style="display: none;">
-        
+
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <!-- Background overlay -->
             <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" @click="closeModal()"></div>
-            
-            <!-- Center modal -->
+
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
+
             <div x-transition:enter="ease-out duration-300"
                  x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -74,10 +74,8 @@
                  x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                
+
                 <form @submit.prevent="submitForm()" id="stageUpdateForm">
-                    <input type="hidden" name="stage" x-model="stageData.stage">
-                    
                     <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                         <div class="sm:flex sm:items-start">
                             <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -88,7 +86,6 @@
                             <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900" x-text="'Update ' + selectedStage"></h3>
                                 <div class="mt-4 space-y-4">
-                                    <!-- Result Field -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
                                         <select name="result"
@@ -102,7 +99,6 @@
                                         </select>
                                     </div>
 
-                                    <!-- Next Test Fields -->
                                     <div x-show="isPassingResult(stageData.result) && stageData.stage !== 'hiring'" x-transition class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                         <div>
                                             <label class="block text-sm font-medium text-blue-700">Tahap Tes Berikutnya</label>
@@ -113,31 +109,29 @@
                                             <input type="date" name="next_test_date" x-model="stageData.next_test_date" class="mt-1 block w-full border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                         </div>
                                     </div>
-                                    
-                                    <!-- Notes Field -->
+
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Catatan</label>
-                                        <textarea name="notes" 
-                                                  x-model="stageData.notes" 
-                                                  rows="3" 
+                                        <textarea name="notes"
+                                                  x-model="stageData.notes"
+                                                  rows="3"
                                                   maxlength="1000"
-                                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                                   placeholder="Tambahkan catatan (opsional)..."></textarea>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Modal Footer -->
+
                     <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button type="submit" 
+                        <button type="submit"
                                 :disabled="isSubmitting"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
                                 x-text="isSubmitting ? 'Menyimpan...' : 'Simpan'">
                         </button>
-                        <button type="button" 
-                                @click="closeModal()" 
+                        <button type="button"
+                                @click="closeModal()"
                                 :disabled="isSubmitting"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
                             Batal
@@ -148,21 +142,21 @@
         </div>
     </div>
 
-    <!-- Comment Modal -->
-    <div x-show="showCommentModal" 
+    <!-- Modal untuk Menampilkan Catatan -->
+    <div x-show="showCommentModal"
          x-transition:enter="ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 overflow-y-auto" 
+         class="fixed inset-0 z-50 overflow-y-auto"
          style="display: none;">
-        
+
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true"></div>
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
+
             <div x-transition:enter="ease-out duration-300"
                  x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -170,7 +164,7 @@
                  x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                
+
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     <div class="sm:flex sm:items-start">
                         <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -178,7 +172,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900">Catatan
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Catatan</h3>
                             <div class="mt-2">
                                 <div class="text-sm text-gray-700 bg-gray-50 p-3 rounded-md max-h-40 overflow-y-auto">
                                     <p x-text="selectedComment || 'Tidak ada catatan'" class="whitespace-pre-wrap"></p>
@@ -188,8 +182,8 @@
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" 
-                            @click="showCommentModal = false" 
+                    <button type="button"
+                            @click="showCommentModal = false"
                             class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
                         Tutup
                     </button>
@@ -198,13 +192,11 @@
         </div>
     </div>
 
-    <!-- Main Content Grid -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        
-        <!-- Left Column: Candidate Information -->
+
+        <!-- Sidebar Kiri - Informasi Kandidat -->
         <div class="lg:col-span-1 space-y-6">
-            
-            <!-- Personal Information Card -->
+
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Informasi Pribadi</h3>
@@ -264,7 +256,6 @@
                 </div>
             </div>
 
-            <!-- Education Information Card -->
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Informasi Pendidikan</h3>
@@ -300,7 +291,6 @@
                 </div>
             </div>
 
-            <!-- Job Information Card -->
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Informasi Posisi</h3>
@@ -331,7 +321,6 @@
                 </div>
             </div>
 
-            <!-- Status Information Card -->
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Status Information</h3>
@@ -381,7 +370,6 @@
                 </div>
             </div>
 
-            <!-- Files Card -->
             @if($candidate->cv || $candidate->flk)
                 <div class="overflow-hidden rounded-lg bg-white shadow">
                     <div class="px-6 py-4 border-b border-gray-200">
@@ -402,8 +390,8 @@
                                             <p class="text-xs text-gray-500">PDF Document</p>
                                         </div>
                                     </div>
-                                    <a href="{{ Storage::url($candidate->cv) }}" 
-                                       target="_blank" 
+                                    <a href="{{ Storage::url($candidate->cv) }}"
+                                       target="_blank"
                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors">
                                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -412,7 +400,7 @@
                                     </a>
                                 </div>
                             @endif
-                            
+
                             @if($candidate->flk)
                                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                     <div class="flex items-center">
@@ -426,8 +414,8 @@
                                             <p class="text-xs text-gray-500">PDF Document</p>
                                         </div>
                                     </div>
-                                    <a href="{{ Storage::url($candidate->flk) }}" 
-                                       target="_blank" 
+                                    <a href="{{ Storage::url($candidate->flk) }}"
+                                       target="_blank"
                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors">
                                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -442,7 +430,7 @@
             @endif
         </div>
 
-        <!-- Right Column: Timeline -->
+        <!-- Timeline Rekrutmen -->
         <div class="lg:col-span-2">
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
@@ -454,7 +442,6 @@
                         <ul class="space-y-8">
                             @foreach($timeline as $index => $stage)
                                 <li class="relative">
-                                    <!-- Vertical line -->
                                     @if(!$loop->last)
                                         @php
                                             $lineColor = 'bg-gray-300';
@@ -468,7 +455,6 @@
                                     @endif
 
                                     <div class="relative flex items-start space-x-4">
-                                        <!-- Stage Icon -->
                                         <div class="flex-shrink-0">
                                             @if($stage['status'] === 'completed')
                                                 <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-8 ring-white">
@@ -500,8 +486,7 @@
                                                 </div>
                                             @endif
                                         </div>
-                                        
-                                        <!-- Stage Content -->
+
                                         <div class="min-w-0 flex-1 pt-1.5">
                                             <div class="flex items-center justify-between">
                                                 <div class="flex items-center space-x-2">
@@ -517,17 +502,16 @@
                                                         </span>
                                                     @endif
                                                 </div>
-                                                
-                                                <!-- Action Buttons -->
+
                                                 <div class="flex items-center space-x-2">
                                                     @if($stage['date'])
                                                         <span class="text-xs text-gray-500">
                                                             {{ \Carbon\Carbon::parse($stage['date'])->format('d M Y') }}
                                                         </span>
                                                     @endif
-                                                    
+
                                                     @if($stage['notes'])
-                                                        <button @click="showComment(`{{ addslashes($stage['notes']) }}`)" 
+                                                        <button @click="showComment(`{{ addslashes($stage['notes']) }}`)"
                                                                 class="text-gray-400 hover:text-gray-600 transition-colors"
                                                                 title="Lihat catatan">
                                                             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -535,16 +519,16 @@
                                                             </svg>
                                                         </button>
                                                     @endif
-                                                    
+
                                                     @canany(['edit-candidates','edit-timeline'])
                                                         @if(!$stage['is_locked'])
                                                             <button @click="openStageModal(
-                                                                '{{ $stage['display_name'] }}', 
-                                                                '{{ $stage['stage_key'] }}', 
-                                                                '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}', 
-                                                                '{{ $stage['result'] ?? '' }}', 
+                                                                '{{ $stage['display_name'] }}',
+                                                                '{{ $stage['stage_key'] }}',
+                                                                '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}',
+                                                                '{{ $stage['result'] ?? '' }}',
                                                                 {{ json_encode($stage['notes'] ?? '') }}
-                                                            )" 
+                                                            )"
                                                             class="text-blue-600 hover:text-blue-800 transition-colors {{ $stage['status'] === 'locked' ? 'hidden' : '' }}"
                                                             title="Update status {{ $stage['display_name'] }}">
                                                                 <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -556,8 +540,7 @@
                                                     @endcanany
                                                 </div>
                                             </div>
-                                            
-                                            <!-- Stage Details -->
+
                                             <div class="mt-2 text-sm">
                                                 @if($stage['result'])
                                                     <div class="flex items-center space-x-2">
@@ -596,83 +579,8 @@
             </div>
         </div>
     </div>
-
-    <!-- Modal pop-up input tanggal tes berikutnya -->
-    <div x-show="showNextTestDateModal" 
-         x-transition:enter="ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 overflow-y-auto" 
-         style="display: none;"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="next-test-date-modal-title">
-        
-        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <!-- Background overlay -->
-            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" @click="closeNextTestDateModal()"></div>
-            
-            <!-- Center modal -->
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
-            <div x-transition:enter="ease-out duration-300"
-                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                 x-transition:leave="ease-in duration-200"
-                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                 class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                
-                <form id="nextTestDateForm" method="POST" action="{{ route('candidates.setNextTestDate', $candidate->id) }}">
-                    @csrf
-                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                <h3 class="text-lg leading-6 font-medium text-gray-900" id="next-test-date-modal-title">Isi Tanggal Tes Berikutnya</h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500">Kandidat telah lulus tahap ini. Silakan tentukan tanggal tes untuk tahap berikutnya.</p>
-                                </div>
-                                <div class="mt-4">
-                                    <label for="next_test_date" class="block text-sm font-medium text-gray-700">Tanggal Tes Berikutnya <span class="text-red-500">*</span></label>
-                                    <input type="date" 
-                                           name="next_test_date" 
-                                           id="next_test_date"
-                                           x-model="nextTestDate"
-                                           required
-                                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Modal Footer -->
-                    <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button type="submit" 
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-                            Simpan
-                        </button>
-                        <button type="button" 
-                                @click="closeNextTestDateModal()" 
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Batal
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 </div>
 @endcan
-
-
 
 @push('scripts')
 <script>
@@ -680,16 +588,9 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('candidateDetail', () => ({
         showModal: false,
         showCommentModal: false,
-        showCVReviewModal: false,
         selectedStage: null,
         selectedComment: '',
         isSubmitting: false,
-        
-        cvReviewData: {
-            status: '',
-            notes: '',
-            date: new Date().toISOString().split('T')[0]
-        },
 
         stageData: {
             stage: '',
@@ -699,31 +600,44 @@ document.addEventListener('alpine:init', () => {
             next_test_date: ''
         },
 
+        // PERBAIKAN: Mapping yang tepat antara stage key dan next stage
+        stageProgressionMap: {
+            'cv_review': 'psikotes',
+            'psikotes': 'interview_hc', 
+            'interview_hc': 'interview_user',
+            'interview_user': 'interview_bod',
+            'interview_bod': 'offering_letter',
+            'offering_letter': 'mcu',
+            'mcu': 'hiring',
+            'hiring': null
+        },
+
+        // Display names untuk setiap stage
+        stageDisplayMap: {
+            'cv_review': 'CV Review',
+            'psikotes': 'Psikotes',
+            'interview_hc': 'HC Interview',
+            'interview_user': 'User Interview', 
+            'interview_bod': 'Interview BOD/GM',
+            'offering_letter': 'Offering Letter',
+            'mcu': 'Medical Check Up',
+            'hiring': 'Hiring'
+        },
+
         // Static data for stage logic
         passingResults: ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'],
-        stageOrder: ['CV Review', 'Psikotes', 'HC Interview', 'User Interview', 'BoD Interview', 'Offering Letter', 'MCU', 'Hiring'],
-        stageDisplayNames: {
-            'CV Review': 'CV Review',
-            'Psikotes': 'Psikotes',
-            'HC Interview': 'HC Interview',
-            'User Interview': 'User Interview',
-            'BoD Interview': 'Interview BOD/GM',
-            'Offering Letter': 'Offering Letter',
-            'MCU': 'Medical Check Up',
-            'Hiring': 'Hiring',
-            'hiring': 'Hiring',
-            'Selesai': 'Selesai'
-        },
+        
         stageOptions: {
             cv_review: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-            interview_hc: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-            interview_user: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            hc_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            user_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
             interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-            offering_letter: ['DITERIMA', 'DITOLAK', 'SENT'],
+            offering_letter: ['DITERIMA', 'DITOLAK'],
             mcu: ['LULUS', 'TIDAK LULUS'],
             hiring: ['HIRED', 'TIDAK DIHIRING']
         },
+        
         labelMap: {
             'LULUS': 'Lulus',
             'TIDAK LULUS': 'Tidak Lulus',
@@ -737,6 +651,7 @@ document.addEventListener('alpine:init', () => {
             'HIRED': 'Hired',
             'TIDAK DIHIRING': 'Tidak Dihiring'
         },
+        
         availableResults: [],
 
         // Method to check if a result is a passing one
@@ -744,28 +659,34 @@ document.addEventListener('alpine:init', () => {
             return this.passingResults.includes(result);
         },
 
+        // PERBAIKAN: Method untuk mendapatkan next stage yang benar
+        getNextStage(currentStageKey) {
+            const nextStageKey = this.stageProgressionMap[currentStageKey];
+            if (!nextStageKey) {
+                return 'Selesai';
+            }
+            return this.stageDisplayMap[nextStageKey] || nextStageKey;
+        },
+
         // Open the modal to update a stage
-        openStageModal(stage, stageKey, date, result, notes, fieldDate, fieldResult, fieldNotes) {
+        openStageModal(stage, stageKey, date, result, notes) {
+            console.log('Opening modal for stage:', {stage, stageKey, date, result, notes});
+            
             this.selectedStage = stage;
             this.availableResults = this.stageOptions[stageKey] || [];
-            
-            const currentIndex = this.stageOrder.indexOf(stage);
-            let nextStageKey = 'Selesai';
-            if (currentIndex !== -1 && currentIndex < this.stageOrder.length - 1) {
-                nextStageKey = this.stageOrder[currentIndex + 1];
-            }
 
+            // PERBAIKAN: Set next stage dengan benar
+            const nextStageDisplay = this.getNextStage(stageKey);
+            
             this.stageData = {
                 stage: stageKey,
                 result: result || '',
                 notes: notes || '',
-                next_test_stage: this.stageDisplayNames[nextStageKey] || nextStageKey,
-                next_test_date: date || '',
-                field_date: fieldDate,
-                field_result: fieldResult,
-                field_notes: fieldNotes
+                next_test_stage: nextStageDisplay,
+                next_test_date: ''
             };
 
+            console.log('Stage data set:', this.stageData);
             this.showModal = true;
         },
 
@@ -781,48 +702,7 @@ document.addEventListener('alpine:init', () => {
             this.showCommentModal = true;
         },
 
-        // Open CV Review modal
-        openCVReviewModal(currentStatus, currentNotes, currentDate) {
-            this.cvReviewData = {
-                status: currentStatus || '',
-                notes: currentNotes || '',
-                date: currentDate || new Date().toISOString().split('T')[0]
-            };
-            this.showCVReviewModal = true;
-        },
-
-        // Submit CV Review
-        async submitCVReview() {
-            if (this.isSubmitting) return;
-            this.isSubmitting = true;
-
-            try {
-                const response = await fetch(`/candidates/{{ $candidate->id }}/stage`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({
-                        stage: 'CV Review',
-                        status: this.cvReviewData.status,
-                        notes: this.cvReviewData.notes,
-                        date: this.cvReviewData.date
-                    })
-                });
-
-                if (!response.ok) throw new Error('Failed to update CV Review');
-
-                window.location.reload();
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Terjadi kesalahan saat memperbarui CV Review');
-            } finally {
-                this.isSubmitting = false;
-            }
-        },
-
-        // Handle form submission
+        // PERBAIKAN: Handle form submission dengan logika yang lebih baik
         async submitForm() {
             if (this.isSubmitting) return;
 
@@ -831,48 +711,117 @@ document.addEventListener('alpine:init', () => {
                 alert('Hasil harus diisi.');
                 return;
             }
-            if (this.isPassingResult(this.stageData.result) && this.stageData.stage !== 'hiring' && !this.stageData.next_test_date) {
+
+            if (this.isPassingResult(this.stageData.result) && 
+                this.stageData.stage !== 'hiring' && 
+                !this.stageData.next_test_date) {
                 alert('Tanggal tes berikutnya harus diisi jika hasil lulus.');
                 return;
             }
 
             this.isSubmitting = true;
 
-            const formData = new FormData();
-            formData.append('_method', 'PATCH');
-            formData.append('stage', this.stageData.stage);
-            formData.append('result', this.stageData.result);
-            formData.append('notes', this.stageData.notes);
-            
-            if (this.isPassingResult(this.stageData.result)) {
-                formData.append('next_test_stage', this.stageData.next_test_stage);
-                formData.append('next_test_date', this.stageData.next_test_date);
+            // Prepare payload
+            const payload = {
+                stage: this.stageData.stage,
+                result: this.stageData.result,
+                notes: this.stageData.notes || null
+            };
+
+            // PERBAIKAN: Selalu kirim next_test_stage jika passing dan bukan hiring
+            if (this.isPassingResult(this.stageData.result) && this.stageData.stage !== 'hiring') {
+                payload.next_test_stage = this.stageData.next_test_stage;
+                payload.next_test_date = this.stageData.next_test_date;
             }
 
+            console.log('Sending payload:', payload);
+
             try {
-                const response = await fetch("{{ route('candidates.updateStage', $candidate) }}", {
+                // Get CSRF token
+                const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (!csrfToken) {
+                    throw new Error('CSRF token tidak ditemukan di halaman.');
+                }
+
+                const response = await fetch(`/candidates/{{ $candidate->id }}/stage`, {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
                         'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
                     },
-                    body: formData
+                    body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    let errorMessage = 'Gagal memperbarui data.';
-                    if (errorData.errors) {
-                        errorMessage = Object.values(errorData.errors).flat().join('\n');
+                console.log('Response status:', response.status);
+
+                // Ambil response sebagai text dulu untuk debugging
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+
+                // Cek apakah response kosong
+                if (!responseText) {
+                    throw new Error('Server mengembalikan response kosong');
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    console.error('Response text (first 500 chars):', responseText.substring(0, 500));
+                    
+                    if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
+                        throw new Error('Server mengembalikan halaman HTML. Mungkin ada masalah dengan permission atau redirect.');
                     }
+                    
+                    throw new Error('Response dari server bukan JSON yang valid');
+                }
+
+                console.log('Parsed data:', data);
+
+                // Handle response berdasarkan status
+                if (response.ok) {
+                    // Success
+                    this.showModal = false;
+                    
+                    // Show success message
+                    if (data.message) {
+                        alert(data.message);
+                    }
+                    
+                    // Reload page to see changes
+                    window.location.reload();
+                } else {
+                    // Error response
+                    let errorMessage = 'Gagal memperbarui data.';
+                    
+                    if (data.errors) {
+                        const errors = Object.values(data.errors).flat();
+                        errorMessage = errors.join('\n');
+                    } else if (data.message) {
+                        errorMessage = data.message;
+                    }
+                    
                     throw new Error(errorMessage);
                 }
 
-                // Success, reload the page to see changes
-                window.location.reload();
-
             } catch (error) {
-                alert('Terjadi kesalahan: ' + error.message);
+                console.error('Submit form error:', error);
+                
+                // Show user-friendly error message
+                let userMessage = 'Terjadi kesalahan: ' + error.message;
+                
+                if (error.message.includes('CSRF')) {
+                    userMessage = 'Session telah expired. Silakan refresh halaman dan coba lagi.';
+                } else if (error.message.includes('permission')) {
+                    userMessage = 'Anda tidak memiliki izin untuk melakukan aksi ini.';
+                } else if (error.message.includes('HTML')) {
+                    userMessage = 'Terjadi kesalahan server. Silakan coba lagi atau hubungi administrator.';
+                }
+                
+                alert(userMessage);
             } finally {
                 this.isSubmitting = false;
             }
@@ -881,30 +830,29 @@ document.addEventListener('alpine:init', () => {
 });
 </script>
 
-<!-- Alert Messages -->
 @if ($errors->any())
 <div id="validation-errors" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md animate-slide-in-right">
-            <div class="flex items-start gap-3">
-            <div class="flex-shrink-0">
-                <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
-                <ul class="text-sm space-y-1 list-disc list-inside">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-            <button onclick="document.getElementById('validation-errors').remove()" 
-                    class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
+    <div class="flex items-start gap-3">
+        <div class="flex-shrink-0">
+            <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
         </div>
+        <div class="flex-1">
+            <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
+            <ul class="text-sm space-y-1 list-disc list-inside">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+        <button onclick="document.getElementById('validation-errors').remove()"
+                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
 </div>
 @endif
 
@@ -920,7 +868,7 @@ document.addEventListener('alpine:init', () => {
             <p class="font-medium">Berhasil!</p>
             <p class="text-sm">{{ session('success') }}</p>
         </div>
-        <button onclick="document.getElementById('success-alert').remove()" 
+        <button onclick="document.getElementById('success-alert').remove()"
                 class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -936,12 +884,13 @@ document.addEventListener('alpine:init', () => {
         <div class="flex-shrink-0">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
         </div>
         <div class="flex-1">
             <p class="font-medium">Terjadi kesalahan!</p>
             <p class="text-sm">{{ session('error') }}</p>
         </div>
-        <button onclick="document.getElementById('error-alert').remove()" 
+        <button onclick="document.getElementById('error-alert').remove()"
                 class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -967,7 +916,7 @@ document.addEventListener('alpine:init', () => {
     animation: slide-in-right 0.3s ease-out;
 }
 
-/* Custom scrollbar for comment modal */
+/* Custom scrollbar untuk comment modal */
 .max-h-40::-webkit-scrollbar {
     width: 4px;
 }
@@ -986,7 +935,7 @@ document.addEventListener('alpine:init', () => {
     background: #a1a1a1;
 }
 
-/* Loading state for buttons */
+/* Loading state untuk buttons */
 .disabled\:opacity-50:disabled {
     opacity: 0.5;
 }

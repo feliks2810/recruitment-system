@@ -75,7 +75,7 @@ class ReportsExport implements FromQuery, WithHeadings, WithMapping
             $candidate->perguruan_tinggi,
             $candidate->jurusan,
             $candidate->ipk,
-            $candidate->psikotest_date ? \Carbon\Carbon::parse($candidate->psikotest_date)->format('d-m-Y') : '',
+            $candidate->psikotes_date ? \Carbon\Carbon::parse($candidate->psikotes_date)->format('d-m-Y') : '',
             $candidate->psikotes_result,
             $candidate->psikotes_notes,
             $candidate->hc_interview_date ? \Carbon\Carbon::parse($candidate->hc_interview_date)->format('d-m-Y') : '',

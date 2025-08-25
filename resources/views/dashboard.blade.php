@@ -196,7 +196,7 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form id="addEventForm" class="p-6 space-y-4">
+        <form id="addEventForm" method="POST" action="{{ route('events.store') }}" class="p-6 space-y-4">
             @csrf
             <div>
                 <label for="eventTitle" class="block text-sm font-medium text-gray-700 mb-1">Judul Kegiatan</label>
@@ -206,6 +206,16 @@
             <div>
                 <label for="eventDate" class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
                 <input type="date" id="eventDate" name="date" required 
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="eventTime" class="block text-sm font-medium text-gray-700 mb-1">Waktu (Opsional)</label>
+                <input type="time" id="eventTime" name="time"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="eventLocation" class="block text-sm font-medium text-gray-700 mb-1">Lokasi (Opsional)</label>
+                <input type="text" id="eventLocation" name="location"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
@@ -340,7 +350,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (!document.getElementById('calendarTableBody')) return;
+    const calendarTableBody = document.getElementById('calendarTableBody');
+    if (!calendarTableBody) return;
 
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     let currentDate = new Date();
@@ -352,10 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const eventsByDate = {};
 
     function updateCalendar() {
-        const calendarBody = document.getElementById('calendarTableBody');
-        if (!calendarBody) return;
+        if (!calendarTableBody) return;
         document.getElementById('currentMonth').textContent = `${months[currentMonth]} ${currentYear}`;
-        calendarBody.innerHTML = '';
+        calendarTableBody.innerHTML = '';
         const firstDay = new Date(currentYear, currentMonth, 1);
         const startDayIndex = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -391,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 cellWrapper.appendChild(cellContent);
                 row.appendChild(cellWrapper);
             }
-            calendarBody.appendChild(row);
+            calendarTableBody.appendChild(row);
         }
     }
 
@@ -413,11 +423,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!Array.isArray(events)) return;
         events.forEach(item => {
             if (!item || !item.date) return;
-            const date = new Date(item.date);
-            const localDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60000);
-            const dateKey = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+            // Directly use item.date as dateKey since it's already in YYYY-MM-DD format from backend
+            const dateKey = item.date;
             if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
             eventsByDate[dateKey].push(item);
+            console.log(`Processing event for dateKey: ${dateKey}`, item); // Debugging line
         });
     }
 
@@ -468,10 +478,49 @@ document.addEventListener('DOMContentLoaded', function() {
                             <p class="font-semibold text-slate-800 truncate text-sm">${title}</p>
                             <p class="text-xs text-slate-500 truncate">${subtitle}</p>
                         </a>
-                        ${isCustom ? `<button data-event-id="${item.id}" class="delete-event-btn text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><i class="fas fa-trash-alt"></i></button>` : `<i class="fas fa-chevron-right text-gray-400"></i>`}
+                        ${isCustom ? `<button type="button" data-event-id="${item.id}" class="delete-event-btn text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><i class="fas fa-trash-alt"></i></button>` : `<i class="fas fa-chevron-right text-gray-400"></i>`}
                     </div>`;
                 meetingsList.insertAdjacentHTML('beforeend', itemHtml);
             });
+
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.delete-event-btn').forEach(button => {
+                button.addEventListener('click', async function() {
+                    const eventId = this.dataset.eventId.replace('custom_', ''); // Remove 'custom_' prefix
+                    if (!confirm('Apakah Anda yakin ingin menghapus jadwal ini?')) {
+                        return;
+                    }
+
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                        const response = await fetch(`/events/${eventId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrfToken
+                            }
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                            alert('Jadwal berhasil dihapus!');
+                            fetchAndMarkEvents(); // Re-fetch and update calendar
+                        } else {
+                            let errorMessage = 'Gagal menghapus jadwal.';
+                            if (result.message) {
+                                errorMessage = result.message;
+                            }
+                            alert(errorMessage);
+                        }
+                    } catch (error) {
+                        console.error('Error deleting event:', error);
+                        alert('Terjadi kesalahan jaringan atau server saat menghapus jadwal.');
+                    }
+                });
+            });
+
         } else {
             meetingsList.classList.add('hidden');
             noMeetings.classList.remove('hidden');
@@ -480,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function navigateMonth(direction) {
         currentMonth += direction;
-        if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
         if (currentMonth > 11) { currentMonth = 0; currentYear++; }
         updateCalendar();
         markEventDays(); // Re-mark events on month change
@@ -507,6 +556,89 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             resetMeetingList();
         }
+    }
+
+    // Modal Logic
+    const addEventModal = document.getElementById('addEventModal');
+    const addEventBtn = document.getElementById('addEventBtn');
+    const closeModalBtn = document.getElementById('closeModal');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const addEventForm = document.getElementById('addEventForm');
+    const eventDateInput = document.getElementById('eventDate');
+
+    if (addEventBtn) {
+        addEventBtn.addEventListener('click', function() {
+            addEventForm.reset(); // Reset form fields
+            if (selectedDateKey) {
+                eventDateInput.value = selectedDateKey; // Set date to selected calendar date
+            } else {
+                const today = new Date();
+                eventDateInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            }
+            addEventModal.classList.add('show');
+        });
+    }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', function() {
+            addEventModal.classList.remove('show');
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            addEventModal.classList.remove('show');
+        });
+    }
+
+    // Close modal when clicking outside
+    if (addEventModal) {
+        addEventModal.addEventListener('click', function(e) {
+            if (e.target === addEventModal) {
+                addEventModal.classList.remove('show');
+            }
+        });
+    }
+
+    // Form Submission Logic
+    if (addEventForm) {
+        addEventForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            try {
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    alert('Jadwal berhasil disimpan!');
+                    addEventModal.classList.remove('show');
+                    fetchAndMarkEvents(); // Re-fetch and update calendar
+                } else {
+                    let errorMessage = 'Gagal menyimpan jadwal.';
+                    if (result.errors) {
+                        errorMessage += '\n' + Object.values(result.errors).flat().join('\n');
+                    } else if (result.message) {
+                        errorMessage = result.message;
+                    }
+                    alert(errorMessage);
+                }
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                alert('Terjadi kesalahan jaringan atau server.');
+            }
+        });
     }
 });
 </script>

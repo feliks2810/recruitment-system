@@ -104,6 +104,8 @@ class CandidatesImport implements
 
     protected function processOrganicCandidate(array $row)
     {
+        $isSuspectedDuplicate = false; // Initialize the variable
+
         $nama = $this->getFieldValue($row, ['nama', 'name', 'full_name', 'candidate_name']);
         $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address', 'e_mail']);
         $vacancy = $this->getFieldValue($row, ['vacancy', 'vacancy_airsys', 'posisi', 'position', 'job_title']);
@@ -164,7 +166,7 @@ class CandidatesImport implements
             'cv_review_date' => $this->transformDate($this->getFieldValue($processedRow, ['cv_review_date'])),
             'cv_review_by' => $this->getFieldValue($processedRow, ['cv_review_by']) ?? ($this->getAuthenticatedUserName() ?? 'System Import'),
             
-            'psikotest_date' => $this->transformDate($this->getFieldValue($processedRow, ['psikotest_date', 'psychotest_date'])),
+            'psikotes_date' => $this->transformDate($this->getFieldValue($processedRow, ['psikotes_date', 'psychotest_date'])),
             'psikotest_result' => $this->getFieldValue($processedRow, ['psikotes_result', 'psychotest_result']),
             'psikotes_notes' => $this->getFieldValue($processedRow, ['psikotes_notes', 'psychotest_notes']),
             
@@ -195,6 +197,7 @@ class CandidatesImport implements
             'current_stage' => $currentStage,
             'overall_status' => $overallStatus,
             'airsys_internal' => 'Yes',
+            'is_suspected_duplicate' => $isSuspectedDuplicate, // Add this line
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -217,11 +220,24 @@ class CandidatesImport implements
 
     protected function processNonOrganicCandidate(array $row)
     {
+        $isSuspectedDuplicate = false; // Initialize the variable
+
         $nama = $this->getFieldValue($row, ['nama', 'name', 'candidate_name']);
         $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address']);
         $vacancy = $this->getFieldValue($row, ['nama_posisi', 'vacancy', 'position']);
-        $dept = $this->getFieldValue($row, ['dept', 'department']);
+        $deptIdFromExcel = $this->getFieldValue($row, ['dept', 'department']); // Get department ID from Excel
         $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
+
+        $departmentId = null;
+        if ($deptIdFromExcel) {
+            $department = Department::find($deptIdFromExcel);
+            if ($department) {
+                $departmentId = $department->id;
+            } else {
+                Log::warning('Department not found for ID: ' . $deptIdFromExcel, ['row_data' => $row]);
+                // Optionally, throw an exception or skip row if department is mandatory
+            }
+        }
 
         if (!$nama) {
             throw new Exception('Missing nama field, stopping import.');
@@ -248,13 +264,14 @@ class CandidatesImport implements
             'nama' => $nama,
             'alamat_email' => $email,
             'vacancy' => $vacancy ?? 'Non-Organic Position',
-            'department' => $dept,
+            'department_id' => $departmentId,
             'applicant_id' => $applicantId,
             'source' => $dept ? "External - {$dept}" : 'External',
             'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])),
             'current_stage' => 'CV Review',
             'overall_status' => 'DALAM PROSES',
             'airsys_internal' => 'No',
+            'is_suspected_duplicate' => $isSuspectedDuplicate, // Add this line
             'created_at' => now(),
             'updated_at' => now(),
         ];

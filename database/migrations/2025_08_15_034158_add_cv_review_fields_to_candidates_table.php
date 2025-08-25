@@ -12,10 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('candidates', function (Blueprint $table) {
-            $table->date('cv_review_date')->nullable()->after('cv');
-            $table->string('cv_review_status')->nullable()->after('cv_review_date');
-            $table->text('cv_review_notes')->nullable()->after('cv_review_status');
-            $table->string('cv_review_by')->nullable()->after('cv_review_notes');
+            if (!Schema::hasColumn('candidates', 'cv_review_date')) {
+                $table->date('cv_review_date')->nullable()->after('cv');
+                $table->string('cv_review_status')->nullable()->after('cv_review_date');
+                $table->text('cv_review_notes')->nullable()->after('cv_review_status');
+                $table->string('cv_review_by')->nullable()->after('cv_review_notes');
+            }
         });
     }
 
@@ -25,12 +27,14 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('candidates', function (Blueprint $table) {
-            $table->dropColumn([
-                'cv_review_date',
-                'cv_review_status',
-                'cv_review_notes',
-                'cv_review_by'
-            ]);
+            if (Schema::hasColumn('candidates', 'cv_review_date')) {
+                $table->dropColumn([
+                    'cv_review_date',
+                    'cv_review_status',
+                    'cv_review_notes',
+                    'cv_review_by'
+                ]);
+            }
         });
     }
 };

@@ -14,6 +14,8 @@
                 <i class="fas fa-upload text-sm"></i>
                 <span>Import Excel</span>
             </button>
+        @endcan
+        @can('create-candidates')
             <a href="{{ route('candidates.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
                 <i class="fas fa-plus text-sm"></i>
                 <span>Tambah Kandidat</span>
@@ -29,7 +31,7 @@
 @endpush
 
 @section('content')
-@can('view-candidates')
+@canany(['view-candidates', 'view-own-department-candidates'])
     {{-- This scope initializes and contains all Alpine.js logic for this page --}}
     <div x-data="candidatesPage()" x-init="init()" id="candidates-scope">
 
@@ -359,7 +361,7 @@
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">{{ $candidate->department->name ?? 'N/A' }}</div>
+                                            <div class="text-sm text-gray-900">{{ $candidate->department?->name ?? 'N/A' }}</div>
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             @if($candidate->overall_status == 'LULUS')
@@ -457,7 +459,7 @@
                                         Reset Filter
                                     </a>
                                 @endif
-                                @can('edit-candidates')
+                                @can('create-candidates')
                                     <a href="{{ route('candidates.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                                         Tambah Kandidat
                                     </a>

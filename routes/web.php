@@ -20,8 +20,11 @@ Route::get('/', function () {
 require __DIR__.'/auth.php';
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard
+    // Dashboard - NO PERMISSION MIDDLEWARE (all roles can access)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Calendar Events for Dashboard
+    
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -40,104 +43,67 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{event}', [EventController::class, 'destroy'])->name('destroy');
     });
 
-    // Candidates
-    Route::get('/candidates/export', [CandidateController::class, 'export'])
-        ->middleware('can:view-candidates')
-        ->name('candidates.export');
+    // Candidates Group - Let controller handle authorization
+    Route::prefix('candidates')->name('candidates.')->group(function () {
+        // Basic candidate viewing (let controller handle department restrictions)
+        Route::get('/', [CandidateController::class, 'index'])->name('index');
+        Route::get('/{candidate}', [CandidateController::class, 'show'])->name('show');
 
-    Route::get('/candidates', [CandidateController::class, 'index'])
-        ->middleware('can:view-candidates')
-        ->name('candidates.index');
+        // Export functionality for Team HC
+        Route::middleware('can:export-candidates')->group(function () {
+            Route::get('/export', [CandidateController::class, 'export'])->name('export');
+            Route::post('/bulk-export', [CandidateController::class, 'bulkExport'])->name('bulkExport');
+        });
 
-    Route::post('/candidates/{candidate}/stage', [CandidateController::class, 'updateStage'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.updateStage');
+        // Candidate creation for Team HC
+        Route::middleware('can:create-candidates')->group(function () {
+            Route::get('/create', [CandidateController::class, 'create'])->name('create');
+            Route::post('/', [CandidateController::class, 'store'])->name('store');
+        });
 
-    Route::get('/candidates/create', [CandidateController::class, 'create'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.create');
+        // Candidate management actions for Team HC
+        Route::middleware('can:edit-candidates')->group(function () {
+            Route::get('/{candidate}/edit', [CandidateController::class, 'edit'])->name('edit');
+            Route::put('/{candidate}', [CandidateController::class, 'update'])->name('update');
+            Route::post('/{candidate}/stage', [CandidateController::class, 'updateStage'])->name('updateStage');
+            Route::patch('/{candidate}/toggle-duplicate', [CandidateController::class, 'toggleDuplicate'])->name('toggleDuplicate');
+            Route::post('/{candidate}/switch-type', [CandidateController::class, 'switchType'])->name('switchType');
+            Route::post('/bulk-update-status', [CandidateController::class, 'bulkUpdateStatus'])->name('bulkUpdateStatus');
+            Route::post('/bulk-move-stage', [CandidateController::class, 'bulkMoveStage'])->name('bulkMoveStage');
+            Route::post('/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])->name('bulkSwitchType');
+            Route::post('/{candidate}/next-test-date', [CandidateController::class, 'setNextTestDate'])->name('setNextTestDate');
+            Route::post('/check-duplicate', [CandidateController::class, 'checkDuplicate'])->name('checkDuplicate');
+        });
 
-    Route::post('/candidates/check-duplicate', [CandidateController::class, 'checkDuplicate'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.checkDuplicate');
+        // Delete actions for CTeam H
+        Route::middleware('can:delete-candidates')->group(function () {
+            Route::delete('/{candidate}', [CandidateController::class, 'destroy'])->name('destroy');
+            Route::delete('/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])->name('bulkDelete');
+        });
+    });
 
-    Route::post('/candidates', [CandidateController::class, 'store'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.store');
-
-    Route::get('/candidates/{candidate}', [CandidateController::class, 'show'])
-        ->middleware('can:show-candidates')
-        ->name('candidates.show');
-
-    Route::get('/candidates/{candidate}/edit', [CandidateController::class, 'edit'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.edit');
-
-    Route::put('/candidates/{candidate}', [CandidateController::class, 'update'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.update');
-
-    Route::delete('/candidates/{candidate}', [CandidateController::class, 'destroy'])
-        ->middleware('can:delete-candidates')
-        ->name('candidates.destroy');
-
-    
-
-    Route::patch('/candidates/{candidate}/update-stage', [CandidateController::class, 'updateStage'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.updateStage');
-
-    Route::patch('/candidates/{candidate}/toggle-duplicate', [CandidateController::class, 'toggleDuplicate'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.toggleDuplicate');
-
-    Route::post('/candidates/{candidate}/switch-type', [CandidateController::class, 'switchType'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.switchType');
-
-    // Bulk Operations Routes
-    Route::post('/candidates/bulk-update-status', [CandidateController::class, 'bulkUpdateStatus'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.bulkUpdateStatus');
-
-    Route::post('/candidates/bulk-move-stage', [CandidateController::class, 'bulkMoveStage'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.bulkMoveStage');
-
-    Route::delete('/candidates/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])
-        ->middleware('can:delete-candidates')
-        ->name('candidates.bulkDelete');
-
-    Route::post('/candidates/bulk-export', [CandidateController::class, 'bulkExport'])
-        ->middleware('can:view-candidates')
-        ->name('candidates.bulkExport');
-
-    Route::post('/candidates/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])
-        ->middleware('can:edit-candidates')
-        ->name('candidates.bulkSwitchType');
-
-    // ✅ Import Routes
+    // Import Routes for Team HC
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
-        Route::post('/', [ImportController::class, 'store'])->name('process'); // Ganti 'store' ke 'process'
-        Route::post('/process', [ImportController::class, 'store'])->name('store'); // Alias, jika masih ada form yang pakai 'store'
+        Route::post('/', [ImportController::class, 'store'])->name('process');
+        Route::post('/process', [ImportController::class, 'store'])->name('store');
         Route::get('/template/{type?}', [ImportController::class, 'downloadTemplate'])->name('template');
         Route::get('/errors', function() {
             return view('import.errors', ['errors' => []]);
         })->name('errors');
     });
 
-    // Statistics
+    // Statistics for Team HC and Department
     Route::get('/statistics', [StatisticsController::class, 'index'])
         ->middleware('can:view-statistics')
         ->name('statistics.index');
 
-    // Reports
+    // Reports for Team HC
     Route::get('/reports/export', [ReportController::class, 'export'])
         ->middleware('can:view-reports')
         ->name('reports.export');
 
-    // Accounts
+    // Account management for Admin only
     Route::prefix('accounts')->name('accounts.')->middleware('can:manage-users')->group(function () {
         Route::get('/', [AccountController::class, 'index'])->name('index');
         Route::get('/create', [AccountController::class, 'create'])->name('create');
@@ -148,7 +114,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export', [AccountController::class, 'export'])->name('export');
     });
 
-    // Debug route
+    // Debug route for testing permissions
     Route::get('/check-auth', function () {
         $user = Auth::user();
         if (!$user) {
@@ -158,15 +124,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'user' => $user->email,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
+            'can_view_dashboard' => $user->can('view-dashboard'),
+            'can_view_candidates' => $user->can('view-candidates'),
             'can_view_reports' => $user->can('view-reports'),
+            'can_import_excel' => $user->can('import-excel'),
+            'can_manage_users' => $user->can('manage-users'),
         ]);
     });
-
-    Route::post('candidates/{candidate}/next-test-date', [CandidateController::class, 'setNextTestDate'])->name('candidates.setNextTestDate');
 });
 
-// Logout
-Route::post('/logout', function () {
-    Auth::logout();
-    return redirect()->route('login');
-})->name('logout');
