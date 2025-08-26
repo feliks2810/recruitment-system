@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
@@ -298,12 +299,13 @@ class EventController extends Controller
         $candidatesWithUpcomingTests = $candidatesWithUpcomingTestsQuery->get();
 
         foreach ($candidatesWithUpcomingTests as $candidate) {
-            if ($candidate->next_test_date && $candidate->current_stage_display) {
+            if ($candidate->next_test_date && $candidate->next_test_stage) {
+                $stageName = Str::title(str_replace('_', ' ', $candidate->next_test_stage));
                 $candidateTestEvents->push([
                     'id' => 'candidate_'.$candidate->id,
-                    'title' => $candidate->nama . ' - ' . $candidate->current_stage_display,
+                    'title' => $candidate->nama . ' - ' . $stageName,
                     'date' => $candidate->next_test_date->format('Y-m-d'),
-                    'description' => 'Tes Selanjutnya: ' . $candidate->current_stage_display,
+                    'description' => 'Tes Selanjutnya: ' . $stageName,
                     'is_custom' => false,
                     'url' => route('candidates.show', $candidate->id)
                 ]);
@@ -313,5 +315,18 @@ class EventController extends Controller
         $allEvents = $customEvents->merge($candidateTestEvents);
 
         return response()->json($allEvents);
+    }
+
+    public function debugCalendarEvents()
+    {
+        $candidates = Candidate::whereNotNull('next_test_date')
+            ->get([
+                'id',
+                'nama',
+                'next_test_date',
+                'next_test_stage'
+            ]);
+
+        return response()->json($candidates);
     }
 }

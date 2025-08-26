@@ -134,8 +134,8 @@ class Candidate extends Model
         $stages = [
             'cv_review' => 'CV Review',
             'psikotes' => 'Psikotes', 
-            'interview_hc' => 'HC Interview',
-            'interview_user' => 'User Interview',
+            'hc_interview' => 'HC Interview',
+            'user_interview' => 'User Interview',
             'interview_bod' => 'Interview BOD/GM',
             'offering_letter' => 'Offering Letter',
             'mcu' => 'Medical Check Up',
@@ -159,8 +159,8 @@ class Candidate extends Model
         $stageOrder = [
             'cv_review' => ['cv_review_status', ['LULUS']],
             'psikotes' => ['psikotes_result', ['LULUS']],
-            'interview_hc' => ['hc_interview_status', ['DISARANKAN']],
-            'interview_user' => ['user_interview_status', ['DISARANKAN']],
+            'hc_interview' => ['hc_interview_status', ['DISARANKAN']],
+            'user_interview' => ['user_interview_status', ['DISARANKAN']],
             'interview_bod' => ['bod_interview_status', ['DISARANKAN']],
             'offering_letter' => ['offering_letter_status', ['DITERIMA']],
             'mcu' => ['mcu_status', ['LULUS']],
@@ -241,8 +241,8 @@ class Candidate extends Model
         $stageMapping = [
             'cv_review' => 'cv_review_date',
             'psikotes' => 'psikotes_date',
-            'interview_hc' => 'hc_interview_date',
-            'interview_user' => 'user_interview_date',
+            'hc_interview' => 'hc_interview_date',
+            'user_interview' => 'user_interview_date',
             'interview_bod' => 'bodgm_interview_date',
             'offering_letter' => 'offering_letter_date',
             'mcu' => 'mcu_date',
@@ -282,7 +282,6 @@ class Candidate extends Model
         return $query->where(function ($query) use ($term) {
             $query->where('nama', 'like', '%' . $term . '%')
                   ->orWhere('alamat_email', 'like', '%' . $term . '%')
-                  ->orWhere('email', 'like', '%' . $term . '%') // Tambahan search field
                   ->orWhere('source', 'like', '%' . $term . '%')
                   ->orWhere('applicant_id', 'like', '%' . $term . '%'); // Tambahan search field
         });

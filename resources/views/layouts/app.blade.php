@@ -16,14 +16,14 @@
     <meta name="msapplication-tap-highlight" content="no">
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
     
     <!-- PWA Icons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/images/Logo Patria.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/images/Logo Patria.png">
     <link rel="apple-touch-icon" href="/images/Logo Patria.png">
     
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>

@@ -75,6 +75,11 @@ class CandidateController extends BaseController
             $query->bySource($request->source);
         }
 
+        // Filter by current stage
+        if ($request->filled('current_stage')) {
+            $query->where('current_stage', $request->current_stage);
+        }
+
         $type = $request->input('type', 'organic');
 
         switch ($type) {
@@ -90,6 +95,14 @@ class CandidateController extends BaseController
                 break;
         }
         
+        // Custom sorting: process first, then by latest update
+        $query->orderByRaw("CASE 
+                WHEN overall_status IN ('PROSES', 'DALAM PROSES', 'PENDING') THEN 1 
+                WHEN overall_status IN ('LULUS', 'DITOLAK') THEN 2 
+                ELSE 3 
+            END")
+            ->orderBy('updated_at', 'desc');
+
         $candidates = $query->paginate(15);
 
         $statuses = ['active', 'inactive', 'LULUS', 'DITOLAK', 'PROSES'];
@@ -170,12 +183,12 @@ class CandidateController extends BaseController
         $candidate = Candidate::with(['department', 'educations', 'applications'])->find($candidate->id);
         $candidate->refresh(); // Keep refresh for good measure
 
-        $stages = [
+                $stages = [
             'cv_review' => 'CV Review',
             'psikotes' => 'Psikotes',
             'hc_interview' => 'HC Interview',
             'user_interview' => 'User Interview',
-            'interview_bod'=> 'BOD/GM Interview',
+            'interview_bod' => 'BOD/GM Interview',
             'offering_letter' => 'Offering Letter',
             'mcu' => 'MCU',
             'hiring' => 'Hiring',
@@ -432,12 +445,12 @@ class CandidateController extends BaseController
                     $candidate->psikotes_result = $result;
                     $candidate->psikotes_notes = $notes;
                     break;
-                case 'interview_hc':
-                    $candidate->hc_interview_date = $dateToSet;
-                    $candidate->hc_interview_status = $result;
-                    $candidate->hc_interview_notes = $notes;
-                    break;
-                case 'interview_user':
+                            case 'hc_interview':
+                $candidate->hc_interview_date = $dateToSet;
+                $candidate->hc_interview_status = $result;
+                $candidate->hc_interview_notes = $notes;
+                break;
+                case 'user_interview':
                     $candidate->user_interview_date = $dateToSet;
                     $candidate->user_interview_status = $result;
                     $candidate->user_interview_notes = $notes;
@@ -476,8 +489,8 @@ class CandidateController extends BaseController
             $passingResults = [
                 'cv_review' => ['LULUS'],
                 'psikotes' => ['LULUS'],
-                'interview_hc' => ['DISARANKAN'],
-                'interview_user' => ['DISARANKAN'],
+                'hc_interview' => ['DISARANKAN'],
+                'user_interview' => ['DISARANKAN'],
                 'interview_bod' => ['DISARANKAN'],
                 'offering_letter' => ['DITERIMA'],
                 'mcu' => ['LULUS'],
@@ -487,8 +500,8 @@ class CandidateController extends BaseController
             $failingResults = [
                 'cv_review' => ['TIDAK LULUS'],
                 'psikotes' => ['TIDAK LULUS'],
-                'interview_hc' => ['TIDAK DISARANKAN'],
-                'interview_user' => ['TIDAK DISARANKAN'],
+                'hc_interview' => ['TIDAK DISARANKAN'],
+                'user_interview' => ['TIDAK DISARANKAN'],
                 'interview_bod' => ['TIDAK DISARANKAN'],
                 'offering_letter' => ['DITOLAK'],
                 'mcu' => ['TIDAK LULUS'],
@@ -498,9 +511,9 @@ class CandidateController extends BaseController
             // FIXED: Mapping stage yang benar
             $stageMapping = [
                 'cv_review' => 'psikotes',
-                'psikotes' => 'interview_hc', 
-                'interview_hc' => 'interview_user',
-                'interview_user' => 'interview_bod',
+                'psikotes' => 'hc_interview', 
+                'hc_interview' => 'user_interview',
+                'user_interview' => 'interview_bod',
                 'interview_bod' => 'offering_letter',
                 'offering_letter' => 'mcu',
                 'mcu' => 'hiring',
@@ -587,8 +600,8 @@ class CandidateController extends BaseController
                 'hiring_notes' => $candidate->hiring_notes,
                 'current_stage' => $candidate->current_stage,
                 'overall_status' => $candidate->overall_status,
-                'next_test_date' => $candidate->next_test_date,
-                'next_test_stage' => $candidate->next_test_stage,
+                'next_test_date' => $validated['next_test_date'] ?? null,
+                'next_test_stage' => $validated['next_test_stage'] ?? null,
                 'updated_at' => now() // Manually update timestamp
             ]);
 

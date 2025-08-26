@@ -603,9 +603,9 @@ document.addEventListener('alpine:init', () => {
         // PERBAIKAN: Mapping yang tepat antara stage key dan next stage
         stageProgressionMap: {
             'cv_review': 'psikotes',
-            'psikotes': 'interview_hc', 
-            'interview_hc': 'interview_user',
-            'interview_user': 'interview_bod',
+            'psikotes': 'hc_interview', 
+            'hc_interview': 'user_interview',
+            'user_interview': 'interview_bod',
             'interview_bod': 'offering_letter',
             'offering_letter': 'mcu',
             'mcu': 'hiring',
@@ -613,11 +613,11 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Display names untuk setiap stage
-        stageDisplayMap: {
+                stageDisplayMap: {
             'cv_review': 'CV Review',
             'psikotes': 'Psikotes',
-            'interview_hc': 'HC Interview',
-            'interview_user': 'User Interview', 
+            'hc_interview': 'HC Interview',
+            'user_interview': 'User Interview', 
             'interview_bod': 'Interview BOD/GM',
             'offering_letter': 'Offering Letter',
             'mcu': 'Medical Check Up',
@@ -627,7 +627,7 @@ document.addEventListener('alpine:init', () => {
         // Static data for stage logic
         passingResults: ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'],
         
-        stageOptions: {
+                stageOptions: {
             cv_review: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             hc_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],

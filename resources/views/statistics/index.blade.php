@@ -75,6 +75,40 @@
             <div style="height: 300px;"><canvas id="genderChart"></canvas></div>
         </div>
     </div>
+
+    <!-- Stage Analysis -->
+    <div class="bg-white rounded-xl p-6 border border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Analisis Per Tahapan</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            @foreach($stageAnalysis as $stage)
+                <div class="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                    <p class="font-bold text-gray-800">{{ $stage['name'] }}</p>
+                    <p class="text-sm text-gray-500 mb-3">{{ $stage['total'] }} kandidat dievaluasi</p>
+                    
+                    <div class="space-y-2">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-green-600">Lulus</span>
+                                <span class="text-gray-600">{{ $stage['passed'] }} ({{ $stage['pass_rate'] }}%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-green-500 h-2.5 rounded-full" style="width: {{ $stage['pass_rate'] }}%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-red-600">Gagal</span>
+                                <span class="text-gray-600">{{ $stage['failed'] }} ({{ $stage['fail_rate'] }}%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-red-500 h-2.5 rounded-full" style="width: {{ $stage['fail_rate'] }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
 </div>
 @endsection
 

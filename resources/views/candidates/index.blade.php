@@ -328,7 +328,7 @@
                                     @if(Auth::user()->hasRole('department') && $candidate->department_id !== Auth::user()->department_id)
                                         @continue
                                     @endif
-                                    <tr class="hover:bg-gray-50 transition-colors {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'bg-red-50 border-l-4 border-red-500' : '' }}">
+                                    <tr class="hover:bg-gray-50 transition-colors {{ $candidate->is_suspected_duplicate ? 'bg-red-50 border-l-4 border-red-500' : '' }}">
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <input type="checkbox"
                                                    :value="{{ $candidate->id }}"
@@ -337,20 +337,20 @@
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
-                                                <div class="w-9 sm:w-10 h-9 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'bg-red-200' : '' }} {{ $candidate->is_inactive ? 'ring-2 ring-red-500' : '' }}">
-                                                    <span class="text-sm font-medium {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'text-red-600' : 'text-blue-600' }}">{{ substr($candidate->nama, 0, 2) }}</span>
+                                                <div class="w-9 sm:w-10 h-9 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 {{ $candidate->is_suspected_duplicate ? 'bg-red-200' : '' }} {{ $candidate->is_inactive ? 'ring-2 ring-red-500' : '' }}">
+                                                    <span class="text-sm font-medium {{ $candidate->is_suspected_duplicate ? 'text-red-600' : 'text-blue-600' }}">{{ substr($candidate->nama, 0, 2) }}</span>
                                                 </div>
                                                 <div class="ml-3 sm:ml-4 min-w-0 flex-1">
-                                                    <div class="text-sm font-medium text-gray-900 truncate {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'text-red-900' : '' }}">
+                                                    <div class="text-sm font-medium text-gray-900 truncate {{ $candidate->is_suspected_duplicate ? 'text-red-900' : '' }}">
                                                         {{ $candidate->nama }}
-                                                        @if(in_array($candidate->id, $latestDuplicateCandidateIds ?? []))
+                                                        @if($candidate->is_suspected_duplicate)
                                                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                                                 <i class="fas fa-exclamation-triangle mr-1"></i>
                                                                 Duplicate
                                                             </span>
                                                         @endif
                                                     </div>
-                                                    <div class="text-sm text-gray-500 truncate {{ in_array($candidate->id, $latestDuplicateCandidateIds ?? []) ? 'text-red-700' : '' }}">{{ $candidate->alamat_email }}</div>
+                                                    <div class="text-sm text-gray-500 truncate {{ $candidate->is_suspected_duplicate ? 'text-red-700' : '' }}">{{ $candidate->alamat_email }}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -388,11 +388,6 @@
                                         @endif
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50">
                                             <div class="flex items-center gap-1 sm:gap-2">
-                                                @if(in_array($candidate->id, $latestDuplicateCandidateIds ?? []))
-                                                    <button onclick="promptDuplicateAction({{ $candidate->id }})" class="text-gray-600 hover:text-gray-900 p-1" title="Ubah Status Duplikat">
-                                                        <i class="fas fa-exclamation-triangle {{ $candidate->is_suspected_duplicate ? 'text-red-500' : 'text-gray-400' }}"></i>
-                                                    </button>
-                                                @endif
                                                 @can('import-excel')
                                                     <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
                                                         @csrf

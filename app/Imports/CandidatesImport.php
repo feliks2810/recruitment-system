@@ -136,6 +136,14 @@ class CandidatesImport implements
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
+        // Check for duplicate based on applicant_id
+        if (!empty($applicantId)) {
+            $existingCandidate = Candidate::where('applicant_id', $applicantId)->first();
+            if ($existingCandidate) {
+                $isSuspectedDuplicate = true;
+            }
+        }
+
         // Smart data processing
         $processedRow = $this->fillPreviousStages($row);
         $currentStage = $this->calculateCurrentStage($processedRow);
@@ -225,19 +233,35 @@ class CandidatesImport implements
         $nama = $this->getFieldValue($row, ['nama', 'name', 'candidate_name']);
         $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address']);
         $vacancy = $this->getFieldValue($row, ['nama_posisi', 'vacancy', 'position']);
-        $deptIdFromExcel = $this->getFieldValue($row, ['dept', 'department']); // Get department ID from Excel
         $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
 
+        // --- START: Improved Department Logic ---
         $departmentId = null;
-        if ($deptIdFromExcel) {
+        $deptNameFromExcel = null;
+        $deptIdFromExcel = $this->getFieldValue($row, ['department_id', 'dept_id']);
+        
+        if (!empty($deptIdFromExcel) && is_numeric($deptIdFromExcel)) {
+            // Prioritize using a direct ID if provided and is numeric
             $department = Department::find($deptIdFromExcel);
-            if ($department) {
+            if($department) {
                 $departmentId = $department->id;
+                $deptNameFromExcel = $department->name;
             } else {
-                Log::warning('Department not found for ID: ' . $deptIdFromExcel, ['row_data' => $row]);
-                // Optionally, throw an exception or skip row if department is mandatory
+                 Log::warning('Department not found by ID: ' . $deptIdFromExcel, ['row_data' => $row]);
+            }
+        } else {
+            // Fallback to searching by name if ID is not available or not numeric
+            $deptNameFromExcel = $this->getFieldValue($row, ['department', 'dept']);
+            if (!empty($deptNameFromExcel)) {
+                $department = Department::where('name', 'like', $deptNameFromExcel)->first();
+                if ($department) {
+                    $departmentId = $department->id;
+                } else {
+                    Log::warning('Department not found by name: ' . $deptNameFromExcel, ['row_data' => $row]);
+                }
             }
         }
+        // --- END: Improved Department Logic ---
 
         if (!$nama) {
             throw new Exception('Missing nama field, stopping import.');
@@ -257,6 +281,14 @@ class CandidatesImport implements
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
+        // Check for duplicate based on applicant_id
+        if (!empty($applicantId)) {
+            $existingCandidate = Candidate::where('applicant_id', $applicantId)->first();
+            if ($existingCandidate) {
+                $isSuspectedDuplicate = true;
+            }
+        }
+
         $this->lastNo++;
 
         $candidateData = [
@@ -266,7 +298,7 @@ class CandidatesImport implements
             'vacancy' => $vacancy ?? 'Non-Organic Position',
             'department_id' => $departmentId,
             'applicant_id' => $applicantId,
-            'source' => $dept ? "External - {$dept}" : 'External',
+            'source' => $deptNameFromExcel ? "External - {$deptNameFromExcel}" : 'External',
             'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])),
             'current_stage' => 'CV Review',
             'overall_status' => 'DALAM PROSES',
@@ -296,9 +328,9 @@ class CandidatesImport implements
     {
         return [
             'cv_review'       => ['field' => 'cv_review_status',      'pass_values' => ['LULUS'], 'next_stage' => 'Psikotes'],
-            'psikotes'        => ['field' => 'psikotes_result',       'pass_values' => ['LULUS'], 'next_stage' => 'HC Interview'],
-            'interview_hc'    => ['field' => 'hc_interview_status',   'pass_values' => ['LULUS', 'DISARANKAN'], 'next_stage' => 'User Interview'],
-            'interview_user'  => ['field' => 'user_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'next_stage' => 'BOD Interview'],
+            'psikotes'        => ['field' => 'psikotes_result',       'pass_values' => ['LULUS'], 'next_stage' => 'hc_interview'],
+            'hc_interview'    => ['field' => 'hc_interview_status',   'pass_values' => ['LULUS', 'DISARANKAN'], 'next_stage' => 'User Interview'],
+            'user_interview'  => ['field' => 'user_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'next_stage' => 'BOD Interview'],
             'interview_bod'   => ['field' => 'bod_interview_status',  'pass_values' => ['LULUS', 'DISARANKAN'], 'next_stage' => 'Offering Letter'],
             'offering_letter' => ['field' => 'offering_letter_status','pass_values' => ['DITERIMA'], 'next_stage' => 'MCU'],
             'mcu'             => ['field' => 'mcu_status',            'pass_values' => ['LULUS'], 'next_stage' => 'Hiring'],

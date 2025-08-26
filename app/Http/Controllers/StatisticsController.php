@@ -26,6 +26,8 @@ class StatisticsController extends Controller
         $genderData = $this->getGenderDistributionData(clone $baseQuery);
         $monthlyData = $this->getMonthlyApplicationData($year, $source);
 
+        $stageAnalysis = $this->getStageAnalysisData(clone $baseQuery);
+
         $sources = Candidate::whereNotNull('source')->distinct()->pluck('source');
 
         return view('statistics.index', compact(
@@ -34,6 +36,7 @@ class StatisticsController extends Controller
             'sourceData',
             'genderData',
             'monthlyData',
+            'stageAnalysis', // Add this
             'sources',
             'year',
             'source'
@@ -138,5 +141,39 @@ class StatisticsController extends Controller
         }
 
         return $result;
+    }
+
+    private function getStageAnalysisData($baseQuery)
+    {
+        $stages = [
+            ['name' => 'CV Review', 'field' => 'cv_review_status', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'Psikotes', 'field' => 'psikotes_result', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'Interview HC', 'field' => 'hc_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK LULUS', 'TIDAK DISARANKAN']],
+            ['name' => 'Interview User', 'field' => 'user_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK LULUS', 'TIDAK DISARANKAN']],
+            ['name' => 'Interview BOD', 'field' => 'bod_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK LULUS', 'TIDAK DISARANKAN']],
+            ['name' => 'Offering Letter', 'field' => 'offering_letter_status', 'pass_values' => ['DITERIMA'], 'fail_values' => ['DITOLAK']],
+            ['name' => 'MCU', 'field' => 'mcu_status', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+        ];
+
+        $analysis = [];
+
+        foreach ($stages as $stage) {
+            $query = (clone $baseQuery)->whereNotNull($stage['field'])->where($stage['field'], '!=', '');
+            
+            $total = (clone $query)->count();
+            $passed = (clone $query)->whereIn($stage['field'], $stage['pass_values'])->count();
+            $failed = (clone $query)->whereIn($stage['field'], $stage['fail_values'])->count();
+
+            $analysis[] = [
+                'name' => $stage['name'],
+                'total' => $total,
+                'passed' => $passed,
+                'failed' => $failed,
+                'pass_rate' => $total > 0 ? round(($passed / $total) * 100, 1) : 0,
+                'fail_rate' => $total > 0 ? round(($failed / $total) * 100, 1) : 0,
+            ];
+        }
+
+        return $analysis;
     }
 }

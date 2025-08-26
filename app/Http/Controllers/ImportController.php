@@ -200,7 +200,7 @@ class ImportController extends Controller
 
         if ($type == 'organic') {
             $headers = [
-                'no', 'nama', 'vacancy', 'internal_position', 'on_process_by', 'applicant_id',
+                'no', 'nama', 'vacancy','departmen', 'internal_position', 'on_process_by', 'applicant_id',
                 'source', 'jk', 'tanggal_lahir', 'alamat_email', 'jenjang_pendidikan',
                 'perguruan_tinggi', 'jurusan', 'ipk', 'cv', 'flk', 'psikotes_date',
                 'psikotes_result', 'psikotes_notes', 'hc_interview_date', 'hc_interview_status',
