@@ -123,10 +123,33 @@ class CandidatesImport implements
             throw new Exception('Invalid email format');
         }
 
-        if ($email && $this->importMode === 'insert') {
-            $existing = Candidate::where('alamat_email', $email)->first();
-            if ($existing) {
-                throw new Exception('Duplicate email skipped');
+        // --- START: New Duplicate Handling Logic ---
+        $isSuspectedDuplicate = false;
+        $oneYearAgo = Carbon::now()->subYear();
+
+        // Find a potential duplicate based on email or applicant_id
+        $query = Candidate::query();
+        $hasIdentifier = false;
+
+        if ($email) {
+            $query->orWhere('alamat_email', $email);
+            $hasIdentifier = true;
+        }
+        if ($applicantId) {
+            $query->orWhere('applicant_id', $applicantId);
+            $hasIdentifier = true;
+        }
+
+        if ($hasIdentifier) {
+            // Get the most recent candidate that matches
+            $existingCandidate = $query->orderBy('created_at', 'desc')->first();
+
+            if ($existingCandidate) {
+                // Check if the last application was within the last year
+                if (Carbon::parse($existingCandidate->created_at)->gte($oneYearAgo)) {
+                    $isSuspectedDuplicate = true;
+                }
+                // If older than one year, it's not a duplicate, so isSuspectedDuplicate remains false.
             }
         }
 
@@ -135,19 +158,69 @@ class CandidatesImport implements
                 $applicantId = 'CAND-' . strtoupper(Str::random(6));
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
-
-        // Check for duplicate based on applicant_id
-        if (!empty($applicantId)) {
-            $existingCandidate = Candidate::where('applicant_id', $applicantId)->first();
-            if ($existingCandidate) {
-                $isSuspectedDuplicate = true;
-            }
-        }
+        // --- END: New Duplicate Handling Logic ---
 
         // Smart data processing
         $processedRow = $this->fillPreviousStages($row);
         $currentStage = $this->calculateCurrentStage($processedRow);
         $overallStatus = $this->calculateOverallStatus($processedRow);
+
+        // --- START: Department Mapping (Organic) ---
+        $departmentId = null;
+        $deptNameFromExcel = null;
+    
+        // Coba baca ID departemen langsung dari kolom (jika tersedia)
+        $deptIdFromExcel = $this->getFieldValue($processedRow, ['department_id', 'dept_id']);
+        if (!empty($deptIdFromExcel) && is_numeric($deptIdFromExcel)) {
+            $department = Department::find($deptIdFromExcel);
+            if ($department) {
+                $departmentId = $department->id;
+            } else {
+                Log::warning('Department not found by ID (organic): ' . $deptIdFromExcel, [
+                    'row_number' => self::$rowIndex,
+                    'row_sample' => array_slice($processedRow, 0, 5, true),
+                ]);
+            }
+        } else {
+            // Jika tidak ada ID, fallback cari berdasarkan nama (+ tangani typo "departmen")
+            $deptNameFromExcel = $this->getFieldValue($processedRow, ['department', 'dept', 'departmen']);
+    
+            if (empty($deptNameFromExcel)) {
+                // Kolom department tidak ditemukan sama sekali
+                Log::warning('Department column not found (organic)', [
+                    'row_number' => self::$rowIndex,
+                    'available_keys' => array_keys($processedRow),
+                ]);
+            } else {
+                $normalized = $this->normalizeDepartmentName($deptNameFromExcel);
+    
+                // Pencocokan case-insensitive exact
+                $department = Department::whereRaw('LOWER(TRIM(name)) = ?', [\Illuminate\Support\Str::lower($normalized)])->first();
+    
+                // Fallback LIKE jika belum ketemu
+                if (!$department) {
+                    $department = Department::where('name', 'LIKE', '%' . $normalized . '%')->first();
+                }
+    
+                if ($department) {
+                    $departmentId = $department->id;
+                    Log::info('Department mapped (organic)', [
+                        'row_number' => self::$rowIndex,
+                        'excel_value' => $deptNameFromExcel,
+                        'normalized' => $normalized,
+                        'department_id' => $departmentId,
+                        'department_name' => $department->name,
+                    ]);
+                } else {
+                    Log::warning('Department not found by name (organic): ' . $deptNameFromExcel, [
+                        'row_number' => self::$rowIndex,
+                        'normalized' => $normalized,
+                        'row_sample' => array_slice($processedRow, 0, 5, true),
+                    ]);
+                }
+            }
+        }
+        // --- END: Department Mapping (Organic) ---
 
         $this->lastNo++;
 
@@ -202,10 +275,13 @@ class CandidatesImport implements
             'hiring_status' => $this->getFieldValue($processedRow, ['hiring_status']),
             'hiring_notes' => $this->getFieldValue($processedRow, ['hiring_notes', 'hiring_note']),
             
+            // Tambahkan department_id hasil mapping
+            'department_id' => $departmentId,
+
             'current_stage' => $currentStage,
             'overall_status' => $overallStatus,
             'airsys_internal' => 'Yes',
-            'is_suspected_duplicate' => $isSuspectedDuplicate, // Add this line
+            'is_suspected_duplicate' => $isSuspectedDuplicate,
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -239,7 +315,7 @@ class CandidatesImport implements
         $departmentId = null;
         $deptNameFromExcel = null;
         $deptIdFromExcel = $this->getFieldValue($row, ['department_id', 'dept_id']);
-        
+
         if (!empty($deptIdFromExcel) && is_numeric($deptIdFromExcel)) {
             // Prioritize using a direct ID if provided and is numeric
             $department = Department::find($deptIdFromExcel);
@@ -421,14 +497,70 @@ class CandidatesImport implements
     protected function getFieldValue(array $row, array $possibleNames)
     {
         foreach ($possibleNames as $name) {
-            $name = strtolower($name);
+            // Normalisasi nama target kolom
+            $target = $this->normalizeHeaderKey($name);
             foreach ($row as $key => $value) {
-                if (strtolower($key) === $name) {
+                // Normalisasi key header dari Excel
+                $current = $this->normalizeHeaderKey($key);
+                if ($current === $target) {
                     return trim((string)$value) !== '' ? trim((string)$value) : null;
                 }
             }
         }
         return null;
+    }
+
+    // Helper: normalisasi key header (hapus NBSP, rapikan spasi, lowercase)
+    private function normalizeHeaderKey(?string $key): ?string
+    {
+        if ($key === null) return null;
+        $k = (string) $key;
+
+        // Ganti whitespace non-standar dengan spasi biasa
+        $k = str_replace(
+            [
+                "\xC2\xA0", // NBSP
+                "\xE2\x80\xAF", // NNBSP
+                "\xE2\x80\xA8", // LS
+                "\xE2\x80\xA9", // PS
+            ],
+            ' ',
+            $k
+        );
+
+        // Kompres spasi berlebih dan trim
+        $k = preg_replace('/\s+/u', ' ', $k);
+        $k = trim($k);
+
+        // Lowercase untuk pencocokan case-insensitive
+        return strtolower($k);
+    }
+
+    // Helper baru: normalisasi nama departemen dari Excel
+    private function normalizeDepartmentName(?string $value): ?string
+    {
+        if ($value === null) return null;
+        $v = (string) $value;
+
+        // Ganti berbagai whitespace non-standar (NBSP, narrow no-break space, dll) menjadi spasi biasa
+        $v = str_replace(
+            [
+                "\xC2\xA0", // NBSP
+                "\xE2\x80\xAF", // NNBSP
+                "\xE2\x80\xA8", // LS
+                "\xE2\x80\xA9", // PS
+            ],
+            ' ',
+            $v
+        );
+
+        // Rapi: kompres spasi berlebih jadi satu spasi
+        $v = preg_replace('/\s+/u', ' ', $v);
+
+        // Trim
+        $v = trim($v);
+
+        return $v;
     }
 
     protected function normalizeGender($value)

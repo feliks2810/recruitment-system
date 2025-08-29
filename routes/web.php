@@ -22,32 +22,45 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard - NO PERMISSION MIDDLEWARE (all roles can access)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    
+    // Dashboard API Routes
+    Route::get('/dashboard/stats/monthly', [DashboardController::class, 'getCandidateStatsByMonth'])->name('dashboard.stats.monthly');
+    Route::get('/dashboard/years', [DashboardController::class, 'getAvailableYears'])->name('dashboard.years');
 
-    // Calendar Events for Dashboard
-    Route::get('/debug-calendar-events', [EventController::class, 'debugCalendarEvents'])->name('events.debug');
+    // Calendar Events Routes - Integrated with Dashboard
+    Route::prefix('events')->name('events.')->group(function () {
+        // Main calendar events endpoint
+        Route::get('/calendar', [DashboardController::class, 'getCalendarEvents'])->name('calendar');
+        
+        // Additional calendar endpoints
+        Route::get('/today', [DashboardController::class, 'getTodayEvents'])->name('today');
+        Route::get('/upcoming', [DashboardController::class, 'getUpcomingEvents'])->name('upcoming');
+        Route::get('/by-date/range', [DashboardController::class, 'getEventsByDateRange'])->name('by-date');
+        
+        // Debug endpoint
+        Route::get('/debug', [DashboardController::class, 'debugCalendarEvents'])->name('debug');
+        
+        // Event CRUD operations
+        Route::post('/', [EventController::class, 'store'])->name('store');
+        Route::get('/{event}', [EventController::class, 'show'])->name('show');
+        Route::put('/{event}', [EventController::class, 'update'])->name('update');
+        Route::delete('/{event}', [EventController::class, 'destroy'])->name('destroy');
+    });
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Events
-    Route::prefix('events')->name('events.')->group(function () {
-        Route::get('/calendar', [EventController::class, 'getCalendarEvents'])->name('calendar');
-        Route::post('/', [EventController::class, 'store'])->name('store');
-        Route::get('/today', [EventController::class, 'getTodayEvents'])->name('today');
-        Route::get('/upcoming', [EventController::class, 'getUpcomingEvents'])->name('upcoming');
-        Route::get('/by-date/range', [EventController::class, 'getEventsByDateRange'])->name('by-date');
-        Route::get('/{event}', [EventController::class, 'show'])->name('show');
-        Route::put('/{event}', [EventController::class, 'update'])->name('update');
-        Route::delete('/{event}', [EventController::class, 'destroy'])->name('destroy');
-    });
-
     // Candidates Group - Let controller handle authorization
     Route::prefix('candidates')->name('candidates.')->group(function () {
         // Basic candidate viewing (let controller handle department restrictions)
         Route::get('/', [CandidateController::class, 'index'])->name('index');
         Route::get('/{candidate}', [CandidateController::class, 'show'])->name('show');
+
+        // Quick Update Modal Routes - Integrated with Dashboard
+        Route::get('/{candidate}/timeline-events', [DashboardController::class, 'getCandidateTimelineEvents'])->name('timeline-events');
+        Route::post('/{candidate}/stage', [DashboardController::class, 'updateCandidateStage'])->name('update-stage');
 
         // Export functionality for Team HC
         Route::middleware('can:export-candidates')->group(function () {
@@ -75,12 +88,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/check-duplicate', [CandidateController::class, 'checkDuplicate'])->name('checkDuplicate');
         });
 
-        // Delete actions for CTeam H
+        // Delete actions for Team HC
         Route::middleware('can:delete-candidates')->group(function () {
             Route::delete('/{candidate}', [CandidateController::class, 'destroy'])->name('destroy');
-            Route::delete('/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])->name('bulkDelete');
         });
+
+        // Ensure show route is at the end with numeric constraint
+        Route::get('/{candidate}', [CandidateController::class, 'show'])
+            ->whereNumber('candidate')
+            ->name('show');
     });
+
+    // Bulk Delete route outside the prefix group
+    Route::delete('/candidates/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])->name('candidates.bulkDelete');
+    Route::post('/candidates/bulk-actions/mark-as-duplicate', [CandidateController::class, 'bulkMarkAsDuplicate'])->name('candidates.bulkMarkAsDuplicate');
 
     // Import Routes for Team HC
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
@@ -132,4 +153,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     });
 });
-

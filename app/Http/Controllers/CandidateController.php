@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CandidateController extends BaseController
 {
@@ -25,13 +26,6 @@ class CandidateController extends BaseController
     public function __construct()
     {
         $this->middleware('auth');
-        
-        // REMOVED: Permission middleware karena sudah handled by Gates di routes
-        // $this->middleware('permission:create-candidates')->only(['create', 'store']);
-        // $this->middleware('permission:edit-candidates')->only(['edit', 'update', 'updateStage', 'setNextTestDate']);
-        // $this->middleware('permission:delete-candidates')->only(['destroy']);
-        // $this->middleware('permission:import-candidates')->only(['import', 'processImport']);
-        // $this->middleware('permission:export-candidates')->only(['export']);
     }
 
     /**
@@ -40,80 +34,84 @@ class CandidateController extends BaseController
      */
     public function index(Request $request): View
     {
-        Log::info('CandidateController@index accessed.');
-        Log::info('User Role: ' . (Auth::user() ? Auth::user()->getRoleNames()->implode(', ') : 'Guest'));
-        Log::info('User Department ID: ' . (Auth::user() ? Auth::user()->department_id : 'N/A'));
-
-        $query = Candidate::with('department');
-        
-        // Jika user memiliki role departmen, batasi hanya kandidat di departemennya
+        // --- Statistics Calculation ---
+        $statsQuery = Candidate::whereYear('created_at', date('Y'));
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
-            $query->where('department_id', Auth::user()->department_id);
+            $statsQuery->where('department_id', Auth::user()->department_id);
         }
 
-        // Filter berdasarkan pencarian
+        $stats = [
+            'total_candidates' => (clone $statsQuery)->count(),
+            'candidates_in_process' => (clone $statsQuery)->whereIn('overall_status', ['PROSES', 'PENDING', 'DISARANKAN', 'TIDAK DISARANKAN', 'DALAM PROSES'])->count(),
+            'candidates_passed' => (clone $statsQuery)->where('overall_status', 'LULUS')->count(),
+            'candidates_failed' => (clone $statsQuery)->whereIn('overall_status', ['TIDAK LULUS', 'DITOLAK'])->count(),
+            'candidates_cancelled' => (clone $statsQuery)->where('overall_status', 'CANCEL')->count(),
+            'duplicate' => (clone $statsQuery)->where('is_suspected_duplicate', true)->count(),
+        ];
+        
+        // --- Base Query Setup ---
+        // Start with a base query for the current year, and eager load the department
+        $baseQuery = Candidate::with('department')->whereYear('created_at', date('Y'));
+
+        // Role-based filtering
+        if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
+            $baseQuery->where('department_id', Auth::user()->department_id);
+        }
+
+        // Apply filters from request
         if ($request->filled('search')) {
-            $query->search($request->search);
+            $baseQuery->search($request->search);
         }
 
-        // Filter berdasarkan status
         if ($request->filled('status')) {
             if ($request->status === 'active') {
-                $query->active();
+                $baseQuery->active();
             } else {
-                $query->where('status', $request->status);
+                $baseQuery->where('status', $request->status);
             }
         }
 
-        // Filter berdasarkan gender
         if ($request->filled('gender')) {
-            $query->byGender($request->gender);
+            $baseQuery->byGender($request->gender);
         }
 
-        // Filter berdasarkan source
         if ($request->filled('source')) {
-            $query->bySource($request->source);
+            $baseQuery->bySource($request->source);
         }
 
-        // Filter by current stage
         if ($request->filled('current_stage')) {
-            $query->where('current_stage', $request->current_stage);
+            $baseQuery->where('current_stage', $request->current_stage)
+                      ->where('overall_status', '!=', 'DITOLAK');
         }
 
         $type = $request->input('type', 'organic');
-
         switch ($type) {
             case 'non-organic':
-                $query->airsysInternal(false);
+                $baseQuery->airsysInternal(false);
                 break;
             case 'duplicate':
-                $query->where('is_suspected_duplicate', true);
+                $baseQuery->where('is_suspected_duplicate', true);
                 break;
             case 'organic':
             default:
-                $query->airsysInternal(true);
+                $baseQuery->airsysInternal(true);
                 break;
         }
-        
-        // Custom sorting: process first, then by latest update
-        $query->orderByRaw("CASE 
+
+        // --- Final Query Execution ---
+        // Clone the base query for pagination to get the final list
+        $candidatesQuery = (clone $baseQuery)
+            ->orderByRaw("CASE 
                 WHEN overall_status IN ('PROSES', 'DALAM PROSES', 'PENDING') THEN 1 
                 WHEN overall_status IN ('LULUS', 'DITOLAK') THEN 2 
                 ELSE 3 
             END")
             ->orderBy('updated_at', 'desc');
 
-        $candidates = $query->paginate(15);
+        $candidates = $candidatesQuery->paginate(15);
 
+        // Data for view
         $statuses = ['active', 'inactive', 'LULUS', 'DITOLAK', 'PROSES'];
-
-        $stats = [
-            'total_candidates' => Candidate::count(),
-            'dalam_proses' => Candidate::whereIn('overall_status', ['PROSES', 'PENDING', 'DISARANKAN', 'TIDAK DISARANKAN'])->count(),
-            'hired' => Candidate::where('overall_status', 'LULUS')->count(),
-            'ditolak' => Candidate::where('overall_status', 'DITOLAK')->count(),
-            'duplicate' => Candidate::where('is_suspected_duplicate', true)->count(),
-        ];
 
         return view('candidates.index', compact('candidates', 'statuses', 'stats', 'type'));
     }
@@ -125,7 +123,11 @@ class CandidateController extends BaseController
     {
         $departments = $this->getAvailableDepartments();
         
-        return view('candidates.create', compact('departments'));
+        do {
+            $applicantId = 'CAND-' . strtoupper(Str::random(6));
+        } while (Candidate::where('applicant_id', $applicantId)->exists());
+
+        return view('candidates.create', compact('departments', 'applicantId'));
     }
 
     /**
@@ -133,37 +135,62 @@ class CandidateController extends BaseController
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
+        // 1. Initial validation (without applicant_id uniqueness)
+        $validatedData = $request->validate([
             'nama' => 'required|string|max:255',
-            'email' => 'required|email|unique:candidates,email',
-            'phone' => 'nullable|string|max:20',
-            'gender' => 'required|in:male,female',
-            'birth_date' => 'nullable|date',
-            'address' => 'nullable|string',
-            'source' => 'required|string|max:100',
+            'alamat_email' => 'required|email|unique:candidates,alamat_email',
+            'applicant_id' => 'required|string|max:255', // Unique rule removed
+            'jk' => 'required|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'vacancy' => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
-            'notes' => 'nullable|string',
-            'applicant_id' => 'nullable|string|max:255',
+            'airsys_internal' => 'required|in:Yes,No',
+            'internal_position' => 'nullable|string|max:255',
+            'source' => 'nullable|string|max:100',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:100',
+            'jurusan' => 'nullable|string|max:100',
+            'ipk' => 'nullable|numeric|min:0|max:4',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
 
-        // DEPARTMENT ACCESS CONTROL - Validasi department
-        $this->validateDepartmentAccess($validated['department_id']);
-
-        // Check for duplicate based on applicant_id
-        $isSuspectedDuplicate = false;
-        if (!empty($validated['applicant_id'])) {
-            $existingCandidate = Candidate::where('applicant_id', $validated['applicant_id'])->first();
-            if ($existingCandidate) {
-                $isSuspectedDuplicate = true;
-            }
+        // 2. Custom Duplicate Check (Nama, JK, Tanggal Lahir)
+        $duplicate = null;
+        if (!empty($validatedData['tanggal_lahir'])) {
+            $duplicate = Candidate::where('nama', $validatedData['nama'])
+                              ->where('jk', $validatedData['jk'])
+                              ->where('tanggal_lahir', $validatedData['tanggal_lahir'])
+                              ->first();
         }
 
-        $candidate = Candidate::create(array_merge($validated, [
-            'is_suspected_duplicate' => $isSuspectedDuplicate,
-        ]));
+        if ($duplicate) {
+            // Duplicate found based on Name, Gender, DOB
+            $validatedData['is_suspected_duplicate'] = true;
+            $validatedData['applicant_id'] = $duplicate->applicant_id; // Use existing applicant_id
+        } else {
+            // No duplicate found, ensure the provided applicant_id is unique
+            // This handles the rare case of two users getting the same generated ID
+            if (Candidate::where('applicant_id', $validatedData['applicant_id'])->exists()) {
+                // If it exists, generate a new one just in case.
+                $validatedData['applicant_id'] = 'CAND-' . strtoupper(Str::random(6));
+            }
+            $validatedData['is_suspected_duplicate'] = false;
+        }
+
+        // 3. Handle File Uploads
+        if ($request->hasFile('cv')) {
+            $validatedData['cv'] = $request->file('cv')->store('private/cvs');
+        }
+        if ($request->hasFile('flk')) {
+            $validatedData['flk'] = $request->file('flk')->store('private/flks');
+        }
+
+        // 4. Create the Candidate
+        Candidate::create($validatedData);
 
         return redirect()->route('candidates.index')
-                        ->with('success', 'Candidate berhasil ditambahkan.' . ($isSuspectedDuplicate ? ' (Ditandai sebagai duplikat)' : ''));
+                        ->with('success', 'Candidate berhasil ditambahkan.');
     }
 
     /**
@@ -171,7 +198,6 @@ class CandidateController extends BaseController
      */
     public function show(Candidate $candidate): View|RedirectResponse
     {
-        // Jika user memiliki role departmen, batasi hanya kandidat di departemennya
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
             if ($candidate->department_id != Auth::user()->department_id) {
                 return redirect()->route('candidates.index')
@@ -179,11 +205,10 @@ class CandidateController extends BaseController
             }
         }
         
-        // Re-fetch candidate to ensure latest data
         $candidate = Candidate::with(['department', 'educations', 'applications'])->find($candidate->id);
-        $candidate->refresh(); // Keep refresh for good measure
+        $candidate->refresh();
 
-                $stages = [
+        $stages = [
             'cv_review' => 'CV Review',
             'psikotes' => 'Psikotes',
             'hc_interview' => 'HC Interview',
@@ -202,7 +227,6 @@ class CandidateController extends BaseController
             $status_field = $stage_key . '_status';
             $notes_field = $stage_key . '_notes';
 
-            // Handle inconsistencies in database column names
             if ($stage_key === 'psikotes') {
                 $status_field = 'psikotes_result';
             } elseif ($stage_key === 'interview_bod') {
@@ -213,26 +237,16 @@ class CandidateController extends BaseController
 
             $status = 'locked';
             $result = $candidate->$status_field;
-            $is_completed = in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED', 'DIPERTIMBANGKAN']);
+            $is_completed = in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED']);
             $is_failed = in_array($result, ['TIDAK LULUS', 'TIDAK DISARANKAN', 'DITOLAK', 'TIDAK DIHIRING']);
 
-            Log::info('Timeline Debug:', [
-                'stage_key' => $stage_key,
-                'display_name' => $display_name,
-                'result_from_db' => $result,
-                'is_completed' => $is_completed,
-                'is_failed' => $is_failed,
-                'candidate_current_stage' => $candidate->current_stage,
-                'is_previous_stage_completed' => $is_previous_stage_completed,
-            ]);
-
             if ($is_previous_stage_completed) {
-                if ($candidate->current_stage == $stage_key) {
+                if ($is_failed) {
+                    $status = 'failed';
+                } elseif ($candidate->current_stage == $stage_key) {
                     $status = 'in_progress';
                 } elseif ($is_completed) {
                     $status = 'completed';
-                } elseif ($is_failed) {
-                    $status = 'failed';
                 } else {
                     $status = 'pending';
                 }
@@ -258,67 +272,6 @@ class CandidateController extends BaseController
     }
 
     /**
-     * Show the form for editing the specified candidate.
-     */
-    public function edit(Candidate $candidate): View
-    {
-        // DEPARTMENT ACCESS CONTROL - Cek akses
-        $this->authorizeCandidate($candidate);
-
-        $candidate->load('applications', 'educations'); // Load both relationships
-        $application = $candidate->applications->first(); // Get the first application
-        $education = $candidate->educations->first(); // Get the first education
-
-        $departments = $this->getAvailableDepartments();
-
-        return view('candidates.edit', compact('candidate', 'departments', 'application', 'education'));
-    }
-
-    /**
-     * Update the specified candidate.
-     */
-    public function update(Request $request, Candidate $candidate): RedirectResponse
-    {
-        // DEPARTMENT ACCESS CONTROL - Cek akses
-        $this->authorizeCandidate($candidate);
-
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'email' => 'required|email|unique:candidates,email,' . $candidate->id,
-            'phone' => 'nullable|string|max:20',
-            'gender' => 'required|in:male,female',
-            'birth_date' => 'nullable|date',
-            'address' => 'nullable|string',
-            'source' => 'required|string|max:100',
-            'department_id' => 'required|exists:departments,id',
-            'status' => 'required|in:active,inactive',
-            'notes' => 'nullable|string',
-            'applicant_id' => 'nullable|string|max:255|unique:candidates,applicant_id,' . $candidate->id,
-        ]);
-
-        // DEPARTMENT ACCESS CONTROL - Validasi department
-        $this->validateDepartmentAccess($validated['department_id']);
-
-        // Check for duplicate based on applicant_id, excluding current candidate
-        $isSuspectedDuplicate = false;
-        if (!empty($validated['applicant_id'])) {
-            $existingCandidate = Candidate::where('applicant_id', $validated['applicant_id'])
-                                        ->where('id', '!=', $candidate->id)
-                                        ->first();
-            if ($existingCandidate) {
-                $isSuspectedDuplicate = true;
-            }
-        }
-
-        $candidate->update(array_merge($validated, [
-            'is_suspected_duplicate' => $isSuspectedDuplicate,
-        ]));
-
-        return redirect()->route('candidates.show', $candidate)
-                        ->with('success', 'Candidate berhasil diupdate.' . ($isSuspectedDuplicate ? ' (Ditandai sebagai duplikat)' : ''));
-    }
-
-    /**
      * Remove the specified candidate from storage.
      */
     public function destroy(Candidate $candidate): RedirectResponse
@@ -330,6 +283,45 @@ class CandidateController extends BaseController
 
         return redirect()->route('candidates.index')
                         ->with('success', 'Candidate berhasil dihapus.');
+    }
+
+    /**
+     * Remove multiple specified candidates from storage.
+     */
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:candidates,id', // Ensure all IDs exist in the database
+        ]);
+
+        $deletedCount = 0;
+        foreach ($request->input('ids') as $id) {
+            $candidate = Candidate::find($id);
+            if ($candidate) {
+                // DEPARTMENT ACCESS CONTROL - Cek akses untuk setiap kandidat
+                // Assuming authorizeCandidate method exists and handles authorization
+                try {
+                    $this->authorizeCandidate($candidate);
+                    $candidate->delete();
+                    $deletedCount++;
+                } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                    // Log or handle unauthorized deletion attempts
+                    Log::warning('Unauthorized bulk delete attempt for candidate ID: ' . $id . ' by user: ' . Auth::id());
+                    // Optionally, you might want to return an error or skip this ID
+                } catch (\Exception $e) {
+                    Log::error('Error deleting candidate ID: ' . $id . ' - ' . $e->getMessage());
+                }
+            }
+        }
+
+        if ($deletedCount > 0) {
+            return redirect()->route('candidates.index')
+                             ->with('success', "Berhasil menghapus {$deletedCount} kandidat.");
+        } else {
+            return redirect()->route('candidates.index')
+                             ->with('error', 'Tidak ada kandidat yang dihapus atau Anda tidak memiliki izin.');
+        }
     }
 
     /**
@@ -347,6 +339,40 @@ class CandidateController extends BaseController
         $newType = ($candidate->airsys_internal === 'Yes') ? 'organic' : 'non-organic';
 
         return redirect()->back()->with('success', 'Tipe kandidat berhasil diubah ke ' . $newType . '.');
+    }
+
+    /**
+     * Switch the type for multiple candidates.
+     */
+    public function bulkSwitchType(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id',
+        ]);
+
+        $switchedCount = 0;
+        foreach ($request->input('candidate_ids') as $id) {
+            $candidate = Candidate::find($id);
+            if ($candidate) {
+                try {
+                    $this->authorizeCandidate($candidate);
+                    $candidate->airsys_internal = ($candidate->airsys_internal === 'Yes') ? 'No' : 'Yes';
+                    $candidate->save();
+                    $switchedCount++;
+                } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                    Log::warning('Unauthorized bulk switch type attempt for candidate ID: ' . $id . ' by user: ' . Auth::id());
+                }
+            }
+        }
+
+        if ($switchedCount > 0) {
+            return redirect()->route('candidates.index')
+                             ->with('success', "Berhasil mengubah tipe untuk {$switchedCount} kandidat.");
+        } else {
+            return redirect()->route('candidates.index')
+                             ->with('error', 'Tidak ada kandidat yang diubah atau Anda tidak memiliki izin.');
+        }
     }
 
     /**
@@ -379,6 +405,32 @@ class CandidateController extends BaseController
             'success' => true,
             'message' => 'Tanda duplikat berhasil dihapus'
         ]);
+    }
+
+    /**
+     * Toggle the duplicate status of a candidate.
+     */
+    public function toggleDuplicate(Request $request, Candidate $candidate): RedirectResponse
+    {
+        $this->authorizeCandidate($candidate);
+
+        // This action is primarily for un-marking a duplicate from the duplicates list.
+        if ($candidate->is_suspected_duplicate) {
+            // Generate a new unique applicant_id
+            do {
+                $newApplicantId = 'CAND-' . strtoupper(Str::random(6));
+            } while (Candidate::where('applicant_id', $newApplicantId)->exists());
+            
+            $candidate->is_suspected_duplicate = false;
+            $candidate->applicant_id = $newApplicantId;
+            $candidate->save();
+
+            return redirect()->back()->with('success', 'Kandidat tidak lagi ditandai sebagai duplikat dan telah diberi ID Pelamar baru.');
+        } else {
+            // In the future, this could handle marking a candidate as a duplicate of another.
+            // For now, since the UI only exposes this for un-marking, we do nothing.
+            return redirect()->back()->with('info', 'Kandidat ini sudah bukan duplikat.');
+        }
     }
 
     /**
@@ -551,7 +603,13 @@ class CandidateController extends BaseController
                 } else {
                     $candidate->overall_status = 'PROSES';
                 }
-                
+            } elseif ($result === 'CANCEL') {
+                // Kandidat prosesnya di-cancel
+                $candidate->overall_status = 'CANCEL';
+                $candidate->current_stage = null; // Stop proses
+                $candidate->next_test_date = null;
+                $candidate->next_test_stage = null;
+                Log::info('Result is CANCEL. Set overall_status to CANCEL, current_stage to null');
             } elseif (in_array($result, $currentStageFailingResults)) {
                 // Kandidat gagal di stage ini, hentikan proses
                 $candidate->overall_status = 'DITOLAK';
@@ -571,8 +629,7 @@ class CandidateController extends BaseController
             Log::info('Current stage before save:', ['current_stage' => $candidate->current_stage]);
             Log::info('Overall status before save:', ['overall_status' => $candidate->overall_status]);
 
-            // Use query builder for direct update to completely bypass model events
-            // This ensures the controller's logic for stage progression is not overridden
+            // Method: updateStage (potongan bagian update DB)
             DB::table('candidates')->where('id', $candidate->id)->update([
                 'cv_review_date' => $candidate->cv_review_date,
                 'cv_review_status' => $candidate->cv_review_status,
@@ -587,7 +644,7 @@ class CandidateController extends BaseController
                 'user_interview_status' => $candidate->user_interview_status,
                 'user_interview_notes' => $candidate->user_interview_notes,
                 'bodgm_interview_date' => $candidate->bodgm_interview_date,
-                'bod_interview_status' => $candidate->bod_interview_status,
+                'bod_interview_status' => $candidate->bod_interview_status, // FIX: gunakan nilai variabel, bukan string literal
                 'bod_interview_notes' => $candidate->bod_interview_notes,
                 'offering_letter_date' => $candidate->offering_letter_date,
                 'offering_letter_status' => $candidate->offering_letter_status,
@@ -600,8 +657,8 @@ class CandidateController extends BaseController
                 'hiring_notes' => $candidate->hiring_notes,
                 'current_stage' => $candidate->current_stage,
                 'overall_status' => $candidate->overall_status,
-                'next_test_date' => $validated['next_test_date'] ?? null,
-                'next_test_stage' => $validated['next_test_stage'] ?? null,
+                'next_test_date' => $candidate->next_test_date,
+                'next_test_stage' => $candidate->next_test_stage,
                 'updated_at' => now() // Manually update timestamp
             ]);
 
@@ -660,7 +717,7 @@ class CandidateController extends BaseController
     {
         $user = Auth::user();
 
-        if ($user->hasRole('super_admin') || $user->hasRole('admin')) {
+        if ($user->hasRole(['super_admin', 'admin', 'team_hc'])) {
             return Department::all();
         } else {
             return Department::where('id', $user->department_id)->get();
@@ -687,5 +744,31 @@ class CandidateController extends BaseController
         if (!$candidate->canBeAccessedByCurrentUser()) {
             abort(403, 'Anda tidak memiliki akses ke candidate ini.');
         }
+    }
+
+    /**
+     * Mark multiple candidates as duplicates of a primary one.
+     */
+    public function bulkMarkAsDuplicate(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'primary_candidate_id' => 'required|exists:candidates,id',
+            'duplicate_candidate_id' => 'required|exists:candidates,id|different:primary_candidate_id',
+        ]);
+
+        $primaryCandidate = Candidate::findOrFail($request->primary_candidate_id);
+        $duplicateCandidate = Candidate::findOrFail($request->duplicate_candidate_id);
+
+        // Authorize action for both candidates
+        $this->authorizeCandidate($primaryCandidate);
+        $this->authorizeCandidate($duplicateCandidate);
+
+        // Set the second candidate as a duplicate of the first one
+        $duplicateCandidate->applicant_id = $primaryCandidate->applicant_id;
+        $duplicateCandidate->is_suspected_duplicate = true;
+        $duplicateCandidate->save();
+
+        return redirect()->route('candidates.index')
+                         ->with('success', "{$duplicateCandidate->nama} berhasil ditandai sebagai duplikat dari {$primaryCandidate->nama}.");
     }
 }

@@ -85,7 +85,7 @@
 
 @section('content')
 {{-- Statistik --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
         <div class="flex items-center justify-between">
             <div>
@@ -127,6 +127,17 @@
             </div>
             <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
                 <i class="fas fa-times-circle text-red-500 text-xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Cancel</p>
+                <p class="text-3xl font-bold text-purple-500">{{ $stats['candidates_cancelled'] ?? 0 }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-ban text-purple-500 text-xl"></i>
             </div>
         </div>
     </div>
@@ -281,7 +292,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">
                         <p class="font-medium text-gray-900 truncate">
-                            {{ $dist['stage'] ?? 'Unknown Stage' }}
+                            {{ $dist['display_name'] ?? 'Unknown Stage' }}
                         </p>
                         <p class="text-sm text-gray-500">
                             {{ ($dist['count'] ?? 0) == 1 ? '1 kandidat' : ($dist['count'] ?? 0) . ' kandidat' }}

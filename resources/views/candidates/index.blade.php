@@ -145,13 +145,9 @@
                 
                 <div class="flex items-center gap-2">
                     @can('edit-candidates')
-                        <button @click="showBulkUpdateModal = true" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors hover:bg-blue-700">
-                            <i class="fas fa-edit"></i>
-                            <span>Update Status</span>
-                        </button>
-                        <button @click="showBulkMoveModal = true" class="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
-                            <i class="fas fa-arrow-right"></i>
-                            <span>Pindah Stage</span>
+                        <button @click="confirmAndMarkAsDuplicate" :disabled="selectedCount !== 2" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors hover:bg-blue-700" :class="{ 'opacity-50 cursor-not-allowed': selectedCount !== 2 }">
+                            <i class="fas fa-copy"></i>
+                            <span>Tandai Duplikat</span>
                         </button>
                         <button @click="confirmBulkSwitchType" class="bg-teal-600 text-white px-3 py-2 rounded-lg hover:bg-teal-700 text-sm flex items-center gap-2">
                             <i class="fas fa-exchange-alt"></i>
@@ -202,59 +198,59 @@
 
         <div class="flex-1 p-4 sm:p-6">
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6">
-                <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                     <div class="flex items-center justify-between">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-600">Total Kandidat</p>
-                            <p class="text-xl sm:text-2xl font-bold text-gray-900 truncate">{{ $candidates->total() }}</p>
+                        <div>
+                            <p class="text-sm text-gray-500">Total Kandidat</p>
+                            <p class="text-3xl font-bold text-gray-800">{{ $stats['total_candidates'] ?? 0 }}</p>
                         </div>
-                        <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-users text-blue-600"></i>
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-users text-blue-600 text-xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                     <div class="flex items-center justify-between">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-600">Dalam Proses</p>
-                            <p class="text-xl sm:text-2xl font-bold text-yellow-600 truncate">{{ $stats['dalam_proses'] ?? 0 }}</p>
+                        <div>
+                            <p class="text-sm text-gray-500">Dalam Proses</p>
+                            <p class="text-3xl font-bold text-yellow-500">{{ $stats['candidates_in_process'] ?? 0 }}</p>
                         </div>
-                        <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-clock text-yellow-600"></i>
+                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-clock text-yellow-500 text-xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                     <div class="flex items-center justify-between">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-600">Lulus</p>
-                            <p class="text-xl sm:text-2xl font-bold text-green-600 truncate">{{ $stats['hired'] ?? 0 }}</p>
+                        <div>
+                            <p class="text-sm text-gray-500">Lulus</p>
+                            <p class="text-3xl font-bold text-green-500">{{ $stats['candidates_passed'] ?? 0 }}</p>
                         </div>
-                        <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-check-circle text-green-600"></i>
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-green-500 text-xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                     <div class="flex items-center justify-between">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-600">Ditolak</p>
-                            <p class="text-xl sm:text-2xl font-bold text-red-600 truncate">{{ $stats['ditolak'] ?? 0 }}</p>
+                        <div>
+                            <p class="text-sm text-gray-500">Ditolak</p>
+                            <p class="text-3xl font-bold text-red-500">{{ $stats['candidates_failed'] ?? 0 }}</p>
                         </div>
-                        <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-times-circle text-red-600"></i>
+                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-times-circle text-red-500 text-xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                     <div class="flex items-center justify-between">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-600">Duplicate</p>
-                            <p class="text-xl sm:text-2xl font-bold text-orange-600 truncate">{{ $stats['duplicate'] ?? 0 }}</p>
+                        <div>
+                            <p class="text-sm text-gray-500">Cancel</p>
+                            <p class="text-3xl font-bold text-purple-500">{{ $stats['candidates_cancelled'] ?? 0 }}</p>
                         </div>
-                        <div class="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-copy text-orange-600"></i>
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-ban text-purple-500 text-xl"></i>
                         </div>
                     </div>
                 </div>
@@ -388,6 +384,15 @@
                                         @endif
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50">
                                             <div class="flex items-center gap-1 sm:gap-2">
+                                                @if($type === 'duplicate')
+                                                    <form method="POST" action="{{ route('candidates.toggleDuplicate', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin membatalkan status duplikat kandidat ini? Kandidat akan diberi ID Pelamar baru yang unik.')">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="text-green-600 hover:text-green-900 p-1" title="Batalkan Duplikat (Jadikan Unik)">
+                                                            <i class="fas fa-check-circle text-sm"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                                 @can('import-excel')
                                                     <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
                                                         @csrf
@@ -459,11 +464,7 @@
                                         Tambah Kandidat
                                     </a>
                                 @endcan
-                                @can('import-excel')
-                                    <button @click="showImportModal = true" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                                        Import Excel
-                                    </button>
-                                @endcan
+                                
                             </div>
                         @endif
                     </div>
@@ -627,6 +628,7 @@
                 document.querySelectorAll('input[type="checkbox"][value]').forEach(el => {
                     this.visibleCandidateIds.push(parseInt(el.value));
                 });
+                console.log('Initialized visibleCandidateIds:', this.visibleCandidateIds);
             },
 
             // Computed properties for convenience
@@ -639,11 +641,16 @@
 
             // --- Selection Methods ---
             toggleAll(checked) {
+                console.log('Toggling all. Checked:', checked);
+                console.log('Visible IDs:', this.visibleCandidateIds);
+                let selected = new Set(this.$store.candidates.selectedIds);
                 if (checked) {
-                    this.$store.candidates.selectedIds = [...new Set([...this.$store.candidates.selectedIds, ...this.visibleCandidateIds])];
+                    this.visibleCandidateIds.forEach(id => selected.add(id));
                 } else {
-                    this.$store.candidates.selectedIds = this.$store.candidates.selectedIds.filter(id => !this.visibleCandidateIds.includes(id));
+                    this.visibleCandidateIds.forEach(id => selected.delete(id));
                 }
+                this.$store.candidates.selectedIds = Array.from(selected);
+                console.log('New selected IDs:', this.$store.candidates.selectedIds);
             },
             clearSelection() {
                 this.$store.candidates.selectedIds = [];
@@ -709,8 +716,74 @@
             },
             confirmBulkDelete() {
                 if (this.selectedCount > 0 && confirm(`Anda yakin ingin menghapus ${this.selectedCount} kandidat yang dipilih?`)) {
-                    this.handleBulkAction('{{ route("candidates.bulkDelete") }}', { candidate_ids: this.$store.candidates.selectedIds }, 'DELETE');
+                    this.handleBulkAction('{{ route("candidates.bulkDelete") }}', { ids: this.$store.candidates.selectedIds }, 'DELETE');
                 }
+            },
+
+            // --- New method for marking duplicates ---
+            confirmAndMarkAsDuplicate() {
+                if (this.selectedCount !== 2) {
+                    alert('Silakan pilih tepat dua kandidat untuk ditandai sebagai duplikat.');
+                    return;
+                }
+
+                const id1 = this.$store.candidates.selectedIds[0];
+                const id2 = this.$store.candidates.selectedIds[1];
+
+                // Function to safely get candidate name from the table row
+                const getCandidateName = (id) => {
+                    const el = document.querySelector(`input[type="checkbox"][value="${id}"]`);
+                    if (el) {
+                        // Navigate up to the table row (tr) and then find the element with the candidate name
+                        const nameEl = el.closest('tr').querySelector('.text-sm.font-medium.text-gray-900');
+                        return nameEl ? nameEl.innerText.trim() : `ID ${id}`;
+                    }
+                    return `ID ${id}`;
+                };
+
+                const name1 = getCandidateName(id1);
+                const name2 = getCandidateName(id2);
+
+                const choice = prompt(`Anda akan menandai dua kandidat sebagai duplikat:\n\n1: ${name1}\n2: ${name2}\n\nKandidat mana yang akan dijadikan data UTAMA? (Masukkan 1 atau 2)`);
+
+                let primary_candidate_id, duplicate_candidate_id;
+
+                if (choice === '1') {
+                    primary_candidate_id = id1;
+                    duplicate_candidate_id = id2;
+                } else if (choice === '2') {
+                    primary_candidate_id = id2;
+                    duplicate_candidate_id = id1;
+                } else {
+                    alert('Pilihan tidak valid. Silakan masukkan hanya angka 1 atau 2.');
+                    return;
+                }
+
+                // Create a hidden form and submit it
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{{ route("candidates.bulkMarkAsDuplicate") }}';
+                
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = '_token';
+                csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                form.appendChild(csrfInput);
+
+                const primaryInput = document.createElement('input');
+                primaryInput.type = 'hidden';
+                primaryInput.name = 'primary_candidate_id';
+                primaryInput.value = primary_candidate_id;
+                form.appendChild(primaryInput);
+
+                const duplicateInput = document.createElement('input');
+                duplicateInput.type = 'hidden';
+                duplicateInput.name = 'duplicate_candidate_id';
+                duplicateInput.value = duplicate_candidate_id;
+                form.appendChild(duplicateInput);
+
+                document.body.appendChild(form);
+                form.submit();
             },
             async submitBulkExport() {
                  if (this.selectedCount === 0) {

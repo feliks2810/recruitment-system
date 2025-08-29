@@ -8,6 +8,136 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
+/**
+ * @property int $id
+ * @property string|null $no
+ * @property string|null $vacancy
+ * @property \App\Models\Department|null $department
+ * @property string|null $internal_position
+ * @property string|null $on_process_by
+ * @property string|null $applicant_id
+ * @property string|null $nama
+ * @property string|null $source
+ * @property string|null $jk
+ * @property \Illuminate\Support\Carbon|null $tanggal_lahir
+ * @property string|null $alamat_email
+ * @property string|null $jenjang_pendidikan
+ * @property string|null $perguruan_tinggi
+ * @property string|null $jurusan
+ * @property float|null $ipk
+ * @property string|null $cv
+ * @property \Illuminate\Support\Carbon|null $cv_review_date
+ * @property string|null $cv_review_status
+ * @property string|null $cv_review_notes
+ * @property string|null $cv_review_by
+ * @property string|null $flk
+ * @property \Illuminate\Support\Carbon|null $psikotes_date
+ * @property string|null $psikotes_result
+ * @property string|null $psikotes_notes
+ * @property \Illuminate\Support\Carbon|null $hc_interview_date
+ * @property string|null $hc_interview_status
+ * @property string|null $hc_interview_notes
+ * @property \Illuminate\Support\Carbon|null $user_interview_date
+ * @property string|null $user_interview_status
+ * @property string|null $user_interview_notes
+ * @property \Illuminate\Support\Carbon|null $bodgm_interview_date
+ * @property string|null $bod_interview_status
+ * @property string|null $bod_interview_notes
+ * @property \Illuminate\Support\Carbon|null $offering_letter_date
+ * @property string|null $offering_letter_status
+ * @property string|null $offering_letter_notes
+ * @property \Illuminate\Support\Carbon|null $mcu_date
+ * @property string|null $mcu_status
+ * @property string|null $mcu_notes
+ * @property \Illuminate\Support\Carbon|null $hiring_date
+ * @property string|null $hiring_status
+ * @property string|null $hiring_notes
+ * @property \Illuminate\Support\Carbon|null $next_test_date
+ * @property string|null $next_test_stage
+ * @property string|null $current_stage
+ * @property string|null $overall_status
+ * @property bool $is_suspected_duplicate
+ * @property string|null $airsys_internal
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property int|null $department_id
+ * @property string $status
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Application> $applications
+ * @property-read int|null $applications_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Education> $educations
+ * @property-read int|null $educations_count
+ * @property-read mixed $current_stage_display
+ * @property-read mixed $next_test_info
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate active()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate airsysInternal($isInternal = true)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byDepartment($departmentId)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byGender($gender)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate bySource($source)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byYear($year)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate hired()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate inProcess()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate inStage($stage)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate rejected()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate search($term)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereAirsysInternal($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereAlamatEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereApplicantId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodInterviewNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodInterviewStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodgmInterviewDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCurrentStage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCv($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereDepartment($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereDepartmentId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereFlk($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereInternalPosition($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereIpk($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereIsSuspectedDuplicate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJenjangPendidikan($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJk($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJurusan($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNama($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNextTestDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNextTestStage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNo($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOnProcessBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOverallStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePerguruanTinggi($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesResult($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereSource($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereTanggalLahir($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereVacancy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate withStatus($status)
+ * @mixin \Eloquent
+ */
 class Candidate extends Model
 {
     protected $fillable = [
@@ -234,10 +364,17 @@ class Candidate extends Model
     }
 
     /**
-     * Get next test date based on current stage
+     * Get next test date.
+     * Prioritize stored next_test_date column, fallback to stage-based date if empty.
      */
-    public function getNextTestDateAttribute()
+    public function getNextTestDateAttribute($value)
     {
+        // 1) Gunakan nilai yang disimpan di kolom next_test_date jika ada
+        if (!empty($value)) {
+            return $this->asDateTime($value);
+        }
+
+        // 2) Fallback: pakai tanggal berdasarkan current_stage (jika ada)
         $stageMapping = [
             'cv_review' => 'cv_review_date',
             'psikotes' => 'psikotes_date',
@@ -250,8 +387,8 @@ class Candidate extends Model
         ];
 
         $dateField = $stageMapping[$this->current_stage] ?? null;
-        
-        if ($dateField && $this->{$dateField}) {
+
+        if ($dateField && !empty($this->{$dateField})) {
             return $this->{$dateField};
         }
 

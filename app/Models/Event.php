@@ -6,6 +6,47 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 
+/**
+ * @property int $id
+ * @property int|null $candidate_id
+ * @property string|null $stage
+ * @property string $title
+ * @property string|null $description
+ * @property \Illuminate\Support\Carbon $date
+ * @property string|null $time
+ * @property string|null $location
+ * @property string $status
+ * @property int $created_by
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\User $creator
+ * @property-read mixed $days_until
+ * @property-read mixed $formatted_date_indonesian
+ * @property-read mixed $formatted_date_time
+ * @property-read mixed $is_past
+ * @property-read mixed $is_today
+ * @property-read mixed $is_upcoming
+ * @property-read mixed $status_color
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event active()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event onDate($date)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event upcoming()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereCandidateId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereDescription($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereLocation($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereStage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereTime($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereTitle($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Event whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
 class Event extends Model
 {
     use HasFactory;
