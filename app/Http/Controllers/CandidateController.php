@@ -16,9 +16,12 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\CandidatesExport;
 
 class CandidateController extends BaseController
 {
+    use AuthorizesRequests;
     /**
      * Constructor - Apply only basic auth middleware
      * Remove permission middleware to avoid double-checking with Gates
@@ -64,11 +67,7 @@ class CandidateController extends BaseController
         }
 
         if ($request->filled('status')) {
-            if ($request->status === 'active') {
-                $baseQuery->active();
-            } else {
-                $baseQuery->where('status', $request->status);
-            }
+            $baseQuery->where('overall_status', $request->status);
         }
 
         if ($request->filled('gender')) {
@@ -99,7 +98,6 @@ class CandidateController extends BaseController
         }
 
         // --- Final Query Execution ---
-        // Clone the base query for pagination to get the final list
         $candidatesQuery = (clone $baseQuery)
             ->orderByRaw("CASE 
                 WHEN overall_status IN ('PROSES', 'DALAM PROSES', 'PENDING') THEN 1 
@@ -111,9 +109,82 @@ class CandidateController extends BaseController
         $candidates = $candidatesQuery->paginate(15);
 
         // Data for view
-        $statuses = ['active', 'inactive', 'LULUS', 'DITOLAK', 'PROSES'];
+        $statuses = [
+            'DALAM PROSES' => 'Dalam Proses',
+            'LULUS' => 'Lulus',
+            'DITOLAK' => 'Ditolak',
+            'CANCEL' => 'Cancel'
+        ];
 
         return view('candidates.index', compact('candidates', 'statuses', 'stats', 'type'));
+    }
+
+    /**
+     * Handle the export of candidates to an Excel file.
+     */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $this->authorize('view-candidates');
+
+        $query = $this->getFilteredCandidates($request);
+        $candidates = $query->orderBy('created_at', 'desc')->get();
+
+        return Excel::download(new CandidatesExport($candidates), 'candidates-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Get the filtered query builder instance for candidates.
+     */
+    private function getFilteredCandidates(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
+        $baseQuery = Candidate::with('department');
+
+        // Role-based filtering
+        if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
+            $baseQuery->where('department_id', Auth::user()->department_id);
+        }
+
+        // Apply filters from request
+        if ($request->filled('search')) {
+            $baseQuery->search($request->search);
+        }
+
+        if ($request->filled('status')) {
+            $baseQuery->where('overall_status', $request->status);
+        }
+
+        if ($request->filled('gender')) {
+            $baseQuery->byGender($request->gender);
+        }
+
+        if ($request->filled('source')) {
+            $baseQuery->bySource($request->source);
+        }
+
+        if ($request->filled('current_stage')) {
+            $baseQuery->where('current_stage', $request->current_stage)
+                      ->where('overall_status', '!=', 'DITOLAK');
+        }
+
+        if ($request->filled('created_from') && $request->filled('created_to')) {
+            $baseQuery->whereBetween('created_at', [$request->created_from, $request->created_to]);
+        }
+
+        $type = $request->input('type', 'organic');
+        switch ($type) {
+            case 'non-organic':
+                $baseQuery->airsysInternal(false);
+                break;
+            case 'duplicate':
+                $baseQuery->where('is_suspected_duplicate', true);
+                break;
+            case 'organic':
+            default:
+                $baseQuery->airsysInternal(true);
+                break;
+        }
+
+        return $baseQuery;
     }
 
     /**
@@ -269,6 +340,53 @@ class CandidateController extends BaseController
         }
 
         return view('candidates.show', compact('candidate', 'timeline'));
+    }
+
+    /**
+     * Show the form for editing the specified candidate.
+     */
+    public function edit(Candidate $candidate): View
+    {
+        $this->authorizeCandidate($candidate);
+        $departments = $this->getAvailableDepartments();
+        return view('candidates.edit', compact('candidate', 'departments'));
+    }
+
+    /**
+     * Update the specified candidate in storage.
+     */
+    public function update(Request $request, Candidate $candidate): RedirectResponse
+    {
+        $this->authorizeCandidate($candidate);
+
+        $validatedData = $request->validate([
+            'nama' => 'required|string|max:255',
+            'alamat_email' => 'required|email|unique:candidates,alamat_email,' . $candidate->id,
+            'jk' => 'required|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'vacancy' => 'required|string|max:255',
+            'department_id' => 'required|exists:departments,id',
+            'airsys_internal' => 'required|in:Yes,No',
+            'internal_position' => 'nullable|string|max:255',
+            'source' => 'nullable|string|max:100',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:100',
+            'jurusan' => 'nullable|string|max:100',
+            'ipk' => 'nullable|numeric|min:0|max:4',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+        ]);
+
+        if ($request->hasFile('cv')) {
+            $validatedData['cv'] = $request->file('cv')->store('private/cvs');
+        }
+        if ($request->hasFile('flk')) {
+            $validatedData['flk'] = $request->file('flk')->store('private/flks');
+        }
+
+        $candidate->update($validatedData);
+
+        return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate berhasil diperbarui.');
     }
 
     /**

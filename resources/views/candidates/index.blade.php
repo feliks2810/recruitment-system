@@ -6,15 +6,11 @@
 @section('page-title', 'Manajemen Kandidat')
 @section('page-subtitle', 'Kelola dan pantau kandidat recruitment')
 
-{{-- Header Action Buttons --}}
-@push('header-filters')
+@section('content')
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <p class="text-gray-600">@yield('page-subtitle')</p>
     <div class="flex items-center gap-4">
-        @can('import-excel')
-            <button @click="showImportModal = true" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors">
-                <i class="fas fa-upload text-sm"></i>
-                <span>Import Excel</span>
-            </button>
-        @endcan
+        
         @can('create-candidates')
             <a href="{{ route('candidates.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
                 <i class="fas fa-plus text-sm"></i>
@@ -28,109 +24,12 @@
             </a>
         @endcan
     </div>
-@endpush
-
-@section('content')
+</div>
 @canany(['view-candidates', 'view-own-department-candidates'])
     {{-- This scope initializes and contains all Alpine.js logic for this page --}}
     <div x-data="candidatesPage()" x-init="init()" id="candidates-scope">
 
-        {{-- Import Modal --}}
-        @can('import-excel')
-            <div x-show="showImportModal" @keydown.escape.window="showImportModal = false" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" x-cloak>
-                <div @click.away="showImportModal = false" class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" x-show="showImportModal" x-transition>
-                    <div class="p-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <h3 class="text-xl font-semibold text-gray-900">Import Data Kandidat</h3>
-                            <button @click="showImportModal = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-                        </div>
-                        
-                        <form action="{{ route('import.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
-                            @csrf
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label for="candidate_type" class="block text-sm font-medium text-gray-700 mb-2">Tipe Kandidat <span class="text-red-500">*</span></label>
-                                    <select name="candidate_type" id="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('candidate_type') border-red-300 @enderror" required>
-                                        <option value="">Pilih Tipe Kandidat</option>
-                                        <option value="organic" {{ old('candidate_type') == 'organic' ? 'selected' : '' }}>
-                                            Organic (Internal Process)
-                                        </option>
-                                        <option value="non-organic" {{ old('candidate_type') == 'non-organic' ? 'selected' : '' }}>
-                                            Non-Organic (External)
-                                        </option>
-                                    </select>
-                                    @error('candidate_type')
-                                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-                                
-                                <div>
-                                    <label for="import_mode" class="block text-sm font-medium text-gray-700 mb-2">Mode Import <span class="text-red-500">*</span></label>
-                                    <select name="import_mode" id="import_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('import_mode') border-red-300 @enderror" required>
-                                        <option value="">Pilih Mode Import</option>
-                                        <option value="insert" {{ old('import_mode') == 'insert' ? 'selected' : '' }}>
-                                            Insert Only (Skip jika ada duplikat)
-                                        </option>
-                                        <option value="update" {{ old('import_mode') == 'update' ? 'selected' : '' }}>
-                                            Update Only (Update jika ada)
-                                        </option>
-                                        <option value="upsert" {{ old('import_mode') == 'upsert' ? 'selected' : '' }}>
-                                            Insert & Update (Insert baru, update yang ada)
-                                        </option>
-                                    </select>
-                                    @error('import_mode')
-                                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label for="header_row" class="block text-sm font-medium text-gray-700 mb-2">Header Row <span class="text-red-500">*</span></label>
-                                    <select name="header_row" id="header_row" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('header_row') border-red-300 @enderror" required>
-                                        <option value="1" {{ old('header_row') == '1' ? 'selected' : '' }}>Baris ke-1</option>
-                                        <option value="2" {{ old('header_row') == '2' ? 'selected' : '' }}>Baris ke-2</option>
-                                        <option value="3" {{ old('header_row') == '3' ? 'selected' : '' }}>Baris ke-3</option>
-                                        <option value="4" {{ old('header_row') == '4' ? 'selected' : '' }}>Baris ke-4</option>
-                                    </select>
-                                    @error('header_row')
-                                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-                                
-                                <div>
-                                    <label for="excel_file" class="block text-sm font-medium text-gray-700 mb-2">File Excel <span class="text-red-500">*</span></label>
-                                    <input type="file" name="excel_file" id="excel_file" 
-                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('excel_file') border-red-300 @enderror" 
-                                           accept=".xlsx,.xls,.csv" required>
-                                    @error('excel_file')
-                                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
-                                    @enderror
-                                    <p class="text-gray-500 text-sm mt-1">
-                                        Format yang didukung: Excel (.xlsx, .xls) dan CSV. Maksimal 10MB.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center justify-between pt-6 border-t border-gray-200">
-                                <button type="button" onclick="downloadTemplate()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2 transition-colors">
-                                    <i class="fas fa-download"></i>
-                                    <span>Download Template</span>
-                                </button>
-                                <div class="flex items-center gap-3">
-                                    <button type="button" @click="showImportModal = false" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Batal</button>
-                                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
-                                        <i class="fas fa-upload"></i>
-                                        <span>Import Data</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @endcan
+        
 
         <div x-show="selectedCount > 0" id="bulk-operations" class="bg-blue-50 border border-blue-200 px-4 sm:px-6 py-4 mb-4 rounded-lg" x-transition>
             <div class="flex items-center justify-between">
@@ -184,8 +83,8 @@
                     <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             @change="$refs.filterForm.submit()">
                         <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
-                        @foreach($statuses as $statusOption)
-                            <option value="{{ $statusOption }}" {{ request('status') == $statusOption ? 'selected' : '' }}>{{ $statusOption }}</option>
+                        @foreach($statuses as $value => $display)
+                            <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>{{ $display }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -310,6 +209,7 @@
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kandidat</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posisi</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departemen</th>
+                                    <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tahapan</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
@@ -357,7 +257,18 @@
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">{{ $candidate->department?->name ?? 'N/A' }}</div>
+                                            <div class="text-sm text-gray-900">
+                                                @if ($candidate->department)
+                                                    {{ $candidate->department->name }}
+                                                @elseif(Auth::user()->hasRole('team_hc') && $candidate->raw_department_name)
+                                                    <span class="text-red-500">{{ $candidate->raw_department_name }} (Not Mapped)</span>
+                                                @else
+                                                    N/A
+                                                @endif
+                                            </div>
+                                        </td>
+                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {{ $candidate->source }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             @if($candidate->overall_status == 'LULUS')

@@ -197,9 +197,9 @@ class CandidatesImport implements
                 // Pencocokan case-insensitive exact
                 $department = Department::whereRaw('LOWER(TRIM(name)) = ?', [\Illuminate\Support\Str::lower($normalized)])->first();
     
-                // Fallback LIKE jika belum ketemu
+                // Fallback LIKE jika belum ketemu (case-insensitive)
                 if (!$department) {
-                    $department = Department::where('name', 'LIKE', '%' . $normalized . '%')->first();
+                    $department = Department::whereRaw('LOWER(name) LIKE ?', ['%' . \Illuminate\Support\Str::lower($normalized) . '%'])->first();
                 }
     
                 if ($department) {
@@ -241,6 +241,7 @@ class CandidatesImport implements
             'ipk' => $this->normalizeGPA($this->getFieldValue($processedRow, ['ipk', 'gpa'])),
             'cv' => $this->getFieldValue($processedRow, ['cv', 'resume']),
             'flk' => $this->getFieldValue($processedRow, ['flk', 'cover_letter']),
+            'raw_department_name' => $deptNameFromExcel,
             
             // Dynamic stage data
             'cv_review_status' => $this->getFieldValue($processedRow, ['cv_review_status', 'cv_status']),

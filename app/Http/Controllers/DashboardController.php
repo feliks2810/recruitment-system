@@ -64,7 +64,7 @@ class DashboardController extends Controller
         ];
 
         $stageDisplayMap = [
-            'cv_review' => 'CV Review',
+            'cv_review' => 'Cv Review',
             'psikotes' => 'Psikotes',
             'hc_interview' => 'HC Interview',
             'user_interview' => 'User Interview',
@@ -74,44 +74,38 @@ class DashboardController extends Controller
             'hiring' => 'Hiring',
         ];
 
-        // 1. Fetch all distribution data from the database
+        // 1. Create a placeholder for all possible stages with 0 counts
+        $allStages = collect($stageDisplayMap)->map(function ($displayName, $stageKey) {
+            return (object)[
+                'current_stage' => $stageKey,
+                'count' => 0,
+            ];
+        })->keyBy('current_stage');
+
+        // 2. Fetch distribution data from the database, standardizing stage keys
         $distributionData = $distributionQuery
-            ->groupBy('current_stage')
-            ->selectRaw('current_stage, COUNT(*) as count')
-            ->get();
+            ->groupBy(DB::raw("REPLACE(TRIM(LOWER(current_stage)), ' ', '_')"))
+            ->selectRaw("REPLACE(TRIM(LOWER(current_stage)), ' ', '_') as current_stage, COUNT(*) as count")
+            ->get()
+            ->keyBy('current_stage');
 
-        $knownStages = collect();
-        $unknownStages = collect();
+        // 3. Merge the database data into the placeholder
+        $mergedData = $allStages->merge($distributionData);
 
-        // 2. Separate stages into known and unknown based on the predefined order
-        $orderMap = array_flip($stageOrder); // Use flipped array for efficient lookup
-        foreach ($distributionData as $item) {
-            if (isset($orderMap[$item->current_stage])) {
-                $knownStages->push($item);
-            } else {
-                $unknownStages->push($item);
-            }
-        }
-
-        // 3. Sort the known stages according to the predefined order
-        $sortedKnownStages = $knownStages->sortBy(function ($item) use ($orderMap) {
-            return $orderMap[$item->current_stage];
+        // 4. Sort the merged data according to the predefined order
+        $stageOrderMap = array_flip($stageOrder);
+        $sortedData = $mergedData->sortBy(function ($item) use ($stageOrderMap) {
+            return $stageOrderMap[$item->current_stage] ?? 999; // Put unknown stages at the end
         });
 
-        // 4. Sort the unknown stages alphabetically by their stage key
-        $sortedUnknownStages = $unknownStages->sortBy('current_stage');
-
-        // 5. Merge the sorted known stages with the sorted unknown stages
-        $finalDistributionData = $sortedKnownStages->concat($sortedUnknownStages);
-
-        // 6. Map the final sorted data to the desired output format for the view
-        $process_distribution = $finalDistributionData->map(function($item) use ($stageDisplayMap) {
+        // 5. Map the final sorted data to the desired output format
+        $process_distribution = $sortedData->map(function($item) use ($stageDisplayMap) {
             return [
                 'stage' => $item->current_stage,
                 'display_name' => $stageDisplayMap[$item->current_stage] ?? Str::title(str_replace('_', ' ', $item->current_stage)),
                 'count' => $item->count
             ];
-        });
+        })->values();
 
         // 4. Departments for filters (if admin user)
         $departments = [];
@@ -119,13 +113,56 @@ class DashboardController extends Controller
             $departments = Department::orderBy('name')->get();
         }
 
+        // 5. Monthly Summary
+        $summaryMonth = $request->get('summary_month', Carbon::now()->subMonthNoOverflow()->month);
+        $summaryYear = $request->get('summary_year', Carbon::now()->subMonthNoOverflow()->year);
+        $monthlySummary = $this->getMonthlySummary($summaryYear, $summaryMonth);
+
+        // 6. Available years for filters
+        $availableYears = Candidate::selectRaw('YEAR(created_at) as year')
+            ->distinct()
+            ->orderBy('year', 'desc')
+            ->pluck('year')
+            ->toArray();
+        if (!in_array(date('Y'), $availableYears)) {
+            array_unshift($availableYears, date('Y'));
+        }
+
         return view('dashboard', [
             'stats' => $stats,
             'recent_candidates' => $recent_candidates,
             'process_distribution' => $process_distribution,
+            'monthlySummary' => $monthlySummary,
+            'summaryMonth' => $summaryMonth,
+            'summaryYear' => $summaryYear,
+            'availableYears' => $availableYears,
             'year' => $year,
             'departments' => $departments
         ]);
+    }
+
+    private function getMonthlySummary($year, $month)
+    {
+        $year = intval($year);
+        $month = intval($month);
+
+        $date = Carbon::createFromDate($year, $month, 1);
+        $startOfMonth = $date->copy()->startOfMonth();
+        $endOfMonth = $date->copy()->endOfMonth();
+
+        $applications = Candidate::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
+        
+        $hired = Candidate::where('overall_status', 'LULUS')
+                          ->whereBetween('hiring_date', [$startOfMonth, $endOfMonth])
+                          ->count();
+
+        return [
+            'month_name' => $date->isoFormat('MMMM YYYY'),
+            'total_applications' => $applications,
+            'total_hired' => $hired,
+            'conversion_rate' => $applications > 0 ? round(($hired / $applications) * 100, 1) : 0,
+            'filter_url' => route('candidates.index', ['created_from' => $startOfMonth->toDateString(), 'created_to' => $endOfMonth->toDateString()]),
+        ];
     }
 
     /**

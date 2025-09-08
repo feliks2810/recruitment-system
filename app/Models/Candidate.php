@@ -144,6 +144,7 @@ class Candidate extends Model
         'no',
         'vacancy',
         'department_id',
+        'raw_department_name',
         'internal_position',
         'on_process_by',
         'applicant_id',

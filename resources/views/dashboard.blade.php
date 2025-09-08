@@ -314,38 +314,47 @@
     </div>
 </div>
 
-{{-- Additional Stats for HC Role --}}
-@if(Auth::user()->hasRole('team_hc'))
-<div class="mt-6 bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
-    <h3 class="text-lg font-semibold text-gray-900 mb-4">Ringkasan Bulanan</h3>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="text-center">
-            <p class="text-2xl font-bold text-blue-600">
-                {{ \App\Models\Candidate::whereMonth('created_at', now()->month)->count() }}
-            </p>
-            <p class="text-sm text-gray-500">Kandidat Bulan Ini</p>
+{{-- Monthly Summary --}}
+<div class="bg-white rounded-xl p-5 mt-6 sm:mt-8 shadow-sm border border-gray-100">
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Ringkasan Per Bulan</h3>
+        <form id="monthlySummaryForm" method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-center gap-2">
+            <select name="summary_month" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                @foreach (range(1, 12) as $month)
+                    <option value="{{ $month }}" {{ $summaryMonth == $month ? 'selected' : '' }}>{{ Carbon\Carbon::create()->month($month)->isoFormat('MMMM') }}</option>
+                @endforeach
+            </select>
+            <select name="summary_year" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                @foreach ($availableYears as $yearOption)
+                    <option value="{{ $yearOption }}" {{ $summaryYear == $yearOption ? 'selected' : '' }}>{{ $yearOption }}</option>
+                @endforeach
+            </select>
+            {{-- Tombol submit tidak lagi diperlukan --}}
+        </form>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <h4 class="text-base font-semibold text-gray-700">Menampilkan Ringkasan untuk: {{ $monthlySummary['month_name'] }}</h4>
+        <a href="{{ $monthlySummary['filter_url'] }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2">
+            <i class="fas fa-search"></i>
+            Lihat Kandidat
+        </a>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-3xl font-bold text-gray-800">{{ number_format($monthlySummary['total_applications']) }}</p>
+            <p class="text-sm text-gray-500">Total Aplikasi Masuk</p>
         </div>
-        <div class="text-center">
-            <p class="text-2xl font-bold text-green-600">
-                {{ \App\Models\Candidate::where('overall_status', 'LULUS')->whereMonth('updated_at', now()->month)->count() }}
-            </p>
-            <p class="text-sm text-gray-500">Lulus Bulan Ini</p>
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-3xl font-bold text-green-600">{{ number_format($monthlySummary['total_hired']) }}</p>
+            <p class="text-sm text-gray-500">Total Diterima</p>
         </div>
-        <div class="text-center">
-            <p class="text-2xl font-bold text-orange-600">
-                {{ \App\Models\Candidate::where('overall_status', 'DALAM PROSES')->count() }}
-            </p>
-            <p class="text-sm text-gray-500">Sedang Diproses</p>
-        </div>
-        <div class="text-center">
-            <p class="text-2xl font-bold text-purple-600">
-                {{ \App\Models\Event::whereDate('date', '>=', now())->count() }}
-            </p>
-            <p class="text-sm text-gray-500">Jadwal Mendatang</p>
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-3xl font-bold text-cyan-600">{{ $monthlySummary['conversion_rate'] }}%</p>
+            <p class="text-sm text-gray-500">Tingkat Konversi</p>
         </div>
     </div>
 </div>
-@endif
 
 @endsection
 
@@ -649,6 +658,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error submitting form:', error);
                 alert('Terjadi kesalahan jaringan atau server.');
             }
+        });
+    }
+
+    // Auto-submit for Monthly Summary filter
+    const summaryForm = document.getElementById('monthlySummaryForm');
+    if (summaryForm) {
+        const summaryInputs = summaryForm.querySelectorAll('select');
+        summaryInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                summaryForm.submit();
+            });
         });
     }
 });
