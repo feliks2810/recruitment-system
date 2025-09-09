@@ -221,6 +221,10 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($candidates as $candidate)
+                                    @php
+                                        $application = $candidate->applications->first();
+                                        $latestStage = $application ? $application->stages->sortByDesc('id')->first() : null;
+                                    @endphp
                                     @if(Auth::user()->hasRole('department') && $candidate->department_id !== Auth::user()->department_id)
                                         @continue
                                     @endif
@@ -251,17 +255,15 @@
                                             </div>
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">{{ $candidate->vacancy }}</div>
-                                            @if($candidate->internal_position)
-                                                <div class="text-sm text-gray-500">{{ $candidate->internal_position }}</div>
+                                            <div class="text-sm text-gray-900">{{ $application->vacancy_name ?? 'N/A' }}</div>
+                                            @if($application && $application->internal_position)
+                                                <div class="text-sm text-gray-500">{{ $application->internal_position }}</div>
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm text-gray-900">
                                                 @if ($candidate->department)
                                                     {{ $candidate->department->name }}
-                                                @elseif(Auth::user()->hasRole('team_hc') && $candidate->raw_department_name)
-                                                    <span class="text-red-500">{{ $candidate->raw_department_name }} (Not Mapped)</span>
                                                 @else
                                                     N/A
                                                 @endif
@@ -271,25 +273,25 @@
                                             {{ $candidate->source }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            @if($candidate->overall_status == 'LULUS')
+                                            @if($application && $application->overall_status == 'LULUS')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Lulus</span>
-                                            @elseif($candidate->overall_status == 'DITOLAK')
+                                            @elseif($application && $application->overall_status == 'DITOLAK')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ditolak</span>
                                             @else
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Proses</span>
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ $candidate->current_stage }}
+                                            {{ $latestStage ? Str::title(str_replace('_', ' ', $latestStage->stage_name)) : 'N/A' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ $candidate->created_at->format('d M Y') }}
+                                            {{ $application ? $application->created_at->format('d M Y') : $candidate->created_at->format('d M Y') }}
                                         </td>
                                         @if($type === 'duplicate')
                                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                                 <div class="text-sm font-medium text-red-600">{{ $candidate->applicant_id }}</div>
                                                 <div class="text-xs text-red-500">
-                                                    {{ \App\Models\Candidate::where('applicant_id', $candidate->applicant_id)->count() }} aplikasi
+                                                    {{ $candidate->applications->count() }} aplikasi
                                                 </div>
                                             </td>
                                         @endif

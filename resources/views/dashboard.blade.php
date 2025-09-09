@@ -312,6 +312,58 @@
             @endforelse
         </div>
     </div>
+
+    {{-- Gender Distribution --}}
+    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Distribusi Gender</h3>
+        <div class="space-y-3">
+            @forelse($gender_distribution ?? [] as $gender)
+            <div class="block p-3 bg-gray-50 rounded-lg">
+                <div class="flex justify-between items-center">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 truncate">
+                            {{ $gender->jk == 'L' ? 'Laki-laki' : ($gender->jk == 'P' ? 'Perempuan' : 'Tidak Diketahui') }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-blue-600 text-lg">{{ $gender->count ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+            @empty
+            <div class="text-center py-8">
+                <i class="fas fa-venus-mars text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500">Data distribusi gender tidak tersedia.</p>
+            </div>
+            @endforelse
+        </div>
+    </div>
+
+    {{-- University Distribution --}}
+    <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Distribusi Universitas (Top 10)</h3>
+        <div class="space-y-3">
+            @forelse($university_distribution ?? [] as $university)
+            <div class="block p-3 bg-gray-50 rounded-lg">
+                <div class="flex justify-between items-center">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 truncate">
+                            {{ $university->perguruan_tinggi ?? 'Tidak Diketahui' }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-blue-600 text-lg">{{ $university->count ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+            @empty
+            <div class="text-center py-8">
+                <i class="fas fa-graduation-cap text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500">Data distribusi universitas tidak tersedia.</p>
+            </div>
+            @endforelse
+        </div>
+    </div>
 </div>
 
 {{-- Monthly Summary --}}

@@ -4,8 +4,8 @@
     lg:sidebar-collapsed:w-0 lg:sidebar-collapsed:translate-x-0">
     <!-- Logo -->
     <div class="p-6 flex justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50 to-white">
-        <div class="w-full max-w-[180px] transition-all duration-300">
-            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-full h-auto object-contain">
+        <div class="w-full max-w-[100px] transition-all duration-300">
+            <img src="{{ asset('images/Logo Patria.png') }}" alt="Logo Patria" class="w-28 h-auto object-contain">
         </div>
     </div>
 

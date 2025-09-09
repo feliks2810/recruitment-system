@@ -47,6 +47,7 @@ class Application extends Model
         'candidate_id',
         'department_id',
         'vacancy_name',
+        'internal_position',
         'cv_path',
         'flk_path',
         'overall_status',

@@ -18,9 +18,10 @@
     <!-- PWA Manifest -->
     
     <!-- PWA Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/Logo Patria.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/images/Logo Patria.png">
-    <link rel="apple-touch-icon" href="/images/Logo Patria.png">
+    <link rel="icon" type="image/png" href="/images/favicon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon.png">
+    <link rel="apple-touch-icon" href="/images/favicon.png">
     
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 

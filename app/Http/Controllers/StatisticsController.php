@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Application;
 use App\Models\Candidate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,15 +17,16 @@ class StatisticsController extends Controller
         $endDate = $request->get('end_date');
         $source = $request->get('source');
 
-        // Base query
-        $baseQuery = Candidate::query();
+        $baseQuery = Application::query();
 
         if ($startDate && $endDate) {
             $baseQuery->whereBetween('created_at', [$startDate, $endDate]);
         }
 
         if ($source) {
-            $baseQuery->where('source', $source);
+            $baseQuery->whereHas('candidate', function ($q) use ($source) {
+                $q->where('source', $source);
+            });
         }
 
         $kpiData = $this->getKpiData(clone $baseQuery);
@@ -58,10 +60,10 @@ class StatisticsController extends Controller
     private function getKpiData($query)
     {
         $totalApplications = (clone $query)->count();
-        $hiredCandidatesQuery = (clone $query)->where('overall_status', 'LULUS');
-        $totalHired = $hiredCandidatesQuery->count();
+        $hiredApplicationsQuery = (clone $query)->where('overall_status', 'LULUS');
+        $totalHired = $hiredApplicationsQuery->count();
 
-        $avgTimeToHire = $hiredCandidatesQuery->selectRaw('AVG(DATEDIFF(hiring_date, created_at)) as avg_days')
+        $avgTimeToHire = $hiredApplicationsQuery->selectRaw('AVG(DATEDIFF(hired_date, created_at)) as avg_days')
             ->value('avg_days');
 
         return [
@@ -76,10 +78,10 @@ class StatisticsController extends Controller
     {
         $stages = [
             'Aplikasi' => (clone $query)->count(),
-            'Psikotes' => (clone $query)->whereNotNull('psikotes_date')->count(),
-            'Interview HC' => (clone $query)->whereNotNull('hc_interview_date')->count(),
-            'Interview User' => (clone $query)->whereNotNull('user_interview_date')->count(),
-            'Offering' => (clone $query)->whereNotNull('offering_letter_date')->count(),
+            'Psikotes' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'psikotes');})->count(),
+            'Interview HC' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'hc_interview');})->count(),
+            'Interview User' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'user_interview');})->count(),
+            'Offering' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'offering_letter');})->count(),
             'Hired' => (clone $query)->where('overall_status', 'LULUS')->count(),
         ];
 
@@ -101,22 +103,23 @@ class StatisticsController extends Controller
 
     private function getSourceEffectivenessData($startDate, $endDate, $source)
     {
-        $query = DB::table('candidates');
+        $query = DB::table('applications')
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
 
         if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]);
+            $query->whereBetween('applications.created_at', [$startDate, $endDate]);
         }
 
         if ($source) {
-            $query->where('source', $source);
+            $query->where('candidates.source', $source);
         }
 
-        return $query->select('source', 
+        return $query->select('candidates.source', 
                 DB::raw('COUNT(*) as total_applications'),
-                DB::raw('SUM(CASE WHEN overall_status = \'LULUS\' THEN 1 ELSE 0 END) as hired_count')
+                DB::raw('SUM(CASE WHEN applications.overall_status = \'LULUS\' THEN 1 ELSE 0 END) as hired_count')
             )
-            ->whereNotNull('source')
-            ->groupBy('source')
+            ->whereNotNull('candidates.source')
+            ->groupBy('candidates.source')
             ->orderBy('hired_count', 'desc')
             ->limit(10)
             ->get()
@@ -128,42 +131,60 @@ class StatisticsController extends Controller
 
     private function getGenderDistributionData($query)
     {
-        return (clone $query)->select('jk', DB::raw('COUNT(*) as count'))
-            ->whereIn('jk', ['L', 'P'])
-            ->groupBy('jk')
-            ->get()
-            ->mapWithKeys(function ($item) {
-                $gender = $item->jk === 'L' ? 'Laki-laki' : 'Perempuan';
-                return [$gender => $item->count];
-            });
+        $data = (clone $query)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('profiles', 'candidates.id', '=', 'profiles.candidate_id')
+            ->select('profiles.jk', DB::raw('count(*) as count'))
+            ->whereNotNull('profiles.jk')
+            ->where('profiles.jk', '!=', '')
+            ->groupBy('profiles.jk')
+            ->orderByDesc('count')
+            ->get();
+
+        // Transform the collection into an associative array for Chart.js
+        $transformedData = [];
+        foreach ($data as $item) {
+            $transformedData[$item->jk] = $item->count;
+        }
+
+        return $transformedData;
     }
 
     private function getUniversityDistributionData($query)
     {
-        return (clone $query)->select('perguruan_tinggi', DB::raw('COUNT(*) as count'))
-            ->whereNotNull('perguruan_tinggi')
-            ->where('perguruan_tinggi', '!=', '')
-            ->groupBy('perguruan_tinggi')
-            ->orderBy('count', 'desc')
-            ->limit(10) // Limit to top 10 for readability
-            ->get()
-            ->mapWithKeys(function ($item) {
-                return [$item->perguruan_tinggi => $item->count];
-            });
+        $data = (clone $query)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('educations', 'candidates.id', '=', 'educations.candidate_id')
+            ->select('educations.institution', DB::raw('count(*) as count'))
+            ->whereNotNull('educations.institution')
+            ->where('educations.institution', '!=', '')
+            ->groupBy('educations.institution')
+            ->orderByDesc('count')
+            ->limit(10)
+            ->get();
+
+        // Transform the collection into an associative array for Chart.js
+        $transformedData = [];
+        foreach ($data as $item) {
+            $transformedData[$item->institution] = $item->count;
+        }
+
+        return $transformedData;
     }
 
     private function getMonthlyApplicationData($startDate, $endDate, $source)
     {
-        $query = DB::table('candidates')
-            ->select(DB::raw('YEAR(created_at) as year, MONTH(created_at) as month'), DB::raw('COUNT(*) as count'));
+        $query = DB::table('applications')
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'));
 
         $actualStartDate = $startDate ? Carbon::parse($startDate) : Carbon::now()->subMonths(11)->startOfMonth();
         $actualEndDate = $endDate ? Carbon::parse($endDate) : Carbon::now();
 
-        $query->whereBetween('created_at', [$actualStartDate, $actualEndDate]);
+        $query->whereBetween('applications.created_at', [$actualStartDate, $actualEndDate]);
 
         if ($source) {
-            $query->where('source', $source);
+            $query->where('candidates.source', $source);
         }
 
         $data = $query->groupBy('year', 'month')
@@ -190,53 +211,43 @@ class StatisticsController extends Controller
     private function getPassRateAnalysisData($baseQuery)
     {
         $stages = [
-            ['name' => 'Aplikasi Diterima', 'date_field' => 'created_at', 'status_field' => null, 'pass_values' => []],
-            ['name' => 'CV Review', 'date_field' => 'cv_review_date', 'status_field' => 'cv_review_status', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Psikotes', 'date_field' => 'psikotes_date', 'status_field' => 'psikotes_result', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Interview HC', 'date_field' => 'hc_interview_date', 'status_field' => 'hc_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Interview User', 'date_field' => 'user_interview_date', 'status_field' => 'user_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Interview BOD', 'date_field' => 'bodgm_interview_date', 'status_field' => 'bod_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Offering Letter', 'date_field' => 'offering_letter_date', 'status_field' => 'offering_letter_status', 'pass_values' => ['DITERIMA'], 'fail_values' => ['DITOLAK']],
-            ['name' => 'MCU', 'date_field' => 'mcu_date', 'status_field' => 'mcu_status', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Hired', 'date_field' => 'hiring_date', 'status_field' => 'hiring_status', 'pass_values' => ['HIRED'], 'fail_values' => ['TIDAK DIHIRING']],
+            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'CV Review', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'Psikotes', 'stage_name' => 'psikotes', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'Interview HC', 'stage_name' => 'hc_interview', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
+            ['name' => 'Interview User', 'stage_name' => 'user_interview', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
+            ['name' => 'Interview BOD', 'stage_name' => 'interview_bod', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
+            ['name' => 'Offering Letter', 'stage_name' => 'offering_letter', 'pass_values' => ['DITERIMA'], 'fail_values' => ['DITOLAK']],
+            ['name' => 'MCU', 'stage_name' => 'mcu', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
+            ['name' => 'Hired', 'stage_name' => 'hiring', 'pass_values' => ['HIRED'], 'fail_values' => ['TIDAK DIHIRING']],
         ];
 
         $analysis = [];
-        $queryForNextStage = $baseQuery;
 
         foreach ($stages as $stage) {
-            if ($stage['status_field'] === null) { // Aplikasi Diterima
-                $totalReached = (clone $queryForNextStage)->count();
-                $passed = $totalReached;
-                $failed = 0;
+            $totalReachedQuery = (clone $baseQuery)->whereHas('stages', function($q) use ($stage) {
+                $q->where('stage_name', $stage['stage_name']);
+            });
+
+            $totalReached = $totalReachedQuery->count();
+
+            $passed = (clone $totalReachedQuery)->whereHas('stages', function($q) use ($stage) {
+                $q->where('stage_name', $stage['stage_name'])->whereIn('status', $stage['pass_values']);
+            })->count();
+
+            $failed = (clone $totalReachedQuery)->whereHas('stages', function($q) use ($stage) {
+                $q->where('stage_name', $stage['stage_name'])->whereIn('status', $stage['fail_values']);
+            })->count();
+            
+            $totalEvaluated = $passed + $failed;
+            $inProgress = $totalReached - $totalEvaluated;
+            if ($inProgress < 0) {
                 $inProgress = 0;
-                $pass_rate = 100;
-            } else {
-                $totalReached = (clone $queryForNextStage)
-                    ->where(function ($query) use ($stage) {
-                        $query->whereNotNull($stage['date_field'])
-                              ->orWhereNotNull($stage['status_field']);
-                    })
-                    ->count();
+            }
 
-                $passed = (clone $queryForNextStage)
-                    ->whereIn($stage['status_field'], $stage['pass_values'])
-                    ->count();
-
-                $failed = (clone $queryForNextStage)
-                    ->whereIn($stage['status_field'], $stage['fail_values'])
-                    ->count();
-                
-                $totalEvaluated = $passed + $failed;
-                $inProgress = $totalReached - $totalEvaluated;
-                if ($inProgress < 0) {
-                    $inProgress = 0;
-                }
-
-                $pass_rate = 0;
-                if ($totalEvaluated > 0) {
-                    $pass_rate = round(($passed / $totalEvaluated) * 100, 1);
-                }
+            $pass_rate = 0;
+            if ($totalEvaluated > 0) {
+                $pass_rate = round(($passed / $totalEvaluated) * 100, 1);
             }
 
             $analysis[] = [
@@ -246,13 +257,7 @@ class StatisticsController extends Controller
                 'failed' => $failed,
                 'in_progress' => $inProgress,
                 'pass_rate' => $pass_rate,
-                'status_field' => $stage['status_field'],
             ];
-
-            if ($stage['status_field'] !== null) {
-                // The query for the next stage should only include candidates who passed the current stage.
-                $queryForNextStage = (clone $queryForNextStage)->whereIn($stage['status_field'], $stage['pass_values']);
-            }
         }
 
         return $analysis;
@@ -261,41 +266,34 @@ class StatisticsController extends Controller
     private function getTimelineAnalysisData($baseQuery)
     {
         $stages = [
-            ['name' => 'Aplikasi Diterima', 'date_field' => 'created_at'],
-            ['name' => 'CV Review', 'date_field' => 'cv_review_date'],
-            ['name' => 'Psikotes', 'date_field' => 'psikotes_date'],
-            ['name' => 'Interview HC', 'date_field' => 'hc_interview_date'],
-            ['name' => 'Interview User', 'date_field' => 'user_interview_date'],
-            ['name' => 'Interview BOD', 'date_field' => 'bodgm_interview_date'],
-            ['name' => 'Offering Letter', 'date_field' => 'offering_letter_date'],
-            ['name' => 'MCU', 'date_field' => 'mcu_date'],
-            ['name' => 'Hired', 'date_field' => 'hiring_date'],
+            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review'],
+            ['name' => 'CV Review', 'stage_name' => 'cv_review'],
+            ['name' => 'Psikotes', 'stage_name' => 'psikotes'],
+            ['name' => 'Interview HC', 'stage_name' => 'hc_interview'],
+            ['name' => 'Interview User', 'stage_name' => 'user_interview'],
+            ['name' => 'Interview BOD', 'stage_name' => 'interview_bod'],
+            ['name' => 'Offering Letter', 'stage_name' => 'offering_letter'],
+            ['name' => 'MCU', 'stage_name' => 'mcu'],
+            ['name' => 'Hired', 'stage_name' => 'hiring'],
         ];
 
         $analysis = [];
-
-        // Add the starting point
-        $analysis[] = [
-            'stage_name' => $stages[0]['name'],
-            'previous_stage_name' => 'Titik Awal',
-            'avg_days' => 0,
-            'min_days' => 0,
-            'max_days' => 0,
-            'min_candidate_id' => null,
-            'max_candidate_id' => null,
-        ];
 
         for ($i = 0; $i < count($stages) - 1; $i++) {
             $currentStage = $stages[$i];
             $nextStage = $stages[$i+1];
 
-            $durationQuery = (clone $baseQuery)
-                ->whereNotNull($currentStage['date_field'])
-                ->whereNotNull($nextStage['date_field'])
-                ->whereRaw('DATEDIFF('.$nextStage['date_field'].', '.$currentStage['date_field'].') >= 0');
+            $durationsQuery = (clone $baseQuery)->with(['stages']);
 
-            $durations = $durationQuery->selectRaw('id, DATEDIFF('.$nextStage['date_field'].', '.$currentStage['date_field'].') as days')
-                ->get();
+            $durations = $durationsQuery->get()->map(function($application) use ($currentStage, $nextStage) {
+                $currentStageDate = $application->stages->where('stage_name', $currentStage['stage_name'])->first()->scheduled_date ?? null;
+                $nextStageDate = $application->stages->where('stage_name', $nextStage['stage_name'])->first()->scheduled_date ?? null;
+
+                if($currentStageDate && $nextStageDate) {
+                    return Carbon::parse($nextStageDate)->diffInDays(Carbon::parse($currentStageDate));
+                }
+                return null;
+            })->filter();
 
             if ($durations->isEmpty()) {
                 $analysis[] = [
@@ -304,27 +302,16 @@ class StatisticsController extends Controller
                     'avg_days' => 0,
                     'min_days' => 0,
                     'max_days' => 0,
-                    'min_candidate_id' => null,
-                    'max_candidate_id' => null,
                 ];
                 continue;
             }
 
-            $avgDays = $durations->avg('days');
-            $minDays = $durations->min('days');
-            $maxDays = $durations->max('days');
-
-            $minCandidateId = $durations->firstWhere('days', $minDays)->id ?? null;
-            $maxCandidateId = $durations->firstWhere('days', $maxDays)->id ?? null;
-
             $analysis[] = [
                 'stage_name' => $nextStage['name'],
                 'previous_stage_name' => $currentStage['name'],
-                'avg_days' => round($avgDays, 1),
-                'min_days' => $minDays,
-                'max_days' => $maxDays,
-                'min_candidate_id' => $minCandidateId,
-                'max_candidate_id' => $maxCandidateId,
+                'avg_days' => round($durations->avg(), 1),
+                'min_days' => $durations->min(),
+                'max_days' => $durations->max(),
             ];
         }
 

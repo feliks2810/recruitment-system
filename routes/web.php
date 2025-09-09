@@ -58,10 +58,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [CandidateController::class, 'index'])->name('index');
         Route::get('/{candidate}', [CandidateController::class, 'show'])->name('show');
 
-        // Quick Update Modal Routes - Integrated with Dashboard
-        Route::get('/{candidate}/timeline-events', [DashboardController::class, 'getCandidateTimelineEvents'])->name('timeline-events');
-        Route::post('/{candidate}/stage', [DashboardController::class, 'updateCandidateStage'])->name('update-stage');
-
         // Export functionality for Team HC
         Route::middleware('can:export-candidates')->group(function () {
             Route::get('/export', [CandidateController::class, 'export'])->name('export');
@@ -78,12 +74,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::middleware('can:edit-candidates')->group(function () {
             Route::get('/{candidate}/edit', [CandidateController::class, 'edit'])->name('edit');
             Route::put('/{candidate}', [CandidateController::class, 'update'])->name('update');
-            Route::post('/{candidate}/stage', [CandidateController::class, 'updateStage'])->name('updateStage');
             Route::patch('/{candidate}/toggle-duplicate', [CandidateController::class, 'toggleDuplicate'])->name('toggleDuplicate');
             Route::post('/{candidate}/switch-type', [CandidateController::class, 'switchType'])->name('switchType');
+            Route::post('/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])->name('bulkSwitchType');
+            
             Route::post('/bulk-update-status', [CandidateController::class, 'bulkUpdateStatus'])->name('bulkUpdateStatus');
             Route::post('/bulk-move-stage', [CandidateController::class, 'bulkMoveStage'])->name('bulkMoveStage');
-            Route::post('/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])->name('bulkSwitchType');
+            
             Route::post('/{candidate}/next-test-date', [CandidateController::class, 'setNextTestDate'])->name('setNextTestDate');
             Route::post('/check-duplicate', [CandidateController::class, 'checkDuplicate'])->name('checkDuplicate');
         });
@@ -98,6 +95,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->whereNumber('candidate')
             ->name('show');
     });
+
+    Route::post('/applications/{application}/stage', [CandidateController::class, 'updateStage'])->name('applications.updateStage');
 
     // Bulk Delete route outside the prefix group
     Route::delete('/candidates/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])->name('candidates.bulkDelete');

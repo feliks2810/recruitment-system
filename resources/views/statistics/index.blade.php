@@ -107,7 +107,7 @@
                     
                     @if($stage['total'] > 0)
                         <div class="mt-3 space-y-2 text-sm">
-                            @if($stage['status_field'])
+                            @if(isset($stage['passed']))
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-500">Lulus</span>
                                     <span class="font-medium text-green-600">{{ number_format($stage['passed']) }} <span class="text-xs text-gray-400 font-normal">({{ $stage['pass_rate'] }}%)</span></span>
@@ -346,7 +346,11 @@ document.addEventListener('DOMContentLoaded', function () {
     new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
         data: {
-            labels: Object.keys(genderData),
+            labels: Object.keys(genderData).map(key => {
+                if (key === 'L') return 'Laki-laki';
+                if (key === 'P') return 'Perempuan';
+                return 'Tidak Diketahui';
+            }),
             datasets: [{
                 data: Object.values(genderData),
                 backgroundColor: ['rgba(59, 130, 246, 0.8)', 'rgba(236, 72, 153, 0.8)'],

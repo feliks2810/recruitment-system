@@ -90,6 +90,7 @@
                                         <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
                                         <select name="result"
                                                 x-model="stageData.result"
+                                                @change="handleResultChange"
                                                 required
                                                 class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                             <option value="">Pilih Hasil</option>
@@ -99,15 +100,26 @@
                                         </select>
                                     </div>
 
-                                    <div x-show="isPassingResult(stageData.result) && stageData.stage !== 'hiring'" x-transition class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div>
-                                            <label class="block text-sm font-medium text-blue-700">Tahap Tes Berikutnya</label>
-                                            <input type="text" name="next_test_stage" x-model="stageData.next_test_stage" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 sm:text-sm" readonly>
+                                    <div x-show="showNextStage">
+                                        <label class="block text-sm font-medium text-gray-700">Stage Selanjutnya</label>
+                                        <div class="mt-1 text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                                            <span x-text="nextStageName"></span>
                                         </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-blue-700">Tanggal Tes Berikutnya <span class="text-red-500">*</span></label>
-                                            <input type="date" name="next_test_date" x-model="stageData.next_test_date" class="mt-1 block w-full border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                        </div>
+                                    </div>
+
+                                    <div x-show="showNextStage">
+                                        <label class="block text-sm font-medium text-gray-700">Tanggal Stage Selanjutnya <span class="text-red-500">*</span></label>
+                                        <input type="date" 
+                                               name="next_stage_date" 
+                                               x-model="stageData.next_stage_date"
+                                               :min="getCurrentDate()"
+                                               required
+                                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    </div>
+
+                                    <div x-show="!showNextStage">
+                                        <label class="block text-sm font-medium text-gray-700">Tanggal</label>
+                                        <input type="date" name="scheduled_date" x-model="stageData.scheduled_date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     </div>
 
                                     <div>
@@ -291,6 +303,7 @@
                 </div>
             </div>
 
+            @if($application)
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">Informasi Posisi</h3>
@@ -299,76 +312,20 @@
                     <dl class="space-y-4">
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Vacancy</dt>
-                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $candidate->vacancy }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Internal Position</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->internal_position ?? '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Source</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->source ?? '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">On Process By</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->on_process_by ?? '-' }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $application->vacancy_name }}</dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Department</dt>
                             <dd class="mt-1 text-sm text-gray-900">{{ $candidate->department->name ?? '-' }}</dd>
                         </div>
-                    </dl>
-                </div>
-            </div>
-
-            <div class="overflow-hidden rounded-lg bg-white shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Status Information</h3>
-                </div>
-                <div class="px-6 py-4">
-                    <dl class="space-y-4">
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Tipe Kandidat</dt>
-                            <dd class="mt-1">
-                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $candidate->airsys_internal === 'Yes' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
-                                    {{ $candidate->airsys_internal === 'Yes' ? 'Organik' : 'Non-Organik' }}
-                                </span>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Current Stage</dt>
-                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $candidate->current_stage }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Status Keseluruhan</dt>
-                            <dd class="mt-1">
-                                @php
-                                    $statusConfig = [
-                                        'LULUS' => ['bg-green-100 text-green-800', '✓'],
-                                        'TIDAK LULUS' => ['bg-red-100 text-red-800', '✗'],
-                                        'DALAM PROSES' => ['bg-yellow-100 text-yellow-800', '⏳'],
-                                        'PENDING' => ['bg-blue-100 text-blue-800', '⏸️']
-                                    ];
-                                    $config = $statusConfig[$candidate->overall_status] ?? ['bg-gray-100 text-gray-800', '?'];
-                                @endphp
-                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $config[0] }}">
-                                    <span class="mr-1">{{ $config[1] }}</span>
-                                    {{ $candidate->overall_status }}
-                                </span>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Tanggal Apply</dt>
-                            <dd class="mt-1 text-sm text-gray-900">
-                                {{ $candidate->created_at->format('d F Y, H:i') }}
-                                <span class="text-gray-400 text-xs ml-1">
-                                    ({{ $candidate->created_at->diffForHumans() }})
-                                </span>
-                            </dd>
+                            <dt class="text-sm font-medium text-gray-500">Source</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->source ?? '-' }}</dd>
                         </div>
                     </dl>
                 </div>
             </div>
+            @endif
 
             @if($candidate->cv || $candidate->flk)
                 <div class="overflow-hidden rounded-lg bg-white shadow">
@@ -439,7 +396,9 @@
                 </div>
                 <div class="px-6 py-6">
                     <div class="flow-root">
+                        @if($application)
                         <ul class="space-y-8">
+                            @if($timeline)
                             @foreach($timeline as $index => $stage)
                                 <li class="relative">
                                     @if(!$loop->last)
@@ -521,22 +480,20 @@
                                                     @endif
 
                                                     @canany(['edit-candidates','edit-timeline'])
-                                                        @if(!$stage['is_locked'])
-                                                            <button @click="openStageModal(
-                                                                '{{ $stage['display_name'] }}',
-                                                                '{{ $stage['stage_key'] }}',
-                                                                '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}',
-                                                                '{{ $stage['result'] ?? '' }}',
-                                                                {{ json_encode($stage['notes'] ?? '') }}
-                                                            )"
-                                                            class="text-blue-600 hover:text-blue-800 transition-colors {{ $stage['status'] === 'locked' ? 'hidden' : '' }}"
-                                                            title="Update status {{ $stage['display_name'] }}">
-                                                                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
-                                                                </svg>
-                                                            </button>
-                                                        @endif
+                                                        <button @click="openStageModal(
+                                                            '{{ $stage['display_name'] }}',
+                                                            '{{ $stage['stage_key'] }}',
+                                                            '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}',
+                                                            '{{ $stage['result'] ?? '' }}',
+                                                            {{ json_encode($stage['notes'] ?? '') }}
+                                                        )"
+                                                        class="text-blue-600 hover:text-blue-800 transition-colors {{ $stage['status'] === 'locked' ? 'hidden' : '' }}"
+                                                        title="Update status {{ $stage['display_name'] }}">
+                                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                                                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                                                            </svg>
+                                                        </button>
                                                     @endcanany
                                                 </div>
                                             </div>
@@ -573,7 +530,15 @@
                                     </div>
                                 </li>
                             @endforeach
+                            @endif
                         </ul>
+                        @else
+                        <div class="text-center py-12">
+                            <i class="fas fa-folder-open text-5xl sm:text-6xl text-gray-300 mb-4"></i>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada aplikasi</h3>
+                            <p class="text-gray-500 mb-6">Kandidat ini belum memiliki aplikasi pekerjaan.</p>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -596,38 +561,13 @@ document.addEventListener('alpine:init', () => {
             stage: '',
             result: '',
             notes: '',
-            next_test_stage: '',
-            next_test_date: ''
+            scheduled_date: '',
+            next_stage_date: '',
         },
+        showNextStage: false,
+        nextStageName: '',
 
-        // PERBAIKAN: Mapping yang tepat antara stage key dan next stage
-        stageProgressionMap: {
-            'cv_review': 'psikotes',
-            'psikotes': 'hc_interview', 
-            'hc_interview': 'user_interview',
-            'user_interview': 'interview_bod',
-            'interview_bod': 'offering_letter',
-            'offering_letter': 'mcu',
-            'mcu': 'hiring',
-            'hiring': null
-        },
-
-        // Display names untuk setiap stage
-                stageDisplayMap: {
-            'cv_review': 'CV Review',
-            'psikotes': 'Psikotes',
-            'hc_interview': 'HC Interview',
-            'user_interview': 'User Interview', 
-            'interview_bod': 'Interview BOD/GM',
-            'offering_letter': 'Offering Letter',
-            'mcu': 'Medical Check Up',
-            'hiring': 'Hiring'
-        },
-
-        // Static data for stage logic
-        passingResults: ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'],
-        
-                stageOptions: {
+        stageOptions: {
             cv_review: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             hc_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
@@ -654,96 +594,99 @@ document.addEventListener('alpine:init', () => {
         
         availableResults: [],
 
-        // Method to check if a result is a passing one
-        isPassingResult(result) {
-            return this.passingResults.includes(result);
+        // Stage sequence mapping
+        stageSequence: {
+            'cv_review': 'psikotes',
+            'psikotes': 'hc_interview',
+            'hc_interview': 'user_interview',
+            'user_interview': 'interview_bod',
+            'interview_bod': 'mcu',
+            'mcu': 'offering_letter',
+            'offering_letter': 'hiring'
         },
 
-        // PERBAIKAN: Method untuk mendapatkan next stage yang benar
-        getNextStage(currentStageKey) {
-            const nextStageKey = this.stageProgressionMap[currentStageKey];
-            if (!nextStageKey) {
-                return 'Selesai';
+        // Stage display names
+        stageDisplayNames: {
+            'cv_review': 'Seleksi CV',
+            'psikotes': 'Psikotest',
+            'hc_interview': 'Interview HR',
+            'user_interview': 'Interview User',
+            'interview_bod': 'Interview BOD',
+            'mcu': 'MCU',
+            'offering_letter': 'Offering Letter',
+            'hiring': 'Hiring'
+        },
+
+        getCurrentDate() {
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        },
+
+        handleResultChange() {
+            if (this.stageData.result === 'LULUS' || this.stageData.result === 'DISARANKAN') {
+                const nextStage = this.stageSequence[this.stageData.stage];
+                if (nextStage) {
+                    this.showNextStage = true;
+                    this.nextStageName = this.stageDisplayNames[nextStage];
+                    this.stageData.next_stage_date = '';
+                }
+            } else {
+                this.showNextStage = false;
+                this.nextStageName = '';
+                this.stageData.next_stage_date = '';
             }
-            return this.stageDisplayMap[nextStageKey] || nextStageKey;
         },
 
-        // Open the modal to update a stage
         openStageModal(stage, stageKey, date, result, notes) {
-            console.log('Opening modal for stage:', {stage, stageKey, date, result, notes});
-            
             this.selectedStage = stage;
             this.availableResults = this.stageOptions[stageKey] || [];
-
-            // PERBAIKAN: Set next stage dengan benar
-            const nextStageDisplay = this.getNextStage(stageKey);
+            this.showNextStage = false;
             
             this.stageData = {
                 stage: stageKey,
                 result: result || '',
                 notes: notes || '',
-                next_test_stage: nextStageDisplay,
-                next_test_date: ''
+                scheduled_date: date || ''
             };
 
-            console.log('Stage data set:', this.stageData);
             this.showModal = true;
         },
 
-        // Close the main modal
         closeModal() {
             if (this.isSubmitting) return;
             this.showModal = false;
         },
 
-        // Show the comment modal
         showComment(comment) {
             this.selectedComment = comment;
             this.showCommentModal = true;
         },
 
-        // PERBAIKAN: Handle form submission dengan logika yang lebih baik
         async submitForm() {
             if (this.isSubmitting) return;
 
-            // Basic validation
             if (!this.stageData.result) {
                 alert('Hasil harus diisi.');
                 return;
             }
 
-            if (this.isPassingResult(this.stageData.result) && 
-                this.stageData.stage !== 'hiring' && 
-                !this.stageData.next_test_date) {
-                alert('Tanggal tes berikutnya harus diisi jika hasil lulus.');
-                return;
-            }
-
             this.isSubmitting = true;
 
-            // Prepare payload
             const payload = {
                 stage: this.stageData.stage,
                 result: this.stageData.result,
-                notes: this.stageData.notes || null
+                notes: this.stageData.notes || null,
+                scheduled_date: this.showNextStage ? null : (this.stageData.scheduled_date || null),
+                next_stage_date: this.showNextStage ? this.stageData.next_stage_date : null,
             };
 
-            // PERBAIKAN: Selalu kirim next_test_stage jika passing dan bukan hiring
-            if (this.isPassingResult(this.stageData.result) && this.stageData.stage !== 'hiring') {
-                payload.next_test_stage = this.stageData.next_test_stage;
-                payload.next_test_date = this.stageData.next_test_date;
-            }
-
-            console.log('Sending payload:', payload);
-
             try {
-                // Get CSRF token
                 const csrfToken = document.querySelector('meta[name="csrf-token"]');
                 if (!csrfToken) {
                     throw new Error('CSRF token tidak ditemukan di halaman.');
                 }
 
-                const response = await fetch(`/candidates/{{ $candidate->id }}/stage`, {
+                const response = await fetch(`/applications/{{ $application ? $application->id : '' }}/stage`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -754,74 +697,27 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify(payload)
                 });
 
-                console.log('Response status:', response.status);
+                const data = await response.json();
 
-                // Ambil response sebagai text dulu untuk debugging
-                const responseText = await response.text();
-                console.log('Raw response:', responseText);
-
-                // Cek apakah response kosong
-                if (!responseText) {
-                    throw new Error('Server mengembalikan response kosong');
-                }
-
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (parseError) {
-                    console.error('JSON Parse Error:', parseError);
-                    console.error('Response text (first 500 chars):', responseText.substring(0, 500));
-                    
-                    if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
-                        throw new Error('Server mengembalikan halaman HTML. Mungkin ada masalah dengan permission atau redirect.');
-                    }
-                    
-                    throw new Error('Response dari server bukan JSON yang valid');
-                }
-
-                console.log('Parsed data:', data);
-
-                // Handle response berdasarkan status
                 if (response.ok) {
-                    // Success
                     this.showModal = false;
-                    
-                    // Show success message
                     if (data.message) {
                         alert(data.message);
                     }
-                    
-                    // Reload page to see changes
                     window.location.reload();
                 } else {
-                    // Error response
                     let errorMessage = 'Gagal memperbarui data.';
-                    
                     if (data.errors) {
                         const errors = Object.values(data.errors).flat();
                         errorMessage = errors.join('\n');
                     } else if (data.message) {
                         errorMessage = data.message;
                     }
-                    
                     throw new Error(errorMessage);
                 }
 
             } catch (error) {
-                console.error('Submit form error:', error);
-                
-                // Show user-friendly error message
-                let userMessage = 'Terjadi kesalahan: ' + error.message;
-                
-                if (error.message.includes('CSRF')) {
-                    userMessage = 'Session telah expired. Silakan refresh halaman dan coba lagi.';
-                } else if (error.message.includes('permission')) {
-                    userMessage = 'Anda tidak memiliki izin untuk melakukan aksi ini.';
-                } else if (error.message.includes('HTML')) {
-                    userMessage = 'Terjadi kesalahan server. Silakan coba lagi atau hubungi administrator.';
-                }
-                
-                alert(userMessage);
+                alert('Terjadi kesalahan: ' + error.message);
             } finally {
                 this.isSubmitting = false;
             }

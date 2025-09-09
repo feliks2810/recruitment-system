@@ -77,8 +77,8 @@
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="vacancy" class="block text-sm font-medium text-gray-700">Vacancy *</label>
-                            <input type="text" name="vacancy" id="vacancy" value="{{ old('vacancy') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                            <label for="vacancy_name" class="block text-sm font-medium text-gray-700">Nama Lowongan</label>
+                            <input type="text" name="vacancy_name" id="vacancy_name" value="{{ old('vacancy_name') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         </div>
                         <div>
                             <label for="department_id" class="block text-sm font-medium text-gray-700">Departemen *</label>

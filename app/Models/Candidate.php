@@ -5,504 +5,93 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
+use Illuminate\Support\Str;
 
-/**
- * @property int $id
- * @property string|null $no
- * @property string|null $vacancy
- * @property \App\Models\Department|null $department
- * @property string|null $internal_position
- * @property string|null $on_process_by
- * @property string|null $applicant_id
- * @property string|null $nama
- * @property string|null $source
- * @property string|null $jk
- * @property \Illuminate\Support\Carbon|null $tanggal_lahir
- * @property string|null $alamat_email
- * @property string|null $jenjang_pendidikan
- * @property string|null $perguruan_tinggi
- * @property string|null $jurusan
- * @property float|null $ipk
- * @property string|null $cv
- * @property \Illuminate\Support\Carbon|null $cv_review_date
- * @property string|null $cv_review_status
- * @property string|null $cv_review_notes
- * @property string|null $cv_review_by
- * @property string|null $flk
- * @property \Illuminate\Support\Carbon|null $psikotes_date
- * @property string|null $psikotes_result
- * @property string|null $psikotes_notes
- * @property \Illuminate\Support\Carbon|null $hc_interview_date
- * @property string|null $hc_interview_status
- * @property string|null $hc_interview_notes
- * @property \Illuminate\Support\Carbon|null $user_interview_date
- * @property string|null $user_interview_status
- * @property string|null $user_interview_notes
- * @property \Illuminate\Support\Carbon|null $bodgm_interview_date
- * @property string|null $bod_interview_status
- * @property string|null $bod_interview_notes
- * @property \Illuminate\Support\Carbon|null $offering_letter_date
- * @property string|null $offering_letter_status
- * @property string|null $offering_letter_notes
- * @property \Illuminate\Support\Carbon|null $mcu_date
- * @property string|null $mcu_status
- * @property string|null $mcu_notes
- * @property \Illuminate\Support\Carbon|null $hiring_date
- * @property string|null $hiring_status
- * @property string|null $hiring_notes
- * @property \Illuminate\Support\Carbon|null $next_test_date
- * @property string|null $next_test_stage
- * @property string|null $current_stage
- * @property string|null $overall_status
- * @property bool $is_suspected_duplicate
- * @property string|null $airsys_internal
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property int|null $department_id
- * @property string $status
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Application> $applications
- * @property-read int|null $applications_count
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Education> $educations
- * @property-read int|null $educations_count
- * @property-read mixed $current_stage_display
- * @property-read mixed $next_test_info
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate active()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate airsysInternal($isInternal = true)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byDepartment($departmentId)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byGender($gender)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate bySource($source)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate byYear($year)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate hired()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate inProcess()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate inStage($stage)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate rejected()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate search($term)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereAirsysInternal($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereAlamatEmail($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereApplicantId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodInterviewNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodInterviewStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereBodgmInterviewDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCurrentStage($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCv($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereCvReviewStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereDepartment($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereDepartmentId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereFlk($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHcInterviewStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereHiringStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereInternalPosition($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereIpk($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereIsSuspectedDuplicate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJenjangPendidikan($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJk($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereJurusan($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereMcuStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNama($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNextTestDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNextTestStage($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereNo($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOfferingLetterStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOnProcessBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereOverallStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePerguruanTinggi($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate wherePsikotesResult($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereSource($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereTanggalLahir($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereUserInterviewStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate whereVacancy($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Candidate withStatus($status)
- * @mixin \Eloquent
- */
 class Candidate extends Model
 {
     protected $fillable = [
-        'no',
-        'vacancy',
-        'department_id',
-        'raw_department_name',
-        'internal_position',
-        'on_process_by',
-        'applicant_id',
-        'nama',
-        'source',
-        'jk',
-        'tanggal_lahir',
-        'alamat_email',
-        'jenjang_pendidikan',
-        'perguruan_tinggi',
-        'jurusan',
-        'ipk',
-        'cv',
-        'flk',
-        'cv_review_date',
-        'cv_review_status',
-        'cv_review_notes',
-        'cv_review_by',
-        'psikotes_date',
-        'psikotes_result',
-        'psikotes_notes',
-        'hc_interview_date',
-        'hc_interview_status',
-        'hc_interview_notes',
-        'user_interview_date',
-        'user_interview_status',
-        'user_interview_notes',
-        'bodgm_interview_date',
-        'bod_interview_status',
-        'bod_interview_notes',
-        'offering_letter_date',
-        'offering_letter_status',
-        'offering_letter_notes',
-        'mcu_date',
-        'mcu_status',
-        'mcu_notes',
-        'hiring_date',
-        'hiring_status',
-        'hiring_notes',
-        'current_stage',
-        'overall_status',
-        'airsys_internal',
-        'next_test_date',
-        'next_test_stage',
-        'is_suspected_duplicate', // Tambahan field
-        'status', // Tambahan field untuk active/inactive
-        'phone', // Tambahan field
-        'gender', // Tambahan field
-        'birth_date', // Tambahan field
-        'address', // Tambahan field
-        'notes', // Tambahan field
-        'email' // Tambahan field
+        'no', 'department_id', 'raw_department_name', 'applicant_id', 'nama', 'source', 'jk', 'tanggal_lahir', 'alamat_email', 'jenjang_pendidikan', 'perguruan_tinggi', 'jurusan', 'ipk', 'cv', 'flk', 'is_suspected_duplicate', 'status', 'phone', 'gender', 'birth_date', 'address', 'notes', 'email', 'airsys_internal'
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'tanggal_lahir' => 'date',
-        'birth_date' => 'date', // Tambahan casting
-        'cv_review_date' => 'date',
-        'psikotes_date' => 'date',
-        'hc_interview_date' => 'date',
-        'user_interview_date' => 'date',
-        'bodgm_interview_date' => 'date',
-        'offering_letter_date' => 'date',
-        'mcu_date' => 'date',
-        'hiring_date' => 'date',
-        'next_test_date' => 'date', // Tambahan casting
+        'birth_date' => 'date',
         'ipk' => 'float',
-        'is_suspected_duplicate' => 'boolean', // Tambahan casting
+        'is_suspected_duplicate' => 'boolean',
     ];
 
-    /**
-     * Relationship with Department
-     */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
 
-    /**
-     * Relationship with Educations
-     */
     public function educations(): HasMany
     {
         return $this->hasMany(Education::class);
     }
 
-    /**
-     * Relationship with Applications
-     */
     public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
     }
 
-    /**
-     * Get the hiring status attribute with default value
-     */
-    public function getHiringStatusAttribute($value)
+    public function notes(): HasMany
     {
-        return $value ?? 'Pending';
+        return $this->hasMany(Note::class);
     }
 
-    /**
-     * Get the vacancy attribute with fallback
-     */
-    public function getVacancyAttribute($value)
+    public function profile(): HasOne
     {
-        return $value ?? 'No Position Specified';
+        return $this->hasOne(Profile::class);
     }
 
-    /**
-     * Get current stage display name dengan fallback yang lebih baik
-     */
-    public function getCurrentStageDisplayAttribute()
-    {
-        $stages = [
-            'cv_review' => 'CV Review',
-            'psikotes' => 'Psikotes', 
-            'hc_interview' => 'HC Interview',
-            'user_interview' => 'User Interview',
-            'interview_bod' => 'Interview BOD/GM',
-            'offering_letter' => 'Offering Letter',
-            'mcu' => 'Medical Check Up',
-            'hiring' => 'Hiring'
-        ];
-
-        if (!$this->current_stage) {
-            // Tentukan stage berdasarkan data yang ada
-            $currentStage = $this->determineCurrentStage();
-            return $stages[$currentStage] ?? 'Menunggu CV Review';
-        }
-
-        return $stages[$this->current_stage] ?? $this->current_stage ?? 'Unknown Stage';
-    }
-
-    /**
-     * Tentukan current stage berdasarkan data yang ada
-     */
-    public function determineCurrentStage()
-    {
-        $stageOrder = [
-            'cv_review' => ['cv_review_status', ['LULUS']],
-            'psikotes' => ['psikotes_result', ['LULUS']],
-            'hc_interview' => ['hc_interview_status', ['DISARANKAN']],
-            'user_interview' => ['user_interview_status', ['DISARANKAN']],
-            'interview_bod' => ['bod_interview_status', ['DISARANKAN']],
-            'offering_letter' => ['offering_letter_status', ['DITERIMA']],
-            'mcu' => ['mcu_status', ['LULUS']],
-            'hiring' => ['hiring_status', ['HIRED']]
-        ];
-
-        $lastCompletedStage = null;
-        
-        foreach ($stageOrder as $stage => [$statusField, $passingValues]) {
-            $status = $this->{$statusField};
-            
-            if (in_array($status, $passingValues)) {
-                $lastCompletedStage = $stage;
-            } elseif ($status && !in_array($status, $passingValues)) {
-                // Jika ada status tapi bukan passing, maka kandidat gagal di stage ini
-                return $stage;
-            } else {
-                // Jika tidak ada status, maka ini adalah next stage
-                break;
-            }
-        }
-        
-        // Jika semua stage sudah lulus, return null (selesai)
-        if ($lastCompletedStage === 'hiring') {
-            return null;
-        }
-        
-        // Return next stage setelah last completed
-        $stageKeys = array_keys($stageOrder);
-        $lastIndex = array_search($lastCompletedStage, $stageKeys);
-        
-        if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
-            return $stageKeys[$lastIndex + 1];
-        }
-        
-        return 'cv_review'; // Default jika belum ada yang dikerjakan
-    }
-
-    /**
-     * Update overall_status berdasarkan current stage dan hasil
-     */
-    public function updateOverallStatus()
-    {
-        $failingStatuses = [
-            'cv_review_status' => ['TIDAK LULUS'],
-            'psikotes_result' => ['TIDAK LULUS'],
-            'hc_interview_status' => ['TIDAK DISARANKAN'],
-            'user_interview_status' => ['TIDAK DISARANKAN'],
-            'bod_interview_status' => ['TIDAK DISARANKAN'],
-            'offering_letter_status' => ['DITOLAK'],
-            'mcu_status' => ['TIDAK LULUS'],
-            'hiring_status' => ['TIDAK DIHIRING']
-        ];
-
-        // Cek apakah ada status yang menunjukkan kandidat ditolak
-        foreach ($failingStatuses as $field => $failValues) {
-            if (in_array($this->{$field}, $failValues)) {
-                $this->overall_status = 'DITOLAK';
-                return;
-            }
-        }
-
-        // Jika hiring status adalah HIRED, maka lulus
-        if ($this->hiring_status === 'HIRED') {
-            $this->overall_status = 'LULUS';
-            return;
-        }
-
-        // Jika masih ada stage yang belum selesai, maka masih proses
-        $this->overall_status = 'PROSES';
-    }
-
-    /**
-     * Get next test date.
-     * Prioritize stored next_test_date column, fallback to stage-based date if empty.
-     */
-    public function getNextTestDateAttribute($value)
-    {
-        // 1) Gunakan nilai yang disimpan di kolom next_test_date jika ada
-        if (!empty($value)) {
-            return $this->asDateTime($value);
-        }
-
-        // 2) Fallback: pakai tanggal berdasarkan current_stage (jika ada)
-        $stageMapping = [
-            'cv_review' => 'cv_review_date',
-            'psikotes' => 'psikotes_date',
-            'hc_interview' => 'hc_interview_date',
-            'user_interview' => 'user_interview_date',
-            'interview_bod' => 'bodgm_interview_date',
-            'offering_letter' => 'offering_letter_date',
-            'mcu' => 'mcu_date',
-            'hiring' => 'hiring_date'
-        ];
-
-        $dateField = $stageMapping[$this->current_stage] ?? null;
-
-        if ($dateField && !empty($this->{$dateField})) {
-            return $this->{$dateField};
-        }
-
-        return null;
-    }
-
-    /**
-     * Scope for Airsys Internal candidates
-     */
     public function scopeAirsysInternal($query, $isInternal = true)
     {
         return $query->where('airsys_internal', $isInternal ? 'Yes' : 'No');
     }
 
-    /**
-     * Scope for active candidates
-     */
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
     }
 
-    /**
-     * Scope for searching candidates.
-     */
     public function scopeSearch($query, $term)
     {
         return $query->where(function ($query) use ($term) {
             $query->where('nama', 'like', '%' . $term . '%')
                   ->orWhere('alamat_email', 'like', '%' . $term . '%')
                   ->orWhere('source', 'like', '%' . $term . '%')
-                  ->orWhere('applicant_id', 'like', '%' . $term . '%'); // Tambahan search field
+                  ->orWhere('applicant_id', 'like', '%' . $term . '%');
         });
     }
 
-    /**
-     * Scope for filtering by gender.
-     */
     public function scopeByGender($query, $gender)
     {
         return $query->where(function($query) use ($gender) {
             $query->where('jk', $gender)
-                  ->orWhere('gender', $gender); // Support both fields
+                  ->orWhere('gender', $gender);
         });
     }
 
-    /**
-     * Scope for filtering by source.
-     */
     public function scopeBySource($query, $source)
     {
         return $query->where('source', $source);
     }
 
-    /**
-     * Scope for candidates in specific stage
-     */
-    public function scopeInStage($query, $stage)
-    {
-        return $query->where('current_stage', $stage);
-    }
-
-    /**
-     * Scope for candidates with specific status
-     */
-    public function scopeWithStatus($query, $status)
-    {
-        return $query->where('overall_status', $status);
-    }
-
-    /**
-     * Scope for candidates in process
-     */
-    public function scopeInProcess($query)
-    {
-        return $query->whereIn('overall_status', ['PROSES', 'PENDING', 'DALAM PROSES']);
-    }
-
-    /**
-     * Scope for hired candidates
-     */
-    public function scopeHired($query)
-    {
-        return $query->where('overall_status', 'LULUS');
-    }
-
-    /**
-     * Scope for rejected candidates
-     */
-    public function scopeRejected($query)
-    {
-        return $query->whereIn('overall_status', ['TIDAK LULUS', 'DITOLAK']);
-    }
-
-    /**
-     * Scope for candidates by year
-     */
     public function scopeByYear($query, $year)
     {
         return $query->whereYear('created_at', $year);
     }
 
-    /**
-     * Scope for candidates by department
-     */
     public function scopeByDepartment($query, $departmentId)
     {
         return $query->where('department_id', $departmentId);
     }
 
-    /**
-     * Check if the candidate can be accessed by the current user.
-     */
     public function canBeAccessedByCurrentUser(): bool
     {
         $user = Auth::user();
@@ -511,17 +100,10 @@ class Candidate extends Model
             return false;
         }
 
-        // Super Admin dapat akses semua
-        if ($user->hasRole('super_admin')) {
+        if ($user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('team_hc')) {
             return true;
         }
 
-        // Admin and Team HC can access all candidates
-        if ($user->hasRole('admin') || $user->hasRole('team_hc')) {
-            return true;
-        }
-
-        // Department users can only access candidates in their own department
         if ($user->hasRole('department') && $user->department_id) {
             return $this->department_id === $user->department_id;
         }
@@ -529,199 +111,45 @@ class Candidate extends Model
         return false;
     }
 
-    /**
-     * Check if candidate has upcoming test
-     */
-    public function hasUpcomingTest()
-    {
-        $nextDate = $this->next_test_date;
-        return $nextDate && $nextDate->isFuture();
-    }
-
-    /**
-     * Get formatted next test info
-     */
-    public function getNextTestInfoAttribute()
-    {
-        if ($this->hasUpcomingTest()) {
-            return [
-                'stage' => $this->current_stage_display,
-                'date' => $this->next_test_date,
-                'formatted_date' => $this->next_test_date->format('d M Y')
-            ];
-        }
-
-        return null;
-    }
-
-    /**
-     * Mark candidate as suspected duplicate
-     */
     public function markAsSuspectedDuplicate()
     {
         $this->update(['is_suspected_duplicate' => true]);
     }
 
-    /**
-     * Remove duplicate mark from candidate
-     */
     public function markAsNotDuplicate()
     {
-        $this->update(['is_suspected_duplicate' => false]);
+        do {
+            $newApplicantId = 'CAND-' . strtoupper(Str::random(6));
+        } while (self::where('applicant_id', $newApplicantId)->exists());
+
+        $this->update([
+            'is_suspected_duplicate' => false,
+            'applicant_id' => $newApplicantId,
+        ]);
     }
 
-    /**
-     * Get all date fields for this model
-     */
-    public function getDateFields()
-    {
-        return [
-            'cv_review_date',
-            'psikotes_date',
-            'hc_interview_date',
-            'user_interview_date',
-            'bodgm_interview_date',
-            'offering_letter_date',
-            'mcu_date',
-            'hiring_date'
-        ];
-    }
-
-    /**
-     * Get upcoming dates for this candidate
-     */
-    public function getUpcomingDates()
-    {
-        $upcoming = [];
-        $dateFields = $this->getDateFields();
-
-        foreach ($dateFields as $field) {
-            $date = $this->{$field};
-            if ($date && $date instanceof Carbon && $date->isFuture()) {
-                $upcoming[] = [
-                    'field' => $field,
-                    'date' => $date,
-                    'stage' => $this->getStageNameFromField($field)
-                ];
-            }
-        }
-
-        return collect($upcoming)->sortBy('date');
-    }
-
-    /**
-     * Get stage name from date field
-     */
-    private function getStageNameFromField($field)
-    {
-        $mapping = [
-            'cv_review_date' => 'CV Review',
-            'psikotes_date' => 'Psikotes',
-            'hc_interview_date' => 'HC Interview',
-            'user_interview_date' => 'User Interview',
-            'bodgm_interview_date' => 'BOD/GM Interview',
-            'offering_letter_date' => 'Offering Letter',
-            'mcu_date' => 'MCU',
-            'hiring_date' => 'Hiring'
-        ];
-
-        return $mapping[$field] ?? ucfirst(str_replace('_', ' ', $field));
-    }
-
-    /**
-     * Handle missing attributes gracefully
-     */
     public function __get($key)
     {
-        // Handle commonly accessed attributes that might not exist
-        if ($key === 'vacancy' && !isset($this->attributes[$key])) {
-            return 'No Position Specified';
-        }
-
-        if ($key === 'current_stage' && !isset($this->attributes[$key])) {
-            return $this->determineCurrentStage();
-        }
-
-        if ($key === 'overall_status' && !isset($this->attributes[$key])) {
-            return 'PROSES';
-        }
-
-        // Handle email field fallback
         if ($key === 'email' && !isset($this->attributes[$key])) {
             return $this->alamat_email;
         }
 
-        // Handle phone field fallback  
         if ($key === 'phone' && !isset($this->attributes[$key])) {
             return null;
         }
 
-        // Handle gender field fallback
         if ($key === 'gender' && !isset($this->attributes[$key])) {
             return $this->jk;
         }
 
-        // Handle birth_date field fallback
         if ($key === 'birth_date' && !isset($this->attributes[$key])) {
             return $this->tanggal_lahir;
         }
 
-        // Handle address field fallback
         if ($key === 'address' && !isset($this->attributes[$key])) {
             return null;
         }
 
         return parent::__get($key);
-    }
-
-    /**
-     * Override save method untuk auto-update current_stage dan overall_status
-     */
-    public function save(array $options = [])
-    {
-        // Update current_stage jika kosong atau tidak valid
-        if (!$this->current_stage) {
-            $this->current_stage = $this->determineCurrentStage();
-        }
-        
-        // Update overall_status
-        $this->updateOverallStatus();
-        
-        return parent::save($options);
-    }
-
-    /**
-     * Boot method untuk auto-update saat model dibuat
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($candidate) {
-            // Set default values jika belum ada
-            if (!$candidate->overall_status) {
-                $candidate->overall_status = 'PROSES';
-            }
-            
-            if (!$candidate->current_stage) {
-                $candidate->current_stage = 'cv_review';
-            }
-
-            if (!$candidate->status) {
-                $candidate->status = 'active';
-            }
-
-            if (!$candidate->airsys_internal) {
-                $candidate->airsys_internal = 'No';
-            }
-        });
-
-        static::updating(function ($candidate) {
-            // Auto-update current_stage dan overall_status saat update
-            if (!$candidate->current_stage) {
-                $candidate->current_stage = $candidate->determineCurrentStage();
-            }
-            $candidate->updateOverallStatus();
-        });
     }
 }

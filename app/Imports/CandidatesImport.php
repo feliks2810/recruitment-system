@@ -4,6 +4,8 @@ namespace App\Imports;
 
 use App\Models\Candidate;
 use App\Models\Department;
+use App\Models\Education;
+use App\Models\Profile;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -45,6 +47,7 @@ class CandidatesImport implements
 
     public function model(array $row)
     {
+        Log::info('Processing row: ' . self::$rowIndex . ' with data: ' . json_encode($row));
         if ($this->shouldStop) {
             return null;
         }
@@ -104,203 +107,161 @@ class CandidatesImport implements
 
     protected function processOrganicCandidate(array $row)
     {
-        $isSuspectedDuplicate = false; // Initialize the variable
-
         $nama = $this->getFieldValue($row, ['nama', 'name', 'full_name', 'candidate_name']);
-        $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address', 'e_mail']);
-        $vacancy = $this->getFieldValue($row, ['vacancy', 'vacancy_airsys', 'posisi', 'position', 'job_title']);
-        $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
-
         if (!$nama) {
             throw new Exception('Missing nama field, stopping import.');
         }
 
-        if (!$vacancy) {
-            throw new Exception('Missing vacancy field');
-        }
-
+        $email = $this->getFieldValue($row, ['alamat_email', 'email', 'email_address', 'e_mail']);
         if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new Exception('Invalid email format');
         }
 
-        // --- START: New Duplicate Handling Logic ---
-        $isSuspectedDuplicate = false;
-        $oneYearAgo = Carbon::now()->subYear();
+        $jk = $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender', 'jenis_kelamin']));
+        $tanggal_lahir = $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth']));
 
-        // Find a potential duplicate based on email or applicant_id
-        $query = Candidate::query();
-        $hasIdentifier = false;
-
-        if ($email) {
-            $query->orWhere('alamat_email', $email);
-            $hasIdentifier = true;
-        }
-        if ($applicantId) {
-            $query->orWhere('applicant_id', $applicantId);
-            $hasIdentifier = true;
-        }
-
-        if ($hasIdentifier) {
-            // Get the most recent candidate that matches
-            $existingCandidate = $query->orderBy('created_at', 'desc')->first();
-
-            if ($existingCandidate) {
-                // Check if the last application was within the last year
-                if (Carbon::parse($existingCandidate->created_at)->gte($oneYearAgo)) {
-                    $isSuspectedDuplicate = true;
-                }
-                // If older than one year, it's not a duplicate, so isSuspectedDuplicate remains false.
-            }
-        }
-
+        $applicantId = $this->getFieldValue($row, ['applicant_id', 'id_applicant', 'candidate_id']);
         if (!$applicantId) {
             do {
                 $applicantId = 'CAND-' . strtoupper(Str::random(6));
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
-        // --- END: New Duplicate Handling Logic ---
 
-        // Smart data processing
-        $processedRow = $this->fillPreviousStages($row);
-        $currentStage = $this->calculateCurrentStage($processedRow);
-        $overallStatus = $this->calculateOverallStatus($processedRow);
-
-        // --- START: Department Mapping (Organic) ---
-        $departmentId = null;
-        $deptNameFromExcel = null;
-    
-        // Coba baca ID departemen langsung dari kolom (jika tersedia)
-        $deptIdFromExcel = $this->getFieldValue($processedRow, ['department_id', 'dept_id']);
-        if (!empty($deptIdFromExcel) && is_numeric($deptIdFromExcel)) {
-            $department = Department::find($deptIdFromExcel);
-            if ($department) {
-                $departmentId = $department->id;
-            } else {
-                Log::warning('Department not found by ID (organic): ' . $deptIdFromExcel, [
-                    'row_number' => self::$rowIndex,
-                    'row_sample' => array_slice($processedRow, 0, 5, true),
-                ]);
-            }
-        } else {
-            // Jika tidak ada ID, fallback cari berdasarkan nama (+ tangani typo "departmen")
-            $deptNameFromExcel = $this->getFieldValue($processedRow, ['department', 'dept', 'departmen']);
-    
-            if (empty($deptNameFromExcel)) {
-                // Kolom department tidak ditemukan sama sekali
-                Log::warning('Department column not found (organic)', [
-                    'row_number' => self::$rowIndex,
-                    'available_keys' => array_keys($processedRow),
-                ]);
-            } else {
-                $normalized = $this->normalizeDepartmentName($deptNameFromExcel);
-    
-                // Pencocokan case-insensitive exact
-                $department = Department::whereRaw('LOWER(TRIM(name)) = ?', [\Illuminate\Support\Str::lower($normalized)])->first();
-    
-                // Fallback LIKE jika belum ketemu (case-insensitive)
-                if (!$department) {
-                    $department = Department::whereRaw('LOWER(name) LIKE ?', ['%' . \Illuminate\Support\Str::lower($normalized) . '%'])->first();
-                }
-    
-                if ($department) {
-                    $departmentId = $department->id;
-                    Log::info('Department mapped (organic)', [
-                        'row_number' => self::$rowIndex,
-                        'excel_value' => $deptNameFromExcel,
-                        'normalized' => $normalized,
-                        'department_id' => $departmentId,
-                        'department_name' => $department->name,
-                    ]);
-                } else {
-                    Log::warning('Department not found by name (organic): ' . $deptNameFromExcel, [
-                        'row_number' => self::$rowIndex,
-                        'normalized' => $normalized,
-                        'row_sample' => array_slice($processedRow, 0, 5, true),
-                    ]);
-                }
-            }
-        }
-        // --- END: Department Mapping (Organic) ---
-
-        $this->lastNo++;
-
-        $candidateData = [
-            'no' => $this->getFieldValue($processedRow, ['no', 'number']) ?? $this->lastNo,
-            'vacancy' => $vacancy,
-            'internal_position' => $this->getFieldValue($processedRow, ['internal_position', 'position', 'position_internal']),
-            'on_process_by' => $this->getFieldValue($processedRow, ['on_process_by', 'process_by']),
+        $duplicateCheckData = [
             'applicant_id' => $applicantId,
+            'email' => $email,
             'nama' => $nama,
-            'source' => $this->getFieldValue($processedRow, ['source', 'recruitment_source']),
-            'jk' => $this->normalizeGender($this->getFieldValue($processedRow, ['jk', 'gender', 'jenis_kelamin'])),
-            'tanggal_lahir' => $this->transformDate($this->getFieldValue($processedRow, ['tanggal_lahir', 'birth_date', 'date_of_birth'])),
-            'alamat_email' => $email,
-            'jenjang_pendidikan' => $this->getFieldValue($processedRow, ['jenjang_pendidikan', 'education_level']),
-            'perguruan_tinggi' => $this->getFieldValue($processedRow, ['perguruan_tinggi', 'university', 'college']),
-            'jurusan' => $this->getFieldValue($processedRow, ['jurusan', 'major', 'field_of_study']),
-            'ipk' => $this->normalizeGPA($this->getFieldValue($processedRow, ['ipk', 'gpa'])),
-            'cv' => $this->getFieldValue($processedRow, ['cv', 'resume']),
-            'flk' => $this->getFieldValue($processedRow, ['flk', 'cover_letter']),
-            'raw_department_name' => $deptNameFromExcel,
-            
-            // Dynamic stage data
-            'cv_review_status' => $this->getFieldValue($processedRow, ['cv_review_status', 'cv_status']),
-            'cv_review_date' => $this->transformDate($this->getFieldValue($processedRow, ['cv_review_date'])),
-            'cv_review_by' => $this->getFieldValue($processedRow, ['cv_review_by']) ?? ($this->getAuthenticatedUserName() ?? 'System Import'),
-            
-            'psikotes_date' => $this->transformDate($this->getFieldValue($processedRow, ['psikotes_date', 'psychotest_date'])),
-            'psikotest_result' => $this->getFieldValue($processedRow, ['psikotes_result', 'psychotest_result']),
-            'psikotes_notes' => $this->getFieldValue($processedRow, ['psikotes_notes', 'psychotest_notes']),
-            
-            'hc_interview_date' => $this->transformDate($this->getFieldValue($processedRow, ['hc_interview_date', 'hc_intv_date'])),
-            'hc_interview_status' => $this->getFieldValue($processedRow, ['hc_interview_status', 'hc_intv_status']),
-            'hc_interview_notes' => $this->getFieldValue($processedRow, ['hc_interview_notes', 'hc_intv_notes']),
-            
-            'user_interview_date' => $this->transformDate($this->getFieldValue($processedRow, ['user_interview_date', 'user_intv_date'])),
-            'user_interview_status' => $this->getFieldValue($processedRow, ['user_interview_status', 'user_intv_status']),
-            'user_interview_notes' => $this->getFieldValue($processedRow, ['user_interview_notes', 'itv_user_note']),
-            
-            'bodgm_interview_date' => $this->transformDate($this->getFieldValue($processedRow, ['bodgm_interview_date', 'bod_intv_date'])),
-            'bod_interview_status' => $this->getFieldValue($processedRow, ['bod_interview_status', 'bod_intv_status']),
-            'bod_interview_notes' => $this->getFieldValue($processedRow, ['bod_interview_notes', 'bod_intv_note']),
-            
-            'offering_letter_date' => $this->transformDate($this->getFieldValue($processedRow, ['offering_letter_date'])),
-            'offering_letter_status' => $this->getFieldValue($processedRow, ['offering_letter_status']),
-            'offering_letter_notes' => $this->getFieldValue($processedRow, ['offering_letter_notes']),
-            
-            'mcu_date' => $this->transformDate($this->getFieldValue($processedRow, ['mcu_date'])),
-            'mcu_status' => $this->getFieldValue($processedRow, ['mcu_status']),
-            'mcu_notes' => $this->getFieldValue($processedRow, ['mcu_notes', 'mcu_note']),
-            
-            'hiring_date' => $this->transformDate($this->getFieldValue($processedRow, ['hiring_date'])),
-            'hiring_status' => $this->getFieldValue($processedRow, ['hiring_status']),
-            'hiring_notes' => $this->getFieldValue($processedRow, ['hiring_notes', 'hiring_note']),
-            
-            // Tambahkan department_id hasil mapping
-            'department_id' => $departmentId,
-
-            'current_stage' => $currentStage,
-            'overall_status' => $overallStatus,
-            'airsys_internal' => 'Yes',
-            'is_suspected_duplicate' => $isSuspectedDuplicate,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'jk' => $jk,
+            'tanggal_lahir' => $tanggal_lahir,
         ];
 
-        if (in_array($this->importMode, ['update', 'upsert']) && $email) {
-            $existing = Candidate::where('alamat_email', $email)->first();
-            if ($existing) {
-                $existing->update($candidateData);
-                $this->successCount++;
-                return null;
-            } elseif ($this->importMode === 'update') {
-                $this->errorCount++;
-                return null;
+        $existingCandidate = $this->findDuplicateCandidate($duplicateCheckData);
+        $isSuspectedDuplicate = (bool)$existingCandidate;
+
+        $departmentId = null;
+        $deptNameFromExcel = $this->getFieldValue($row, ['department', 'dept', 'departmen']);
+        if ($deptNameFromExcel) {
+            $department = Department::where('name', 'like', $deptNameFromExcel)->first();
+            if ($department) {
+                $departmentId = $department->id;
             }
+        }
+
+        $candidateData = [
+            'no' => $this->getFieldValue($row, ['no', 'number']) ?? ($this->lastNo + 1),
+            'applicant_id' => $applicantId,
+            'nama' => $nama,
+            'source' => $this->getFieldValue($row, ['source', 'recruitment_source']),
+            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender', 'jenis_kelamin'])),
+            'tanggal_lahir' => $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth'])),
+            'alamat_email' => $email,
+            'jenjang_pendidikan' => $this->getFieldValue($row, ['jenjang_pendidikan', 'education_level']),
+            'perguruan_tinggi' => $this->getFieldValue($row, ['perguruan_tinggi', 'university', 'college']),
+            'jurusan' => $this->getFieldValue($row, ['jurusan', 'major', 'field_of_study']),
+            'ipk' => $this->normalizeGPA($this->getFieldValue($row, ['ipk', 'gpa'])),
+            'cv' => $this->getFieldValue($row, ['cv', 'resume']),
+            'flk' => $this->getFieldValue($row, ['flk', 'cover_letter']),
+            'department_id' => $departmentId,
+            'airsys_internal' => 'Yes',
+            'is_suspected_duplicate' => $isSuspectedDuplicate,
+        ];
+
+        $candidate = Candidate::create($candidateData);
+        $this->lastNo++;
+
+        // Add Education creation here
+        Log::info('Attempting to create Education record for candidate: ' . $candidate->id);
+        try {
+            Education::create([
+                'candidate_id' => $candidate->id,
+                'level' => $this->getFieldValue($row, ['jenjang_pendidikan', 'education_level']) ?? null,
+                'institution' => $this->getFieldValue($row, ['perguruan_tinggi', 'university', 'college']) ?? null,
+                'major' => $this->getFieldValue($row, ['jurusan', 'major', 'field_of_study']) ?? null,
+                'gpa' => $this->normalizeGPA($this->getFieldValue($row, ['ipk', 'gpa'])) ?? null,
+            ]);
+            Log::info('Successfully created Education record for candidate: ' . $candidate->id);
+        } catch (\Exception $e) {
+            Log::error('Failed to create Education record for candidate ' . $candidate->id . ': ' . $e->getMessage(), [
+                'row_data' => $row,
+                'exception' => $e,
+            ]);
+            // Re-throw the exception to be caught by the outer try-catch in model()
+            throw $e;
+        }
+
+        // Add Profile creation here
+        try {
+            Profile::create([
+                'candidate_id' => $candidate->id,
+                'applicant_id' => $candidate->applicant_id, // Use the applicant_id generated for the candidate
+                'alamat' => $this->getFieldValue($row, ['alamat', 'address']) ?? null,
+                'tanggal_lahir' => $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth'])) ?? null,
+                'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender', 'jenis_kelamin'])) ?? null,
+                'phone' => $this->getFieldValue($row, ['phone', 'telepon', 'no_hp']) ?? null,
+                'email' => $this->getFieldValue($row, ['alamat_email', 'email', 'email_address', 'e_mail']) ?? null,
+            ]);
+            Log::info('Successfully created Profile record for candidate: ' . $candidate->id);
+        } catch (\Exception $e) {
+            Log::error('Failed to create Profile record for candidate ' . $candidate->id . ': ' . $e->getMessage(), [
+                'row_data' => $row,
+                'exception' => $e,
+            ]);
+            throw $e; // Re-throw to be caught by outer try-catch
+        }
+
+        $applicationData = [
+            'candidate_id' => $candidate->id,
+            'department_id' => $departmentId,
+            'vacancy_name' => $this->getFieldValue($row, ['vacancy', 'vacancy_airsys', 'posisi', 'position', 'job_title']),
+            'internal_position' => $this->getFieldValue($row, ['internal_position', 'position', 'position_internal']),
+            'overall_status' => 'On Process',
+            'processed_by' => $this->getFieldValue($row, ['on_process_by', 'process_by']),
+            'hired_date' => $this->transformDate($this->getFieldValue($row, ['hiring_date'])),
+        ];
+
+        $application = \App\Models\Application::create($applicationData);
+
+        $stageMapping = $this->getStagesConfig();
+        $stageOrder = array_keys($stageMapping);
+        $latestStageIndex = -1;
+
+        // Find the latest stage with data in the Excel row
+        foreach (array_reverse($stageOrder, true) as $index => $stageName) {
+            $fields = $stageMapping[$stageName];
+            $date = $this->transformDate($this->getFieldValue($row, [$fields['date']]));
+            $status = $this->getFieldValue($row, [$fields['status']]);
+            if ($date || $status) {
+                $latestStageIndex = $index;
+                break;
+            }
+        }
+
+        if ($latestStageIndex == -1) {
+            $latestStageIndex = 0; // Default to cv_review
+        }
+
+        // Create stages up to the latest stage
+        Log::info('Latest stage index: ' . $latestStageIndex);
+        for ($i = 0; $i <= $latestStageIndex; $i++) {
+            $stageName = $stageOrder[$i];
+            $fields = $stageMapping[$stageName];
+            $date = $this->transformDate($this->getFieldValue($row, [$fields['date']]));
+            $status = $this->getFieldValue($row, [$fields['status']]);
+
+            $stageData = [
+                'application_id' => $application->id,
+                'stage_name' => $stageName,
+                'status' => $status ?? 'LULUS',
+                'scheduled_date' => $date,
+                'notes' => $this->getFieldValue($row, [$fields['notes']]) ?? null,
+            ];
+
+            Log::info('Creating stage: ', $stageData);
+            \App\Models\ApplicationStage::create($stageData);
         }
 
         $this->successCount++;
-        return new Candidate($candidateData);
+        return null; // Return null because we are not creating a model directly
     }
 
     protected function processNonOrganicCandidate(array $row)
@@ -358,13 +319,16 @@ class CandidatesImport implements
             } while (Candidate::where('applicant_id', $applicantId)->exists());
         }
 
-        // Check for duplicate based on applicant_id
-        if (!empty($applicantId)) {
-            $existingCandidate = Candidate::where('applicant_id', $applicantId)->first();
-            if ($existingCandidate) {
-                $isSuspectedDuplicate = true;
-            }
-        }
+        $duplicateCheckData = [
+            'applicant_id' => $applicantId,
+            'email' => $email,
+            'nama' => $nama,
+            'jk' => $this->normalizeGender($this->getFieldValue($row, ['jk', 'gender'])),
+            'tanggal_lahir' => $this->transformDate($this->getFieldValue($row, ['tanggal_lahir', 'birth_date', 'date_of_birth']))
+        ];
+
+        $existingCandidate = $this->findDuplicateCandidate($duplicateCheckData);
+        $isSuspectedDuplicate = (bool)$existingCandidate;
 
         $this->lastNo++;
 
@@ -598,6 +562,42 @@ class CandidatesImport implements
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    private function findDuplicateCandidate(array $data): ?Candidate
+    {
+        if (empty($data['applicant_id']) && empty($data['email']) && (empty($data['nama']) || empty($data['jk']) || empty($data['tanggal_lahir']))) {
+            return null;
+        }
+
+        $oneYearAgo = now()->subYear();
+
+        $query = Candidate::query();
+
+        $query->where(function ($q) use ($data) {
+            if (!empty($data['applicant_id'])) {
+                $q->orWhere('applicant_id', $data['applicant_id']);
+            }
+
+            if (!empty($data['email'])) {
+                $q->orWhere('alamat_email', $data['email']);
+            }
+
+            if (!empty($data['nama']) && !empty($data['jk']) && !empty($data['tanggal_lahir'])) {
+                $q->orWhere(function ($sub) use ($data) {
+                    $sub->where('nama', $data['nama'])
+                        ->where('jk', $data['jk'])
+                        ->where('tanggal_lahir', $data['tanggal_lahir']);
+                });
+            }
+        });
+
+        // Filter by application date
+        $query->whereHas('applications', function ($appQuery) use ($oneYearAgo) {
+            $appQuery->where('created_at', '>=', $oneYearAgo);
+        });
+
+        return $query->first();
     }
 
     public function rules(): array

@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('candidate_id')->constrained('candidates')->onDelete('cascade');
             $table->foreignId('department_id')->nullable()->constrained('departments')->onDelete('set null');
-            $table->string('vacancy_name');
+            $table->string('vacancy_name')->nullable();
             $table->string('cv_path')->nullable();
             $table->string('flk_path')->nullable();
             $table->string('overall_status')->default('On Process');

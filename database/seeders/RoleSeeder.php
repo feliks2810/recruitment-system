@@ -13,6 +13,23 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
+        // Create permissions first
+        $permissions = [
+            'view-dashboard',
+            'manage-users',
+            'view-candidates',
+            'manage-candidates',
+            'edit-candidates',
+            'edit-timeline',
+            'import-candidates',
+            'export-candidates',
+            'view-reports'
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission]);
+        }
+
         // Create roles and assign created permissions
 
         // Admin - Can manage users and settings
@@ -27,6 +44,8 @@ class RoleSeeder extends Seeder
         $teamHcRole->givePermissionTo([
             'view-candidates',
             'manage-candidates',
+            'edit-candidates',
+            'edit-timeline',
             'import-candidates',
             'export-candidates',
             'view-reports',

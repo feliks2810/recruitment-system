@@ -58,7 +58,10 @@ class Event extends Model
         'time',
         'location',
         'created_by',
-        'status'
+        'status',
+        'candidate_id',
+        'stage',
+        'department_id'
     ];
 
     protected $casts = [
@@ -77,6 +80,11 @@ class Event extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function candidate()
+    {
+        return $this->belongsTo(Candidate::class);
     }
 
     /**

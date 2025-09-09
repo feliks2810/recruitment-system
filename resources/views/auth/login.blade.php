@@ -16,7 +16,7 @@
     <body class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center">
         <div class="bg-white rounded-xl p-8 border border-gray-200 w-full max-w-md">
             <div class="flex justify-center mb-6">
-                <img alt="Patria Maritim Perkasa Logo" class="w-32 h-auto mx-auto" src="{{ asset('images/Logo Patria.png') }}">
+                <img alt="Patria Maritim Perkasa Logo" class="w-28 h-auto mx-auto" src="{{ asset('images/Logo Patria.png') }}">
             </div>
             <h1 class="text-2xl font-semibold text-gray-900 text-center mb-2">Login</h1>
             <p class="text-sm text-gray-600 text-center mb-6">Masuk ke sistem manajemen tes karyawan</p>
