@@ -211,15 +211,15 @@ class StatisticsController extends Controller
     private function getPassRateAnalysisData($baseQuery)
     {
         $stages = [
-            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'CV Review', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Psikotes', 'stage_name' => 'psikotes', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Interview HC', 'stage_name' => 'hc_interview', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Interview User', 'stage_name' => 'user_interview', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Interview BOD', 'stage_name' => 'interview_bod', 'pass_values' => ['LULUS', 'DISARANKAN'], 'fail_values' => ['TIDAK DISARANKAN']],
-            ['name' => 'Offering Letter', 'stage_name' => 'offering_letter', 'pass_values' => ['DITERIMA'], 'fail_values' => ['DITOLAK']],
-            ['name' => 'MCU', 'stage_name' => 'mcu', 'pass_values' => ['LULUS'], 'fail_values' => ['TIDAK LULUS']],
-            ['name' => 'Hired', 'stage_name' => 'hiring', 'pass_values' => ['HIRED'], 'fail_values' => ['TIDAK DIHIRING']],
+            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
+            ['name' => 'CV Review', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
+            ['name' => 'Psikotes', 'stage_name' => 'psikotes', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
+            ['name' => 'Interview HC', 'stage_name' => 'hc_interview', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DISARANKAN', 'FAIL']],
+            ['name' => 'Interview User', 'stage_name' => 'user_interview', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DISARANKAN', 'FAIL']],
+            ['name' => 'Interview BOD', 'stage_name' => 'interview_bod', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DISARANKAN', 'FAIL']],
+            ['name' => 'Offering Letter', 'stage_name' => 'offering_letter', 'pass_values' => ['DITERIMA', 'PASS', 'OK', 'DONE'], 'fail_values' => ['DITOLAK', 'FAIL']],
+            ['name' => 'MCU', 'stage_name' => 'mcu', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
+            ['name' => 'Hired', 'stage_name' => 'hiring', 'pass_values' => ['HIRED', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DIHIRING', 'FAIL']],
         ];
 
         $analysis = [];
@@ -266,7 +266,6 @@ class StatisticsController extends Controller
     private function getTimelineAnalysisData($baseQuery)
     {
         $stages = [
-            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review'],
             ['name' => 'CV Review', 'stage_name' => 'cv_review'],
             ['name' => 'Psikotes', 'stage_name' => 'psikotes'],
             ['name' => 'Interview HC', 'stage_name' => 'hc_interview'],
@@ -286,11 +285,16 @@ class StatisticsController extends Controller
             $durationsQuery = (clone $baseQuery)->with(['stages']);
 
             $durations = $durationsQuery->get()->map(function($application) use ($currentStage, $nextStage) {
-                $currentStageDate = $application->stages->where('stage_name', $currentStage['stage_name'])->first()->scheduled_date ?? null;
-                $nextStageDate = $application->stages->where('stage_name', $nextStage['stage_name'])->first()->scheduled_date ?? null;
+                $currentStageRecord = $application->stages->where('stage_name', $currentStage['stage_name'])->first();
+                $nextStageRecord = $application->stages->where('stage_name', $nextStage['stage_name'])->first();
 
+                $currentStageDate = $currentStageRecord->scheduled_date ?? null;
+                $nextStageDate = $nextStageRecord->scheduled_date ?? null;
+
+                // Only calculate duration if both dates exist and are valid
                 if($currentStageDate && $nextStageDate) {
-                    return Carbon::parse($nextStageDate)->diffInDays(Carbon::parse($currentStageDate));
+                    $diff = Carbon::parse($nextStageDate)->diffInDays(Carbon::parse($currentStageDate), false); // false for signed difference
+                    return $diff >= 0 ? $diff : null; // Only return positive or zero differences
                 }
                 return null;
             })->filter();

@@ -40,12 +40,30 @@
     <!-- Upload Section -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
         <div class="p-6">
+            @if (session('import_summary'))
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Laporan Hasil Impor</h3>
+                    @if (empty(session('import_summary')))
+                        <p class="text-sm text-green-600 mt-2">✓ Semua baris berhasil diproses!</p>
+                    @else
+                        <p class="text-sm text-yellow-800 mt-2 bg-yellow-100 p-2 rounded-md">{{ count(session('import_summary')) }} baris dilewati dan tidak diimpor:</p>
+                        <div class="mt-2 max-h-48 overflow-y-auto">
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                @foreach (session('import_summary') as $skipped)
+                                    <li class="border-b border-gray-200 py-1"><strong>Baris {{ $skipped['row'] }}:</strong> {{ $skipped['reason'] }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             <div class="text-center mb-8">
                 <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-file-excel text-blue-600 text-2xl"></i>
                 </div>
                 <h2 class="text-xl font-semibold text-gray-900 mb-2">Upload File Excel</h2>
-                <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) yang berisi data kandidat</p>
+                <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) untuk import data</p>
             </div>
 
             <form action="{{ route('import.store') }}" method="POST" enctype="multipart/form-data" id="uploadForm" class="max-w-2xl mx-auto">
@@ -61,7 +79,7 @@
                             <p class="text-lg font-medium text-gray-700">Drag & drop file di sini</p>
                             <p class="text-sm text-gray-500">atau klik untuk browse file</p>
                         </div>
-                        <input type="file" name="excel_file" id="fileInput" class="hidden" accept=".xlsx,.xls,.csv" required>
+                        <input type="file" name="file" id="fileInput" class="hidden" accept=".xlsx,.xls,.csv" required>
                         <button type="button" onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                             Pilih File
                         </button>
@@ -89,28 +107,43 @@
                 <!-- Options -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Jenis Kandidat</label>
-                        <select name="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="organic">Organik</option>
-                            <option value="non-organic">Non-Organik</option>
-                        </select>
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Mode Import</label>
-                        <select name="import_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <select name="import_mode" id="import_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             <option value="insert">Insert Only (Tambah Baru)</option>
-                            <option value="update">Update Existing (Update yang Ada)</option>
+                            <option value="update">Update Existing (Perbarui)</option>
                             <option value="upsert">Insert & Update (Campuran)</option>
+                            <option value="update_stage">Update Stage (Perbarui Tahap)</option>
                         </select>
                     </div>
-                    <div class="md:col-span-1">
-                        <label for="header_row" class="block text-sm font-medium text-gray-700 mb-2">Baris Header</label>
-                        <select name="header_row" id="header_row" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="1" {{ old('header_row', '1') == '1' ? 'selected' : '' }}>Baris 1</option>
-                            <option value="2" {{ old('header_row', '1') == '2' ? 'selected' : '' }}>Baris 2</option>
-                            <option value="3" {{ old('header_row', '1') == '3' ? 'selected' : '' }}>Baris 3</option>
-                            <option value="4" {{ old('header_row', '1') == '4' ? 'selected' : '' }}>Baris 4</option>
+
+                    <div id="stage_selection_wrapper" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Pilih Tahap</label>
+                        <select name="stage_name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            @foreach($stages as $stage)
+                                <option value="{{ $stage }}">{{ ucwords(str_replace('_', ' ', $stage)) }}</option>
+                            @endforeach
                         </select>
+                    </div>
+
+                    <div id="candidate_options_wrapper">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Jenis Kandidat</label>
+                                <select name="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="organic">Organik</option>
+                                    <option value="non-organic">Non-Organik</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="header_row" class="block text-sm font-medium text-gray-700 mb-2">Baris Header</label>
+                                <select name="header_row" id="header_row" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="1" {{ old('header_row', '1') == '1' ? 'selected' : '' }}>Baris 1</option>
+                                    <option value="2" {{ old('header_row', '1') == '2' ? 'selected' : '' }}>Baris 2</option>
+                                    <option value="3" {{ old('header_row', '1') == '3' ? 'selected' : '' }}>Baris 3</option>
+                                    <option value="4" {{ old('header_row', '1') == '4' ? 'selected' : '' }}>Baris 4</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -320,6 +353,25 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Mode switching logic
+    const importModeSelect = document.getElementById('import_mode');
+    const stageSelection = document.getElementById('stage_selection_wrapper');
+    const candidateOptions = document.getElementById('candidate_options_wrapper');
+
+    importModeSelect.addEventListener('change', function() {
+        if (this.value === 'update_stage') {
+            stageSelection.classList.remove('hidden');
+            candidateOptions.classList.add('hidden');
+        } else {
+            stageSelection.classList.add('hidden');
+            candidateOptions.classList.remove('hidden');
+        }
+    });
+
+    // Trigger change event on page load to set initial state
+    importModeSelect.dispatchEvent(new Event('change'));
+
+    // Original script for file upload
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const fileInfo = document.getElementById('fileInfo');
@@ -333,62 +385,68 @@ document.addEventListener('DOMContentLoaded', function() {
     const loading = document.querySelector('.loading');
 
     // Drag & Drop functionality
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
 
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
 
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleFile(files[0]);
-        }
-    });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
 
-    dropZone.addEventListener('click', () => {
-        fileInput.click();
-    });
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
 
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            handleFile(e.target.files[0]);
-        }
-    });
+    if(fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+    }
 
     // Form submission with loading state
-    uploadForm.addEventListener('submit', (e) => {
-        if (!fileInput.files.length) {
-            e.preventDefault();
-            alert('Silakan pilih file terlebih dahulu');
-            return;
-        }
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', (e) => {
+            if (!fileInput.files.length) {
+                e.preventDefault();
+                alert('Silakan pilih file terlebih dahulu');
+                return;
+            }
 
-        // Show loading state
-        submitBtn.disabled = true;
-        submitIcon.style.display = 'none';
-        submitText.style.display = 'none';
-        loading.classList.add('show');
-        progressBar.classList.remove('hidden');
+            // Show loading state
+            submitBtn.disabled = true;
+            submitIcon.style.display = 'none';
+            submitText.style.display = 'none';
+            loading.classList.add('show');
+            progressBar.classList.remove('hidden');
 
-        // Simulate progress
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            progress += Math.random() * 30;
-            if (progress > 90) progress = 90;
-            progressBar.querySelector('.bg-blue-600').style.width = progress + '%';
-        }, 500);
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 30;
+                if (progress > 90) progress = 90;
+                progressBar.querySelector('.bg-blue-600').style.width = progress + '%';
+            }, 500);
 
-        // Clean up interval after 30 seconds
-        setTimeout(() => {
-            clearInterval(progressInterval);
-        }, 30000);
-    });
+            // Clean up interval after 30 seconds
+            setTimeout(() => {
+                clearInterval(progressInterval);
+            }, 30000);
+        });
+    }
 
     function handleFile(file) {
         // Validate file type

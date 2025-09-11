@@ -107,7 +107,7 @@ class CandidatesImport implements
 
     protected function processOrganicCandidate(array $row)
     {
-        $nama = $this->getFieldValue($row, ['nama', 'name', 'full_name', 'candidate_name']);
+        $nama = $this->getFieldValue($row, ['nama', 'name', 'full_name', 'candidate_name', 'applicant_name', 'applicant name']);
         if (!$nama) {
             throw new Exception('Missing nama field, stopping import.');
         }

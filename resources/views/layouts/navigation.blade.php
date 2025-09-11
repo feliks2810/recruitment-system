@@ -21,6 +21,10 @@
                         {{ __('Kandidat') }}
                     </x-nav-link>
 
+                    <x-nav-link :href="route('calendar')" :active="request()->routeIs('calendar')">
+                        {{ __('Kalender') }}
+                    </x-nav-link>
+
                     @if(auth()->user()->hasRole('admin'))
                         <x-nav-link :href="route('import.index')" :active="request()->routeIs('import.*')">
                             {{ __('Import Excel') }}
@@ -104,6 +108,10 @@
             
             <x-responsive-nav-link :href="route('candidates.index')" :active="request()->routeIs('candidates.*')">
                 {{ __('Kandidat') }}
+            </x-responsive-nav-link>
+
+            <x-responsive-nav-link :href="route('calendar')" :active="request()->routeIs('calendar')">
+                {{ __('Kalender') }}
             </x-responsive-nav-link>
 
             @if(auth()->user()->isAdmin())

@@ -205,26 +205,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             }
                         }
                     }
-                },
-                onClick: (event, elements) => {
-                    if (elements.length > 0) {
-                        const element = elements[0];
-                        const dataIndex = element.index;
-                        const datasetIndex = element.datasetIndex;
-                        const timelineRecord = timelineAnalysisData[dataIndex];
-
-                        let candidateId = null;
-                        // Dataset 0: Paling Cepat, Dataset 1: Paling Lama
-                        if (datasetIndex === 0) { 
-                            candidateId = timelineRecord.min_candidate_id;
-                        } else if (datasetIndex === 1) {
-                            candidateId = timelineRecord.max_candidate_id;
-                        }
-
-                        if (candidateId) {
-                            window.open(`/candidates/${candidateId}`, '_blank');
-                        }
-                    }
                 }
             }
         });

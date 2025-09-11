@@ -35,8 +35,14 @@ class CandidateController extends BaseController
     {
         $baseQuery = Candidate::with(['department', 'applications.stages', 'educations']);
 
+        // Join with applications table to get overall_status for sorting
+        $baseQuery->leftJoin('applications', function ($join) {
+            $join->on('candidates.id', '=', 'applications.candidate_id')
+                 ->whereRaw('applications.id = (SELECT MAX(id) FROM applications WHERE candidate_id = candidates.id)');
+        });
+
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
-            $baseQuery->where('department_id', Auth::user()->department_id);
+            $baseQuery->where('candidates.department_id', Auth::user()->department_id);
         }
 
         if ($request->filled('search')) {
@@ -44,9 +50,7 @@ class CandidateController extends BaseController
         }
 
         if ($request->filled('status')) {
-            $baseQuery->whereHas('applications', function ($q) use ($request) {
-                $q->where('overall_status', $request->status);
-            });
+            $baseQuery->where('applications.overall_status', $request->status);
         }
 
         if ($request->filled('gender')) {
@@ -77,12 +81,15 @@ class CandidateController extends BaseController
                 break;
         }
 
-        $candidates = $baseQuery->orderBy('updated_at', 'desc')->paginate(15);
+        $candidates = $baseQuery->orderByRaw("applications.overall_status = 'DITOLAK' ASC")
+                            ->orderBy('candidates.updated_at', 'desc')
+                            ->select('candidates.*') // Select all columns from candidates to avoid ambiguity
+                            ->paginate(15);
 
         // Base query untuk statistik berdasarkan role user
         $baseStatsQuery = Candidate::query();
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
-            $baseStatsQuery->where('department_id', Auth::user()->department_id);
+            $baseStatsQuery->where('candidates.department_id', Auth::user()->department_id);
         }
 
         $candidatesForStats = (clone $baseStatsQuery)->with(['applications.stages' => function($query) {
@@ -103,17 +110,16 @@ class CandidateController extends BaseController
             $total_candidates++;
             $latestApplication = $candidateStat->applications->first(); // Assuming one main application per candidate or latest is relevant
 
-            if ($latestApplication && $latestApplication->stages->isNotEmpty()) {
-                $latestStage = $latestApplication->stages->first();
-                $status = $latestStage->status;
+            if ($latestApplication) {
+                $overallStatus = $latestApplication->overall_status;
 
-                if (in_array($status, $passedStatuses)) {
+                if ($overallStatus === 'LULUS') {
                     $candidates_passed++;
-                } elseif (in_array($status, $failedStatuses)) {
+                } elseif ($overallStatus === 'DITOLAK') {
                     $candidates_failed++;
-                } elseif ($status === 'CANCEL') {
+                } elseif ($overallStatus === 'CANCEL') {
                     $candidates_cancelled++;
-                } elseif (in_array($status, $inProcessStatuses)) {
+                } elseif ($overallStatus === 'On Process' || $overallStatus === 'PROSES') {
                     $candidates_in_process++;
                 }
             }
@@ -175,7 +181,7 @@ class CandidateController extends BaseController
         $baseQuery = Candidate::with(['department', 'applications.stages', 'educations']);
 
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
-            $baseQuery->where('department_id', Auth::user()->department_id);
+            $baseQuery->where('candidates.department_id', Auth::user()->department_id);
         }
 
         if ($request->filled('search')) {
@@ -409,6 +415,12 @@ class CandidateController extends BaseController
         }
 
         return view('candidates.show', compact('candidate', 'application', 'timeline'));
+    }
+
+    public function showApi(Candidate $candidate): JsonResponse
+    {
+        $this->authorizeCandidate($candidate);
+        return response()->json($candidate);
     }
 
     public function edit(Candidate $candidate): View

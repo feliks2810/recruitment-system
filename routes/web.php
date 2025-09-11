@@ -19,6 +19,11 @@ Route::get('/', function () {
 // Authentication routes
 require __DIR__.'/auth.php';
 
+Route::get('/calendar', function () {
+    return view('calendar.index');
+})->middleware(['auth', 'verified'])->name('calendar');
+
+
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard - NO PERMISSION MIDDLEWARE (all roles can access)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -105,8 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Import Routes for Team HC
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
-        Route::post('/', [ImportController::class, 'store'])->name('process');
-        Route::post('/process', [ImportController::class, 'store'])->name('store');
+        Route::post('/', [ImportController::class, 'store'])->name('store');
         Route::get('/template/{type?}', [ImportController::class, 'downloadTemplate'])->name('template');
         Route::get('/errors', function() {
             return view('import.errors', ['errors' => []]);

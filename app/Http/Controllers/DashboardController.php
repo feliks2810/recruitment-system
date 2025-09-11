@@ -47,20 +47,16 @@ class DashboardController extends Controller
 
         foreach ($applications as $application) {
             $total_candidates++;
-            $latestStage = $application->stages->first();
+            $overallStatus = $application->overall_status;
 
-            if ($latestStage) {
-                $status = $latestStage->status;
-
-                if (in_array($status, $passedStatuses)) {
-                    $candidates_passed++;
-                } elseif (in_array($status, $failedStatuses)) {
-                    $candidates_failed++;
-                } elseif ($status === 'CANCEL') {
-                    $candidates_cancelled++;
-                } elseif (in_array($status, $inProcessStatuses)) {
-                    $candidates_in_process++;
-                }
+            if ($overallStatus === 'LULUS') {
+                $candidates_passed++;
+            } elseif ($overallStatus === 'DITOLAK') {
+                $candidates_failed++;
+            } elseif ($overallStatus === 'CANCEL') {
+                $candidates_cancelled++;
+            } elseif ($overallStatus === 'On Process' || $overallStatus === 'PROSES') {
+                $candidates_in_process++;
             }
         }
 
