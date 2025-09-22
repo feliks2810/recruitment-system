@@ -44,7 +44,7 @@ class RegisteredUserController extends Controller
             'department' => null, // No department for regular users
         ]);
 
-        event(new Registered($user));
+        
 
         Auth::login($user);
 

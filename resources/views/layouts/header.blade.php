@@ -10,6 +10,7 @@
             <h1 class="text-lg font-semibold text-gray-900 truncate">@yield('page-title', 'Dashboard')</h1>
         </div>
         <div class="flex items-center gap-2 sm:gap-4">
+            @stack('header-filters')
             <div class="hidden lg:flex items-center gap-3">
                 <div class="text-right">
                     <span class="text-sm font-medium text-gray-700 block">{{ Auth::user()->name }}</span>

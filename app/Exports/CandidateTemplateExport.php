@@ -15,18 +15,19 @@ class CandidateTemplateExport implements WithHeadings, ShouldAutoSize, WithStyle
     public function headings(): array
     {
         return [
-            'nama',             // Candidate's full name
-            'email',            // Candidate's email address
-            'phone',            // Candidate's phone number
-            'jk',               // Gender (L/P)
-            'tanggal_lahir',    // Date of birth (YYYY-MM-DD)
-            'alamat',           // Full address
-            'jenjang_pendidikan', // Education level (e.g., S1, D3)
-            'perguruan_tinggi', // University name
-            'jurusan',          // Major
-            'ipk',              // GPA
-            'source',           // Source of application (e.g., Jobstreet, LinkedIn)
-            'vacancy_name',     // Name of the vacancy applied for
+            'nama',
+            'email',
+            'phone',
+            'jk',
+            'tanggal_lahir',
+            'alamat',
+            'jenjang_pendidikan',
+            'perguruan_tinggi',
+            'jurusan',
+            'ipk',
+            'source',
+            'department_name',
+            'vacancy_name',
         ];
     }
 

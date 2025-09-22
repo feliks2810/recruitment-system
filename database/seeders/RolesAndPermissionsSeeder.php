@@ -17,18 +17,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Temporarily disable foreign key checks to truncate tables
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         
-        // Clear existing roles and permissions
-        DB::table('role_has_permissions')->truncate();
-        DB::table('model_has_roles')->truncate();
-        DB::table('model_has_permissions')->truncate();
-        DB::table('roles')->truncate();
-        DB::table('permissions')->truncate();
-
-        // Re-enable foreign key checks
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // Create comprehensive permissions list
         $permissions = [
@@ -81,17 +70,20 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-duplicates',
             'mark-duplicate',
             'resolve-duplicate',
+
+            // Document management
+            'manage-documents',
         ];
 
         // Create all permissions
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission]);
         }
 
         // Create roles
-        $adminRole = Role::create(['name' => 'admin']);
-        $teamHCRole = Role::create(['name' => 'team_hc']);
-        $departmentRole = Role::create(['name' => 'department']);
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $teamHCRole = Role::firstOrCreate(['name' => 'team_hc']);
+        $departmentRole = Role::firstOrCreate(['name' => 'department']);
 
         // Admin role - Only user management + dashboard
         $adminRole->givePermissionTo([
@@ -101,6 +93,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'create-users',
             'edit-users',
             'delete-users',
+            'manage-departments',
         ]);
 
         // Team HC role - Everything except user management
@@ -138,6 +131,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-duplicates',
             'mark-duplicate',
             'resolve-duplicate',
+            'manage-documents',
         ]);
 
         // Department role - Limited access: dashboard, own department candidates, statistics

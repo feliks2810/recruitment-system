@@ -10,6 +10,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DepartmentController; // ⬅️ Tambahkan ini untuk controller departemen
 
 // Redirect root to login
 Route::get('/', function () {
@@ -22,7 +24,6 @@ require __DIR__.'/auth.php';
 Route::get('/calendar', function () {
     return view('calendar.index');
 })->middleware(['auth', 'verified'])->name('calendar');
-
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard - NO PERMISSION MIDDLEWARE (all roles can access)
@@ -138,6 +139,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export', [AccountController::class, 'export'])->name('export');
     });
 
+    // ⬅️ KODE PERBAIKAN DIMULAI DARI SINI
+    // Departemen management for Admin only (as per file structure)
+    Route::resource('departments', DepartmentController::class)
+        ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
+        ->middleware('can:manage-departments');
+    // ⬅️ KODE PERBAIKAN BERAKHIR DI SINI
+
+    // Document Routes
+    Route::middleware('can:manage-documents')->group(function () {
+        Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
+        Route::post('/documents', [DocumentController::class, 'store'])->name('documents.store');
+    });
+
     // Debug route for testing permissions
     Route::get('/check-auth', function () {
         $user = Auth::user();
@@ -153,6 +167,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_view_reports' => $user->can('view-reports'),
             'can_import_excel' => $user->can('import-excel'),
             'can_manage_users' => $user->can('manage-users'),
+            'can_manage_documents' => $user->can('manage-documents'), // ⬅️ Tambahan untuk konsistensi
+            'can_manage_departments' => $user->can('manage-departments'), // ⬅️ Tambahan untuk konsistensi
         ]);
     });
 });

@@ -77,8 +77,13 @@
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="vacancy_name" class="block text-sm font-medium text-gray-700">Nama Lowongan</label>
-                            <input type="text" name="vacancy_name" id="vacancy_name" value="{{ old('vacancy_name') }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <label for="vacancy_id" class="block text-sm font-medium text-gray-700">Nama Lowongan</label>
+                            <select name="vacancy_id" id="vacancy_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Pilih Lowongan</option>
+                                @foreach($vacancies as $vacancy)
+                                    <option value="{{ $vacancy->id }}" {{ old('vacancy_id') == $vacancy->id ? 'selected' : '' }}>{{ $vacancy->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div>
                             <label for="department_id" class="block text-sm font-medium text-gray-700">Departemen *</label>

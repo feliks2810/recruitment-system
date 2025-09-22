@@ -47,7 +47,6 @@
 
 @section('content')
 
-
 @can('show-candidates')
 <div x-data="candidateDetail()" class="space-y-6">
 
@@ -100,6 +99,7 @@
                                         </select>
                                     </div>
 
+                                    <!-- Tanggal Jadwal Stage Berikutnya - Hanya muncul jika LULUS/DISARANKAN -->
                                     <div x-show="showNextStage">
                                         <label class="block text-sm font-medium text-gray-700">Stage Selanjutnya</label>
                                         <div class="mt-1 text-sm text-gray-700 bg-gray-50 p-2 rounded">
@@ -117,11 +117,7 @@
                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     </div>
 
-                                    <div x-show="!showNextStage">
-                                        <label class="block text-sm font-medium text-gray-700">Tanggal</label>
-                                        <input type="date" name="scheduled_date" x-model="stageData.scheduled_date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                    </div>
-
+                                    <!-- Catatan -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Catatan</label>
                                         <textarea name="notes"
@@ -312,7 +308,7 @@
                     <dl class="space-y-4">
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Vacancy</dt>
-                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $application->vacancy_name }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $application->vacancy->name ?? 'N/A' }}</dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Department</dt>
@@ -463,7 +459,7 @@
                                                 </div>
 
                                                 <div class="flex items-center space-x-2">
-                                                    @if($stage['date'])
+                                                    @if($stage['date'] && $stage['result'])
                                                         <span class="text-xs text-gray-500">
                                                             {{ \Carbon\Carbon::parse($stage['date'])->format('d M Y') }}
                                                         </span>
@@ -483,7 +479,6 @@
                                                         <button @click="openStageModal(
                                                             '{{ $stage['display_name'] }}',
                                                             '{{ $stage['stage_key'] }}',
-                                                            '{{ $stage['date'] ? \Carbon\Carbon::parse($stage['date'])->format('Y-m-d') : '' }}',
                                                             '{{ $stage['result'] ?? '' }}',
                                                             {{ json_encode($stage['notes'] ?? '') }}
                                                         )"
@@ -561,7 +556,6 @@ document.addEventListener('alpine:init', () => {
             stage: '',
             result: '',
             notes: '',
-            scheduled_date: '',
             next_stage_date: '',
         },
         showNextStage: false,
@@ -623,31 +617,38 @@ document.addEventListener('alpine:init', () => {
         },
 
         handleResultChange() {
+            // Reset next stage fields first
+            this.showNextStage = false;
+            this.nextStageName = '';
+            this.stageData.next_stage_date = '';
+
+            // Only show next stage if result is LULUS or DISARANKAN
             if (this.stageData.result === 'LULUS' || this.stageData.result === 'DISARANKAN') {
                 const nextStage = this.stageSequence[this.stageData.stage];
                 if (nextStage) {
                     this.showNextStage = true;
                     this.nextStageName = this.stageDisplayNames[nextStage];
-                    this.stageData.next_stage_date = '';
                 }
-            } else {
-                this.showNextStage = false;
-                this.nextStageName = '';
-                this.stageData.next_stage_date = '';
             }
         },
 
-        openStageModal(stage, stageKey, date, result, notes) {
+        openStageModal(stage, stageKey, result, notes) {
             this.selectedStage = stage;
             this.availableResults = this.stageOptions[stageKey] || [];
             this.showNextStage = false;
             
+            // Reset form data
             this.stageData = {
                 stage: stageKey,
                 result: result || '',
                 notes: notes || '',
-                scheduled_date: date || ''
+                next_stage_date: ''
             };
+
+            // Check if we need to show next stage based on current result
+            if (this.stageData.result === 'LULUS' || this.stageData.result === 'DISARANKAN') {
+                this.handleResultChange();
+            }
 
             this.showModal = true;
         },
@@ -670,13 +671,18 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
+            // Validate next stage date if required
+            if (this.showNextStage && !this.stageData.next_stage_date) {
+                alert('Tanggal stage selanjutnya harus diisi.');
+                return;
+            }
+
             this.isSubmitting = true;
 
             const payload = {
                 stage: this.stageData.stage,
                 result: this.stageData.result,
                 notes: this.stageData.notes || null,
-                scheduled_date: this.showNextStage ? null : (this.stageData.scheduled_date || null),
                 next_stage_date: this.showNextStage ? this.stageData.next_stage_date : null,
             };
 

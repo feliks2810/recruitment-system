@@ -138,14 +138,31 @@ class CandidatesImport implements
         $existingCandidate = $this->findDuplicateCandidate($duplicateCheckData);
         $isSuspectedDuplicate = (bool)$existingCandidate;
 
+        // --- Improved Department & Vacancy Logic ---
         $departmentId = null;
-        $deptNameFromExcel = $this->getFieldValue($row, ['department', 'dept', 'departmen']);
-        if ($deptNameFromExcel) {
-            $department = Department::where('name', 'like', $deptNameFromExcel)->first();
-            if ($department) {
-                $departmentId = $department->id;
+        $deptIdFromExcel = $this->getFieldValue($row, ['department_id', 'dept_id']);
+        if (!empty($deptIdFromExcel) && is_numeric($deptIdFromExcel)) {
+            $department = Department::find($deptIdFromExcel);
+            if ($department) $departmentId = $department->id;
+        } else {
+            $deptNameFromExcel = $this->getFieldValue($row, ['department_name', 'department', 'dept']);
+            if (!empty($deptNameFromExcel)) {
+                $department = Department::where('name', 'like', $deptNameFromExcel)->first();
+                if ($department) $departmentId = $department->id;
             }
         }
+
+        $vacancy = null;
+        $vacancyId = $this->getFieldValue($row, ['vacancy_id', 'vacancy id']);
+        if ($vacancyId) {
+            $vacancy = \App\Models\Vacancy::find($vacancyId);
+        } else {
+            $vacancyName = $this->getFieldValue($row, ['vacancy_name', 'vacancy', 'posisi']);
+            if ($vacancyName) {
+                $vacancy = \App\Models\Vacancy::firstOrCreate(['name' => $vacancyName]);
+            }
+        }
+        // --- End of Improved Logic ---
 
         $candidateData = [
             'no' => $this->getFieldValue($row, ['no', 'number']) ?? ($this->lastNo + 1),
@@ -209,13 +226,16 @@ class CandidatesImport implements
             throw $e; // Re-throw to be caught by outer try-catch
         }
 
+        $processedByName = $this->getFieldValue($row, ['on_process_by', 'process_by']);
+        $processedByUser = $processedByName ? \App\Models\User::where('name', $processedByName)->first() : null;
+
         $applicationData = [
             'candidate_id' => $candidate->id,
             'department_id' => $departmentId,
-            'vacancy_name' => $this->getFieldValue($row, ['vacancy', 'vacancy_airsys', 'posisi', 'position', 'job_title']),
+            'vacancy_id' => $vacancy ? $vacancy->id : null,
             'internal_position' => $this->getFieldValue($row, ['internal_position', 'position', 'position_internal']),
             'overall_status' => 'On Process',
-            'processed_by' => $this->getFieldValue($row, ['on_process_by', 'process_by']),
+            'processed_by_user_id' => $processedByUser ? $processedByUser->id : (Auth::check() ? Auth::id() : null),
             'hired_date' => $this->transformDate($this->getFieldValue($row, ['hiring_date'])),
         ];
 
@@ -289,7 +309,7 @@ class CandidatesImport implements
             }
         } else {
             // Fallback to searching by name if ID is not available or not numeric
-            $deptNameFromExcel = $this->getFieldValue($row, ['department', 'dept']);
+            $deptNameFromExcel = $this->getFieldValue($row, ['department_name', 'department', 'dept']);
             if (!empty($deptNameFromExcel)) {
                 $department = Department::where('name', 'like', $deptNameFromExcel)->first();
                 if ($department) {

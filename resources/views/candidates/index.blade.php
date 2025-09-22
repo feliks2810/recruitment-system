@@ -255,7 +255,7 @@
                                             </div>
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">{{ $application->vacancy_name ?? 'N/A' }}</div>
+                                            <div class="text-sm text-gray-900">{{ $application && $application->vacancy ? $application->vacancy->name : 'N/A' }}</div>
                                             @if($application && $application->internal_position)
                                                 <div class="text-sm text-gray-500">{{ $application->internal_position }}</div>
                                             @endif

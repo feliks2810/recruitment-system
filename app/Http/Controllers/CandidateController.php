@@ -33,7 +33,7 @@ class CandidateController extends BaseController
 
     public function index(Request $request): View
     {
-        $baseQuery = Candidate::with(['department', 'applications.stages', 'educations']);
+        $baseQuery = Candidate::with(['department', 'applications.stages', 'applications.vacancy', 'educations']);
 
         // Join with applications table to get overall_status for sorting
         $baseQuery->leftJoin('applications', function ($join) {
@@ -81,7 +81,12 @@ class CandidateController extends BaseController
                 break;
         }
 
-        $candidates = $baseQuery->orderByRaw("applications.overall_status = 'DITOLAK' ASC")
+        $failedStatuses = ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'FAIL'];
+        $quotedStatuses = array_map(fn($s) => "'$s'", $failedStatuses);
+        $statusList = implode(",", $quotedStatuses);
+        $statusOrder = "CASE WHEN applications.overall_status IN ($statusList) THEN 1 ELSE 0 END";
+
+        $candidates = $baseQuery->orderByRaw($statusOrder . " ASC")
                             ->orderBy('candidates.updated_at', 'desc')
                             ->select('candidates.*') // Select all columns from candidates to avoid ambiguity
                             ->paginate(15);
@@ -178,7 +183,7 @@ class CandidateController extends BaseController
 
     private function getFilteredCandidates(Request $request): \Illuminate\Database\Eloquent\Builder
     {
-        $baseQuery = Candidate::with(['department', 'applications.stages', 'educations']);
+        $baseQuery = Candidate::with(['department', 'applications.stages', 'applications.vacancy', 'educations']);
 
         if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
             $baseQuery->where('candidates.department_id', Auth::user()->department_id);
@@ -232,10 +237,11 @@ class CandidateController extends BaseController
     public function create(): View
     {
         $departments = $this->getAvailableDepartments();
+        $vacancies = \App\Models\Vacancy::orderBy('name')->get();
         do {
             $applicantId = 'CAND-' . strtoupper(Str::random(6));
         } while (Candidate::where('applicant_id', $applicantId)->exists());
-        return view('candidates.create', compact('departments', 'applicantId'));
+        return view('candidates.create', compact('departments', 'applicantId', 'vacancies'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -255,7 +261,7 @@ class CandidateController extends BaseController
             'ipk' => 'nullable|numeric|min:0|max:4',
             'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
-            'vacancy_name' => 'nullable|string|max:255',
+            'vacancy_id' => 'nullable|exists:vacancies,id',
             'internal_position' => 'nullable|string|max:255',
             'alamat' => 'nullable|string|max:255', // Added 'alamat' for Profile
             'phone' => 'nullable|string|max:20', // Added 'phone' for Profile
@@ -278,7 +284,7 @@ class CandidateController extends BaseController
 
         // Prepare data for Candidate, Application, Education, and Profile
         $candidateData = Arr::except($validatedData, [
-            'vacancy_name', 'internal_position', 'cv', 'flk',
+            'vacancy_id', 'internal_position', 'cv', 'flk',
             'jenjang_pendidikan', 'perguruan_tinggi', 'jurusan', 'ipk', // Education fields
             'alamat', 'phone', // Profile fields
         ]);
@@ -289,8 +295,9 @@ class CandidateController extends BaseController
         $candidateData['perguruan_tinggi'] = $validatedData['perguruan_tinggi']; // Keep in candidate for quick access/legacy
 
         $applicationData = [
-            'vacancy_name' => $validatedData['vacancy_name'] ?? null,
+            'vacancy_id' => $validatedData['vacancy_id'] ?? null,
             'internal_position' => $validatedData['internal_position'] ?? null,
+            'processed_by_user_id' => Auth::id(),
         ];
 
         $educationData = Arr::only($validatedData, [
@@ -345,7 +352,7 @@ class CandidateController extends BaseController
     public function show(Candidate $candidate): View|RedirectResponse
     {
         $this->authorizeCandidate($candidate);
-        $candidate->load(['department', 'educations', 'applications.stages']);
+        $candidate->load(['department', 'educations', 'applications.vacancy', 'applications.stages.conductedByUser']);
         $application = $candidate->applications->first();
 
         // If no application exists, create a default one to unlock the timeline for authorized users.
@@ -353,9 +360,9 @@ class CandidateController extends BaseController
             $application = Application::create([
                 'candidate_id' => $candidate->id,
                 'department_id' => $candidate->department_id,
-                'vacancy_name' => 'Belum Ditentukan', // Default vacancy name
+                'vacancy_id' => null, // Default vacancy name
                 'overall_status' => 'PROSES',
-                'processed_by' => Auth::user()->name,
+                'processed_by_user_id' => Auth::id(),
             ]);
             $application->load('stages'); // Reload stages after observer creates it
         }
@@ -409,7 +416,7 @@ class CandidateController extends BaseController
                     'notes' => $stage->notes ?? null,
                     'status' => $status,
                     'is_locked' => !$stage,
-                    'evaluator' => $stage->conducted_by ?? null,
+                    'evaluator' => $stage->conductedByUser->name ?? null,
                 ];
             }
         }
@@ -496,7 +503,6 @@ class CandidateController extends BaseController
             'stage' => 'required|string',
             'result' => 'required|string',
             'notes' => 'nullable|string|max:1000',
-            'scheduled_date' => 'nullable|date',
             'next_stage_date' => 'nullable|date|required_if:result,LULUS,DISARANKAN',
         ]);
 
@@ -544,12 +550,13 @@ class CandidateController extends BaseController
         $stage = $application->stages()->where('stage_name', $validated['stage'])->first();
         $result = strtoupper($validated['result']);
 
+        // Tanggal otomatis berdasarkan waktu update, bukan input manual
         $stageData = [
             'stage_name' => $validated['stage'],
             'status' => $result,
-            'scheduled_date' => $now,
+            'scheduled_date' => $now, // Tanggal kapan stage ini diselesaikan
             'notes' => $validated['notes'] ?? null,
-            'conducted_by' => Auth::user()->nama ?? null, // Menggunakan nama user yang sedang login
+            'conducted_by_user_id' => Auth::id(),
         ];
 
         if ($stage) {
@@ -560,6 +567,23 @@ class CandidateController extends BaseController
 
         // Jika stage lulus/disarankan, persiapkan stage berikutnya
         if (in_array($result, ['LULUS', 'DISARANKAN'])) {
+            // --- AUTO-PASS PREVIOUS STAGES ---
+            $currentStageOrderIndex = $stageOrder[$validated['stage']];
+            $previousStageKeys = array_slice(array_keys($stageOrder), 0, $currentStageOrderIndex);
+
+            foreach ($previousStageKeys as $stageKey) {
+                $application->stages()->updateOrCreate(
+                    ['stage_name' => $stageKey],
+                    [
+                        'status' => 'LULUS',
+                        'conducted_by_user_id' => null, // System action
+                        'notes' => 'Auto-passed by system.',
+                        'scheduled_date' => $application->created_at, // Use application creation date as a default
+                    ]
+                );
+            }
+            // --- END AUTO-PASS ---
+
             $currentStage = $validated['stage'];
             if (isset($nextStages[$currentStage])) {
                 $nextStageName = $nextStages[$currentStage];
@@ -574,18 +598,18 @@ class CandidateController extends BaseController
                     })->keys())
                     ->delete();
 
-                // Buat atau update stage berikutnya
-                $existingNext = $application->stages()->where('stage_name', $nextStageName)->first();
-                $nextStageData = [
-                    'stage_name' => $nextStageName,
-                    'status' => '',  // Empty status for new stages
-                    'scheduled_date' => $validated['next_stage_date'] ?? $now,
-                    'notes' => 'Stage dibuka setelah ' . $currentStage . ' lulus',
-                    'conducted_by' => Auth::user()->nama ?? null,
-                ];
-
-                // Create calendar event for the next stage
+                // Buat atau update stage berikutnya hanya jika tanggal diberikan
                 if (isset($validated['next_stage_date'])) {
+                    $existingNext = $application->stages()->where('stage_name', $nextStageName)->first();
+                    $nextStageData = [
+                        'stage_name' => $nextStageName,
+                        'status' => '',  // Empty status for new stages
+                        'scheduled_date' => $validated['next_stage_date'],
+                        'notes' => 'Stage dibuka setelah ' . $validated['stage'] . ' lulus',
+                        'conducted_by_user_id' => null, // Not conducted yet
+                    ];
+
+                    // Create calendar event for the next stage
                     $stageDisplayNames = [
                         'cv_review' => 'Seleksi CV',
                         'psikotes' => 'Psikotest',
@@ -612,12 +636,12 @@ class CandidateController extends BaseController
                         'status' => 'active',
                         'created_by' => Auth::id(),
                     ]);
-                }
 
-                if ($existingNext) {
-                    $existingNext->update($nextStageData);
-                } else {
-                    $application->stages()->create($nextStageData);
+                    if ($existingNext) {
+                        $existingNext->update($nextStageData);
+                    } else {
+                        $application->stages()->create($nextStageData);
+                    }
                 }
             }
         }
@@ -635,14 +659,18 @@ class CandidateController extends BaseController
         // Update application overall status based on stage status
         if (in_array($result, ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING'])) {
             $application->overall_status = 'DITOLAK';
-        } elseif ($validated['stage'] === 'hiring' && $result === 'LULUS') {
+        } elseif ($validated['stage'] === 'hiring' && in_array($result, ['HIRED', 'LULUS'])) {
             $application->overall_status = 'LULUS';
+            $application->hired_date = $now; // Set hired date when candidate is hired
         } else {
             $application->overall_status = 'PROSES';
         }
         $application->save();
 
-        return response()->json(['success' => true, 'message' => 'Stage berhasil diperbarui.']);
+        return response()->json([
+            'success' => true, 
+            'message' => 'Stage berhasil diperbarui.'
+        ]);
     }
 
     public function getAvailableDepartments()
@@ -815,5 +843,4 @@ class CandidateController extends BaseController
 
         return $query->first();
     }
-
 }

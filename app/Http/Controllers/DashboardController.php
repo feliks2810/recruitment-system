@@ -84,14 +84,7 @@ class DashboardController extends Controller
         });
 
         $stageOrder = [
-            'cv_review',
-            'psikotes',
-            'hc_interview',
-            'user_interview',
-            'interview_bod',
-            'offering_letter',
-            'mcu',
-            'hiring',
+            'cv_review', 'psikotes', 'hc_interview', 'user_interview', 'interview_bod', 'offering_letter', 'mcu', 'hiring',
         ];
 
         $stageDisplayMap = [
@@ -227,6 +220,14 @@ class DashboardController extends Controller
 
         $stagesQuery = ApplicationStage::with(['application.candidate'])
             ->whereNotNull('scheduled_date')
+            // Only fetch stages that are not yet completed or failed
+            ->where(function ($query) {
+                $query->where('status', '=', '')
+                      ->orWhereNull('status')
+                      ->orWhere('status', 'PROSES')
+                      ->orWhere('status', 'IN_PROGRESS')
+                      ->orWhere('status', 'PENDING');
+            })
             ->whereDate('scheduled_date', '>=', now()->startOfYear())
             ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
 
@@ -239,13 +240,18 @@ class DashboardController extends Controller
         $stages = $stagesQuery->get();
 
         foreach ($stages as $stage) {
+            // Use the application's creation date for the 'cv_review' stage, otherwise use the scheduled date.
+            $eventDate = ($stage->stage_name === 'cv_review')
+                ? $stage->application->created_at
+                : $stage->scheduled_date;
+
             $events[] = [
                 'id' => 'stage_' . $stage->id,
                 'type' => 'candidate_test',
                 'title' => $stage->application->candidate->nama . ' - ' . Str::title(str_replace('_', ' ', $stage->stage_name)),
                 'description' => 'Test ' . Str::title(str_replace('_', ' ', $stage->stage_name)) . ' untuk kandidat ' . $stage->application->candidate->nama,
-                'date' => Carbon::parse($stage->scheduled_date)->format('Y-m-d'),
-                'time' => Carbon::parse($stage->scheduled_date)->format('H:i'),
+                'date' => Carbon::parse($eventDate)->format('Y-m-d'),
+                'time' => Carbon::parse($eventDate)->format('H:i'),
                 'url' => route('candidates.show', $stage->application->candidate_id),
                 'candidate_id' => $stage->application->candidate_id,
                 'stage' => $stage->stage_name,
@@ -266,23 +272,13 @@ class DashboardController extends Controller
         foreach ($customEvents as $event) {
             $events[] = [
                 'id' => 'custom_' . $event->id,
-                'type' => 'candidate_test',
-                'title' => $event->title,
-                'description' => $event->description,
-                'date' => Carbon::parse($event->date)->format('Y-m-d'),
-                'time' => $event->time,
-                'url' => $event->candidate_id ? route('candidates.show', $event->candidate_id) : null,
-                'candidate_id' => $event->candidate_id,
-                'stage' => $event->stage,
-            ];
-            $events[] = [
-                'id' => 'custom_' . $event->id,
-                'type' => 'custom_event',
+                'is_custom' => true,
                 'title' => $event->title,
                 'description' => $event->description ?? 'No description',
-                'date' => Carbon::parse($event->event_date)->format('Y-m-d'),
-                'time' => $event->event_time ? Carbon::parse($event->event_time)->format('H:i') : null,
+                'date' => Carbon::parse($event->date)->format('Y-m-d'),
+                'time' => $event->time ? Carbon::parse($event->time)->format('H:i') : null,
                 'url' => '#',
+                'candidate_id' => $event->candidate_id,
             ];
         }
 

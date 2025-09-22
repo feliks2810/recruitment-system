@@ -11,33 +11,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property int $candidate_id
  * @property int|null $department_id
- * @property string $vacancy_name
+ * @property int|null $vacancy_id
+ * @property int|null $processed_by_user_id
  * @property string|null $cv_path
  * @property string|null $flk_path
  * @property string $overall_status
- * @property string|null $processed_by
  * @property \Illuminate\Support\Carbon|null $hired_date
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Models\Candidate $candidate
  * @property-read \App\Models\Department|null $department
+ * @property-read \App\Models\Vacancy|null $vacancy
+ * @property-read \App\Models\User|null $processedByUser
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ApplicationStage> $stages
  * @property-read int|null $stages_count
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereCandidateId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereCvPath($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereDepartmentId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereFlkPath($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereHiredDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereOverallStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereProcessedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Application whereVacancyName($value)
- * @mixin \Eloquent
  */
 class Application extends Model
 {
@@ -46,12 +33,12 @@ class Application extends Model
     protected $fillable = [
         'candidate_id',
         'department_id',
-        'vacancy_name',
+        'vacancy_id',
+        'processed_by_user_id',
         'internal_position',
         'cv_path',
         'flk_path',
         'overall_status',
-        'processed_by',
         'hired_date',
     ];
 
@@ -67,6 +54,16 @@ class Application extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function vacancy(): BelongsTo
+    {
+        return $this->belongsTo(Vacancy::class);
+    }
+
+    public function processedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'processed_by_user_id');
     }
 
     public function stages(): HasMany
