@@ -265,100 +265,82 @@ class StatisticsController extends Controller
 
     private function getTimelineAnalysisData($baseQuery)
     {
-        // Tambahkan debugging untuk melihat apakah ada data
         $totalApplications = (clone $baseQuery)->count();
         \Log::info("Timeline Analysis - Total applications: {$totalApplications}");
 
-        $stages = [
-            ['name' => 'Aplikasi', 'stage_name' => null], // Starting point
-            ['name' => 'CV Review', 'stage_name' => 'cv_review'],
-            ['name' => 'Psikotes', 'stage_name' => 'psikotes'],
-            ['name' => 'Interview HC', 'stage_name' => 'hc_interview'],
-            ['name' => 'Interview User', 'stage_name' => 'user_interview'],
-            ['name' => 'Interview BOD', 'stage_name' => 'interview_bod'],
-            ['name' => 'Offering Letter', 'stage_name' => 'offering_letter'],
-            ['name' => 'MCU', 'stage_name' => 'mcu'],
-            ['name' => 'Hired', 'stage_name' => 'hiring'],
+        $allStages = [
+            'CV Review' => 'cv_review',
+            'Psikotes' => 'psikotes',
+            'Interview HC' => 'hc_interview',
+            'Interview User' => 'user_interview',
+            'Interview BOD' => 'interview_bod',
+            'Offering Letter' => 'offering_letter',
+            'MCU' => 'mcu',
+            'Hired' => 'hiring',
         ];
 
-        // Eager load semua data yang diperlukan
         $applications = (clone $baseQuery)->with([
-            'candidate:id,nama', 
+            'candidate:id,nama',
             'stages' => function ($query) {
                 $query->select('id', 'application_id', 'stage_name', 'status', 'created_at', 'updated_at')
-                      ->orderBy('created_at', 'asc');
+                    ->whereNotNull('updated_at'); // Only consider completed stages
             }
         ])->get();
 
         \Log::info("Timeline Analysis - Applications loaded: " . $applications->count());
-        \Log::info("Timeline Analysis - Sample stages count: " . ($applications->first() ? $applications->first()->stages->count() : 0));
 
-        $analysis = [];
-        $passStatuses = ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED', 'PASS', 'OK', 'DONE'];
+        $allDurations = [];
 
-        for ($i = 0; $i < count($stages) - 1; $i++) {
-            $currentStage = $stages[$i];
-            $nextStage = $stages[$i + 1];
+        foreach ($applications as $application) {
+            if (!$application->candidate || $application->stages->isEmpty()) {
+                continue;
+            }
 
-            $durationsWithCandidates = collect();
-
-            foreach ($applications as $application) {
-                if (!$application->candidate) {
-                    continue;
-                }
-
-                $startTime = null;
-                $endTime = null;
-
-                if ($i === 0) {
-                    // Dari aplikasi ke tahap pertama
-                    $startTime = $application->created_at;
-                    $firstStage = $application->stages
-                        ->where('stage_name', $nextStage['stage_name'])
-                        ->first();
-                    $endTime = $firstStage ? $firstStage->created_at : null;
-                } else {
-                    // Dari tahap sebelumnya ke tahap berikutnya
-                    $prevStage = $application->stages
-                        ->where('stage_name', $currentStage['stage_name'])
-                        ->whereIn('status', $passStatuses)
-                        ->sortByDesc('updated_at')
-                        ->first();
-
-                    $nextStageRecord = $application->stages
-                        ->where('stage_name', $nextStage['stage_name'])
-                        ->sortBy('created_at')
-                        ->first();
-
-                    if ($prevStage && $nextStageRecord) {
-                        $startTime = $prevStage->updated_at ?? $prevStage->created_at;
-                        $endTime = $nextStageRecord->created_at;
-                    }
-                }
+            foreach ($application->stages as $stage) {
+                $startTime = $stage->created_at;
+                $endTime = $stage->updated_at;
 
                 if ($startTime && $endTime) {
                     $startCarbon = is_string($startTime) ? Carbon::parse($startTime) : $startTime;
                     $endCarbon = is_string($endTime) ? Carbon::parse($endTime) : $endTime;
-                    
-                    // Validasi bahwa end time setelah start time
+
                     if ($endCarbon->greaterThanOrEqualTo($startCarbon)) {
                         $duration = $startCarbon->diffInDays($endCarbon);
-                        
-                        $durationsWithCandidates->push([
-                            'duration' => $duration,
-                            'candidate_name' => $application->candidate->nama ?? 'Unknown',
-                            'candidate_id' => $application->candidate->id ?? null,
-                        ]);
+                        $stageName = array_search($stage->stage_name, $allStages);
+
+                        if ($stageName) {
+                            $allDurations[$stageName][] = [
+                                'duration' => $duration,
+                                'candidate_name' => $application->candidate->nama ?? 'Unknown',
+                                'candidate_id' => $application->candidate->id ?? null,
+                            ];
+                        }
                     }
                 }
             }
+        }
 
-            \Log::info("Timeline Analysis - Stage {$i}: {$currentStage['name']} → {$nextStage['name']}, Durations found: " . $durationsWithCandidates->count());
+        $analysis = [];
+        foreach ($allStages as $stageName => $stageKey) {
+            if (isset($allDurations[$stageName])) {
+                $durationsWithCandidates = $allDurations[$stageName];
+                $durationsCollection = collect($durationsWithCandidates);
+                $minDurationItem = $durationsCollection->sortBy('duration')->first();
+                $maxDurationItem = $durationsCollection->sortByDesc('duration')->first();
 
-            if ($durationsWithCandidates->isEmpty()) {
                 $analysis[] = [
-                    'stage_name' => $nextStage['name'],
-                    'previous_stage_name' => $currentStage['name'],
+                    'stage_name' => $stageName,
+                    'avg_days' => round($durationsCollection->pluck('duration')->avg(), 1),
+                    'min_days' => $minDurationItem['duration'],
+                    'min_days_candidate_name' => $minDurationItem['candidate_name'],
+                    'min_days_candidate_id' => $minDurationItem['candidate_id'],
+                    'max_days' => $maxDurationItem['duration'],
+                    'max_days_candidate_name' => $maxDurationItem['candidate_name'],
+                    'max_days_candidate_id' => $maxDurationItem['candidate_id'],
+                ];
+            } else {
+                $analysis[] = [
+                    'stage_name' => $stageName,
                     'avg_days' => 0,
                     'min_days' => 0,
                     'max_days' => 0,
@@ -367,24 +349,7 @@ class StatisticsController extends Controller
                     'max_days_candidate_name' => null,
                     'max_days_candidate_id' => null,
                 ];
-                continue;
             }
-
-            $durations = $durationsWithCandidates->pluck('duration');
-            $minDurationItem = $durationsWithCandidates->sortBy('duration')->first();
-            $maxDurationItem = $durationsWithCandidates->sortByDesc('duration')->first();
-
-            $analysis[] = [
-                'stage_name' => $nextStage['name'],
-                'previous_stage_name' => $currentStage['name'],
-                'avg_days' => round($durations->avg(), 1),
-                'min_days' => $minDurationItem['duration'],
-                'min_days_candidate_name' => $minDurationItem['candidate_name'],
-                'min_days_candidate_id' => $minDurationItem['candidate_id'],
-                'max_days' => $maxDurationItem['duration'],
-                'max_days_candidate_name' => $maxDurationItem['candidate_name'],
-                'max_days_candidate_id' => $maxDurationItem['candidate_id'],
-            ];
         }
 
         \Log::info("Timeline Analysis - Final analysis count: " . count($analysis));

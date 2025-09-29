@@ -92,55 +92,7 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Analisis Alur Waktu per Tahapan</h3>
         <div style="height: 350px;"><canvas id="timelineAnalysisChart"></canvas></div>
 
-        <!-- Details Table -->
-        <div class="mt-8 flow-root">
-            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                    <table class="min-w-full divide-y divide-gray-300">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">Proses</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Rata-rata</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Tercepat</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Terlama</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @forelse ($timelineAnalysis as $data)
-                                @if ($data['avg_days'] > 0 || $data['min_days'] > 0 || $data['max_days'] > 0)
-                                    <tr>
-                                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
-                                            {{ $data['previous_stage_name'] }} → {{ $data['stage_name'] }}
-                                        </td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ $data['avg_days'] }} hari</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                            <div class="font-medium text-gray-900">{{ $data['min_days'] }} hari</div>
-                                            @if ($data['min_days_candidate_name'])
-                                                <a href="{{ route('candidates.show', $data['min_days_candidate_id']) }}" class="text-blue-600 hover:underline">
-                                                    {{ $data['min_days_candidate_name'] }}
-                                                </a>
-                                            @endif
-                                        </td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                            <div class="font-medium text-gray-900">{{ $data['max_days'] }} hari</div>
-                                            @if ($data['max_days_candidate_name'])
-                                                <a href="{{ route('candidates.show', $data['max_days_candidate_id']) }}" class="text-blue-600 hover:underline">
-                                                    {{ $data['max_days_candidate_name'] }}
-                                                </a>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endif
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-sm text-gray-500">Data tidak cukup untuk menampilkan analisis.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+
     </div>
 
     <!-- Stage Pass Rate Analysis -->
@@ -235,6 +187,26 @@ document.addEventListener('DOMContentLoaded', function () {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: function(evt, elements) {
+                    if (elements.length > 0) {
+                        const element = elements[0];
+                        const datasetIndex = element.datasetIndex;
+                        const index = element.index;
+                        const datasetLabel = this.data.datasets[datasetIndex].label;
+                        const data = timelineAnalysisData[index];
+
+                        let candidateId = null;
+                        if (datasetLabel === 'Paling Cepat (Hari)') {
+                            candidateId = data.min_days_candidate_id;
+                        } else if (datasetLabel === 'Paling Lama (Hari)') {
+                            candidateId = data.max_days_candidate_id;
+                        }
+
+                        if (candidateId) {
+                            window.location.href = `/candidates/${candidateId}`;
+                        }
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -248,10 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             title: function(context) {
                                 const index = context[0].dataIndex;
                                 const data = timelineAnalysisData[index];
-                                if (index === 0) {
-                                    return `Tahap: ${data.stage_name}`;
-                                }
-                                return `Proses: ${data.previous_stage_name} ke ${data.stage_name}`;
+                                return `Tahap: ${data.stage_name}`;
                             }
                         }
                     }
