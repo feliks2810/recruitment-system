@@ -73,6 +73,13 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Document management
             'manage-documents',
+            'manage-departments',
+            'view-posisi-pelamar',
+            'manage-vacancies',
+
+            // Vacancy Proposals
+            'propose-vacancy',
+            'review-vacancy-proposals-step-1',
         ];
 
         // Create all permissions
@@ -86,6 +93,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $departmentRole = Role::firstOrCreate(['name' => 'department']);
 
         // Admin role - Only user management + dashboard
+        $adminRole->syncPermissions([]); // Revoke all existing permissions
         $adminRole->givePermissionTo([
             'view-dashboard',
             'manage-users',
@@ -94,9 +102,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'edit-users',
             'delete-users',
             'manage-departments',
+            // 'view-posisi-pelamar', // Removed for Admin
+            'manage-vacancies',
         ]);
 
         // Team HC role - Everything except user management
+        $teamHCRole->revokePermissionTo('manage-departments'); // Explicitly revoke if previously granted
         $teamHCRole->givePermissionTo([
             'view-dashboard',
             // Candidate management
@@ -132,6 +143,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'mark-duplicate',
             'resolve-duplicate',
             'manage-documents',
+            'view-posisi-pelamar',
+            'review-vacancy-proposals-step-1',
         ]);
 
         // Department role - Limited access: dashboard, own department candidates, statistics
@@ -140,6 +153,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'view-own-department-candidates',
             'show-candidates', // Can view details of candidates in their department
             'view-statistics',
+            'propose-vacancy',
         ]);
 
         // Output seeding information

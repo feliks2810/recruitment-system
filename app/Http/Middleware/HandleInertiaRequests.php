@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Vacancy;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,15 +30,18 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $pendingProposalsCount = Vacancy::where('proposal_status', 'pending')->count();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user() ? [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
-                    // Tambahkan field lain yang diperlukan
-                    'role' => $request->user()->getRoleNames()->first() ?? null,
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->getRoleNames()->first() ?? null,
+                    'permissions' => $user->getAllPermissions()->pluck('name'),
                 ] : null,
             ],
             'flash' => [
@@ -45,6 +49,7 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'success' => fn () => $request->session()->get('success'),
             ],
+            'pending_proposals_count' => $pendingProposalsCount,
         ];
     }
 }

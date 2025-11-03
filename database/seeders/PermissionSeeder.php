@@ -22,9 +22,25 @@ class PermissionSeeder extends Seeder
 
             // Candidate Permissions
             'view-candidates',
-            'manage-candidates',
+            'create-candidates',
+            'edit-candidates',
+            'delete-candidates',
             'import-candidates',
             'export-candidates',
+
+            // Vacancy
+            'propose-vacancy',
+            'review-vacancy-proposals',
+            'manage-vacancies',
+
+            // Documents
+            'manage-documents',
+
+            // Departments
+            'manage-departments',
+
+            // Posisi Pelamar
+            'view-posisi-pelamar',
 
             // Settings & Reporting
             'manage-settings',

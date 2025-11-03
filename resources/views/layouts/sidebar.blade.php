@@ -22,6 +22,25 @@
             </a>
             @endcanany
 
+            @canany(['review-vacancy-proposals-step-1', 'review-vacancy-proposals-step-2'])
+            <a href="{{ route('proposals.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('proposals.index') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
+                <i class="fas fa-file-alt text-sm w-4 {{ request()->routeIs('proposals.index') ? 'text-white' : 'group-hover:text-blue-600' }}"></i>
+                <span class="font-medium sidebar-text">Vacancy Proposals</span>
+                @if($pendingProposalsCount > 0)
+                <span class="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    {{ $pendingProposalsCount }}
+                </span>
+                @endif
+            </a>
+            @endcan
+
+            @can('propose-vacancy')
+            <a href="{{ route('proposals.create') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('proposals.create') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
+                <i class="fas fa-plus-circle text-sm w-4 {{ request()->routeIs('proposals.create') ? 'text-white' : 'group-hover:text-blue-600' }}"></i>
+                <span class="font-medium sidebar-text">Propose Vacancy</span>
+            </a>
+            @endcan
+
             @can('import-excel')
             <a href="{{ route('import.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('import.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-upload text-sm w-4 {{ request()->routeIs('import.*') ? 'text-white' : 'group-hover:text-purple-600' }}"></i>
@@ -47,6 +66,20 @@
             <a href="{{ route('departments.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('departments.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
                 <i class="fas fa-building text-sm w-4 {{ request()->routeIs('departments.*') ? 'text-white' : 'group-hover:text-gray-600' }}"></i>
                 <span class="font-medium sidebar-text">Manajemen Departemen</span>
+            </a>
+            @endcan
+
+            @can('manage-vacancies')
+            <a href="{{ route('vacancies.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('vacancies.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
+                <i class="fas fa-briefcase text-sm w-4 {{ request()->routeIs('vacancies.*') ? 'text-white' : 'group-hover:text-gray-600' }}"></i>
+                <span class="font-medium sidebar-text">Pengelolaan Posisi</span>
+            </a>
+            @endcan
+
+            @can('view-posisi-pelamar')
+            <a href="{{ route('posisi-pelamar.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('posisi-pelamar.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
+                <i class="fas fa-user-tie text-sm w-4 {{ request()->routeIs('posisi-pelamar.*') ? 'text-white' : 'group-hover:text-gray-600' }}"></i>
+                <span class="font-medium sidebar-text">Posisi & Pelamar</span>
             </a>
             @endcan
 

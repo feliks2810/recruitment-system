@@ -21,6 +21,23 @@
                         {{ __('Kandidat') }}
                     </x-nav-link>
 
+                    @if(auth()->user()->hasRole('team_hc'))
+                        <x-nav-link :href="route('proposals.index')" :active="request()->routeIs('proposals.index')">
+                            {{ __('Vacancy Proposals') }}
+                            @if(session('pending_proposals_count') > 0)
+                                <span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                                    {{ session('pending_proposals_count') }}
+                                </span>
+                            @endif
+                        </x-nav-link>
+                    @endif
+
+                    @if(auth()->user()->hasRole('department'))
+                        <x-nav-link :href="route('proposals.create')" :active="request()->routeIs('proposals.create')">
+                            {{ __('Propose Vacancy') }}
+                        </x-nav-link>
+                    @endif
+
                     
 
                     @if(auth()->user()->hasRole('admin'))

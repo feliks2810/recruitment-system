@@ -17,10 +17,8 @@ return new class extends Migration
         Permission::firstOrCreate(['name' => 'manage-documents']);
 
         // Assign the permission to the 'team_hc' role
-        $role = Role::findByName('team_hc');
-        if ($role) {
-            $role->givePermissionTo('manage-documents');
-        }
+        $role = Role::firstOrCreate(['name' => 'team_hc']);
+        $role->givePermissionTo('manage-documents');
     }
 
     /**

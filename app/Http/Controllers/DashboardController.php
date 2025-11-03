@@ -174,6 +174,8 @@ class DashboardController extends Controller
             array_unshift($availableYears, date('Y'));
         }
 
+        $pendingProposalsCount = \App\Models\Vacancy::where('proposal_status', 'pending')->count();
+
         return view('dashboard', [
             'stats' => $stats,
             'recent_candidates' => $recent_candidates,
@@ -186,6 +188,7 @@ class DashboardController extends Controller
             'departments' => $departments,
             'gender_distribution' => $gender_distribution,
             'university_distribution' => $university_distribution,
+            'pendingProposalsCount' => $pendingProposalsCount,
         ]);
     }
 

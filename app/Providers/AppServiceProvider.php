@@ -6,6 +6,9 @@ use App\Models\Application;
 use App\Observers\ApplicationObserver;
 use Illuminate\Support\ServiceProvider;
 
+use Illuminate\Support\Facades\View;
+use App\Models\Vacancy;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -22,5 +25,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Application::observe(ApplicationObserver::class);
+
+        View::composer('layouts.sidebar', function ($view) {
+            $pendingProposalsCount = Vacancy::where('proposal_status', 'pending')->count();
+            $view->with('pendingProposalsCount', $pendingProposalsCount);
+        });
     }
 }

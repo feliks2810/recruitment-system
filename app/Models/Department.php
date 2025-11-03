@@ -38,4 +38,9 @@ class Department extends Model
     {
         return $this->hasMany(Candidate::class);
     }
+
+    public function vacancies()
+    {
+        return $this->hasMany(Vacancy::class);
+    }
 }

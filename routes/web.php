@@ -11,7 +11,9 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\DepartmentController; // ⬅️ Tambahkan ini untuk controller departemen
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\PositionApplicantController;
+use App\Http\Controllers\VacancyManagementController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -123,6 +125,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('can:view-statistics')
         ->name('statistics.index');
 
+    Route::get('/statistics/vacancies', [\App\Http\Controllers\VacancyStatisticsController::class, 'index'])
+        ->middleware('can:view-statistics')
+        ->name('statistics.vacancies');
+
     // Reports for Team HC
     Route::get('/reports/export', [ReportController::class, 'export'])
         ->middleware('can:view-reports')
@@ -144,6 +150,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('departments', DepartmentController::class)
         ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
         ->middleware('can:manage-departments');
+
+    // Route for Posisi & Pelamar
+    Route::get('/posisi-pelamar', [PositionApplicantController::class, 'index'])->name('posisi-pelamar.index')->middleware('can:view-posisi-pelamar');
+    Route::put('/posisi-pelamar/{vacancy}/update-details', [PositionApplicantController::class, 'updateVacancyDetails'])->name('posisi-pelamar.update-details')->middleware('can:view-posisi-pelamar');
+
+    // Vacancy Management for Admin only
+    Route::resource('vacancies', VacancyManagementController::class)
+        ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
+        ->middleware('can:manage-vacancies');
+
+    Route::get('/test-route', function () {
+        return 'This is a test route';
+    });
+
+    // Vacancy Proposal Routes
+    Route::prefix('proposals')->name('proposals.')->middleware('auth')->group(function () {
+        Route::get('/', [\App\Http\Controllers\VacancyProposalController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\VacancyProposalController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\VacancyProposalController::class, 'store'])->name('store');
+        Route::patch('/{vacancy}/approve', [\App\Http\Controllers\VacancyProposalController::class, 'approve'])->name('approve');
+        Route::patch('/{vacancy}/reject', [\App\Http\Controllers\VacancyProposalController::class, 'reject'])->name('reject');
+    });
     // ⬅️ KODE PERBAIKAN BERAKHIR DI SINI
 
     // Document Routes
@@ -169,6 +197,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_manage_users' => $user->can('manage-users'),
             'can_manage_documents' => $user->can('manage-documents'), // ⬅️ Tambahan untuk konsistensi
             'can_manage_departments' => $user->can('manage-departments'), // ⬅️ Tambahan untuk konsistensi
+            'can_view_posisi_pelamar' => $user->can('view-posisi-pelamar'), // Debug for new menu
+            'can_manage_vacancies' => $user->can('manage-vacancies'),
         ]);
     });
 });

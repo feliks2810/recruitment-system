@@ -67,18 +67,10 @@ class CandidateController extends BaseController
             });
         }
 
-        $type = $request->input('type', 'organic');
-        switch ($type) {
-            case 'non-organic':
-                $baseQuery->airsysInternal(false);
-                break;
-            case 'duplicate':
-                $baseQuery->where('is_suspected_duplicate', true);
-                break;
-            case 'organic':
-            default:
-                $baseQuery->airsysInternal(true);
-                break;
+        if ($request->filled('vacancy_id')) {
+            $baseQuery->whereHas('applications', function ($q) use ($request) {
+                $q->where('vacancy_id', $request->vacancy_id);
+            });
         }
 
         $failedStatuses = ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'FAIL'];
@@ -90,6 +82,9 @@ class CandidateController extends BaseController
                             ->orderBy('candidates.updated_at', 'desc')
                             ->select('candidates.*') // Select all columns from candidates to avoid ambiguity
                             ->paginate(15);
+
+        // Ensure $type is defined for the view
+        $type = $request->input('type', 'organic');
 
         // Base query untuk statistik berdasarkan role user
         $baseStatsQuery = Candidate::query();
@@ -498,6 +493,20 @@ class CandidateController extends BaseController
     public function updateStage(Request $request, Application $application): JsonResponse
     {
         $this->authorizeCandidate($application->candidate);
+
+        $vacancy = $application->vacancy;
+        if ($vacancy) {
+            $hiredCount = Application::where('vacancy_id', $vacancy->id)
+                ->where('overall_status', 'LULUS') // Assuming 'LULUS' means hired
+                ->count();
+
+            if ($hiredCount >= $vacancy->needed_count) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Posisi ini sudah terpenuhi. Tidak dapat melanjutkan kandidat ke tahap selanjutnya.',
+                ], 422);
+            }
+        }
 
         $validated = $request->validate([
             'stage' => 'required|string',

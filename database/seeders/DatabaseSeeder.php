@@ -9,9 +9,12 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesAndPermissionsSeeder::class,
+            TeamHc2RoleSeeder::class,
             DepartmentSeeder::class,
             UserSeeder::class,
+            TeamHc2UserSeeder::class,
             DepartmentUsersSeeder::class,
+            VacancySeeder::class,
         ]);
     }
 }
