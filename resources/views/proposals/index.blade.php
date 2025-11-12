@@ -180,38 +180,60 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposed By</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposed Count</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submission Date</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC 1 Approved</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC 2 Approved</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC1 Processed Date</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC2 Processed Date</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes / Rejection Reason</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($histories as $history)
                                     <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $history->vacancy_name }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->proposed_by }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->submission_date->format('d M Y H:i') }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->hc1_approved_at ? $history->hc1_approved_at->format('d M Y H:i') : '-' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->hc2_approved_at ? $history->hc2_approved_at->format('d M Y H:i') : '-' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $history->vacancy->name }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->proposed_needed_count }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->created_at->format('d M Y H:i') }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            @if($history->status == \App\Models\Vacancy::STATUS_PENDING)
+                                            @php
+                                                $hc1Date = null;
+                                                if ($history->hc1_approved_at) {
+                                                    $hc1Date = $history->hc1_approved_at;
+                                                } elseif ($history->status == 'rejected' && is_null($history->hc1_approved_at)) {
+                                                    $hc1Date = $history->updated_at;
+                                                }
+                                            @endphp
+                                            {{ $hc1Date ? \Carbon\Carbon::parse($hc1Date)->format('d M Y H:i') : 'N/A' }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            @php
+                                                $hc2Text = 'N/A';
+                                                if ($history->hc2_approved_at) {
+                                                    $hc2Text = \Carbon\Carbon::parse($history->hc2_approved_at)->format('d M Y H:i');
+                                                } elseif ($history->status == 'rejected' && $history->hc1_approved_at) {
+                                                    $hc2Text = \Carbon\Carbon::parse($history->updated_at)->format('d M Y H:i');
+                                                } elseif ($history->status == 'rejected' && is_null($history->hc1_approved_at)) {
+                                                    $hc2Text = 'Rejected at HC1';
+                                                }
+                                            @endphp
+                                            {{ $hc2Text }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            @if($history->status == 'pending')
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                                            @elseif($history->status == \App\Models\Vacancy::STATUS_APPROVED)
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Approved</span>
-                                            @elseif($history->status == \App\Models\Vacancy::STATUS_REJECTED)
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Rejected</span>
-                                            @elseif($history->status == \App\Models\Vacancy::STATUS_PENDING_HC2_APPROVAL)
+                                            @elseif($history->status == 'pending_hc2_approval')
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Pending HC 2 Approval</span>
+                                            @elseif($history->status == 'approved')
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Approved</span>
+                                            @elseif($history->status == 'rejected')
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Rejected</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->notes ?? 'N/A' }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No proposal history.</td>
+                                        <td colspan="7" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No proposal history.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

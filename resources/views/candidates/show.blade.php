@@ -1,3 +1,4 @@
+
 @extends('layouts.app')
 
 @section('title', 'Detail Kandidat - ' . $candidate->nama)
@@ -19,10 +20,18 @@
 
 <div class="flex items-center space-x-2">
     @can('edit-candidates')
-    <a href="{{ route('candidates.edit', $candidate) }}"
-       class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
-        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+     <a href="{{ route('candidates.edit', $candidate) }}"
+         class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200"
+         title="Edit Kandidat — Writer icon by SeyfDesigner (Flaticon)"
+         aria-label="Edit Kandidat">
+    <!-- Person with pencil icon: head + shoulders with pencil overlay -->
+    <!-- Icon credit: Writer icons created by SeyfDesigner - Flaticon https://www.flaticon.com/free-icons/writer -->
+        <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="9" cy="8" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+            <path d="M4 20c0-2.5 3.5-4.5 7-4.5s7 2 7 4.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+            <!-- pencil overlay at top-right -->
+            <path d="M16.5 7.5l3 3L14 16l-3.5.5.5-3.5 5-5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
+            <path d="M18.2 6.8l.6.6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
         </svg>
         Edit
     </a>
@@ -70,8 +79,7 @@
                  x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave="ease-in duration-200"
-                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:translate-y-0 sm:scale-95"
                  class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
 
                 <form @submit.prevent="submitForm()" id="stageUpdateForm">
@@ -87,11 +95,10 @@
                                 <div class="mt-4 space-y-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
-                                        <select name="result"
-                                                x-model="stageData.result"
-                                                @change="handleResultChange"
-                                                required
-                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <select name="result"
+                        x-model="stageData.result"
+                        @change="handleResultChange"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                             <option value="">Pilih Hasil</option>
                                             <template x-for="opt in availableResults" :key="opt">
                                                 <option :value="opt" x-text="labelMap[opt] || opt"></option>
@@ -109,12 +116,11 @@
 
                                     <div x-show="showNextStage">
                                         <label class="block text-sm font-medium text-gray-700">Tanggal Stage Selanjutnya <span class="text-red-500">*</span></label>
-                                        <input type="date" 
-                                               name="next_stage_date" 
-                                               x-model="stageData.next_stage_date"
-                                               :min="getCurrentDate()"
-                                               required
-                                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                         <input type="date" 
+                             name="next_stage_date" 
+                             x-model="stageData.next_stage_date"
+                             :min="getCurrentDate()"
+                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     </div>
 
                                     <!-- Catatan -->
@@ -149,6 +155,86 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal untuk Pindahkan Posisi -->
+    <div x-show="showMovePositionModal"
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 overflow-y-auto"
+         style="display: none;">
+
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" @click="closeMovePositionModal()"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+
+                <form @submit.prevent="submitMovePositionForm()">
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                </svg>
+                            </div>
+                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                <h3 class="text-lg leading-6 font-medium text-gray-900">Pindahkan Posisi Kandidat</h3>
+                                <div class="mt-4 space-y-4">
+                                    <div>
+                                        <label for="new_vacancy_id" class="block text-sm font-medium text-gray-700">Pilih Posisi Baru</label>
+
+                                        <!-- When there are available vacancies -->
+                                        <div x-show="activeVacancies && activeVacancies.length > 0">
+                                            <select id="new_vacancy_id"
+                                                    name="new_vacancy_id"
+                                                    x-model="selectedVacancyId"
+                                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                                                <option value="">Pilih Posisi</option>
+                                                <template x-for="vacancy in activeVacancies" :key="vacancy.id">
+                                                    <option :value="vacancy.id" x-text="vacancy.name + ' (Dibutuhkan: ' + vacancy.needed_count + ')'"> </option>
+                                                </template>
+                                            </select>
+                                        </div>
+
+                                        <!-- When no vacancies are available, show message -->
+                                        <div x-show="!activeVacancies || activeVacancies.length === 0" class="mt-2 text-sm text-gray-600 bg-yellow-50 p-3 rounded">
+                                            Tidak ada posisi terbuka saat ini untuk dipindahkan. Mohon cek kembali nanti.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button type="submit"
+                :disabled="isSubmitting || !activeVacancies || activeVacancies.length === 0"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
+                x-text="isSubmitting ? 'Memindahkan...' : (activeVacancies && activeVacancies.length > 0 ? 'Pindahkan' : 'Tidak Ada Posisi')">
+            </button>
+                        <button type="button"
+                                @click="closeMovePositionModal()"
+                                :disabled="isSubmitting"
+                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Modal untuk Menampilkan Catatan -->
     <div x-show="showCommentModal"
@@ -507,7 +593,7 @@
                                                                 'DIPERTIMBANGKAN' => ['bg-yellow-100 text-yellow-800', '…'],
                                                                 'default' => ['bg-red-100 text-red-800', '✗']
                                                             ];
-                                                            $config = $resultConfig[$stage['result']] ?? $resultConfig['default'];
+                                                            $config = $resultConfig[strtoupper($stage['result'])] ?? $resultConfig['default'];
                                                         @endphp
                                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $config[0] }}">
                                                             <span class="mr-1">{{ $config[1] }}</span>
@@ -519,6 +605,12 @@
                                                     </div>
                                                 @else
                                                     <p class="text-gray-500">Menunggu hasil...</p>
+                                                @endif
+
+                                                @if($stage['stage_key'] === 'interview_bod' && $stage['notes'] && str_contains($stage['notes'], 'dipindahkan ke posisi baru'))
+                                                    <p class="text-red-600 text-xs mt-1 font-semibold">
+                                                        * Kandidat ini dipindahkan dari posisi sebelumnya pada tahap ini.
+                                                    </p>
                                                 @endif
                                             </div>
                                         </div>
@@ -548,9 +640,13 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('candidateDetail', () => ({
         showModal: false,
         showCommentModal: false,
+        showMovePositionModal: false, // New property for move position modal
         selectedStage: null,
         selectedComment: '',
         isSubmitting: false,
+        selectedVacancyId: '', // New property for selected vacancy in move position modal
+
+        activeVacancies: @json($activeVacancies), // Pass active vacancies from PHP to Alpine.js
 
         stageData: {
             stage: '',
@@ -566,7 +662,7 @@ document.addEventListener('alpine:init', () => {
             psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
             hc_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
             user_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
-            interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL'],
+            interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN', 'CANCEL', 'PINDAH_POSISI'],
             offering_letter: ['DITERIMA', 'DITOLAK'],
             mcu: ['LULUS', 'TIDAK LULUS'],
             hiring: ['HIRED', 'TIDAK DIHIRING']
@@ -583,7 +679,8 @@ document.addEventListener('alpine:init', () => {
             'DITOLAK': 'Ditolak',
             'SENT': 'Sent',
             'HIRED': 'Hired',
-            'TIDAK DIHIRING': 'Tidak Dihiring'
+            'TIDAK DIHIRING': 'Tidak Dihiring',
+            'PINDAH_POSISI': 'Pindahkan Posisi'
         },
         
         availableResults: [],
@@ -594,9 +691,9 @@ document.addEventListener('alpine:init', () => {
             'psikotes': 'hc_interview',
             'hc_interview': 'user_interview',
             'user_interview': 'interview_bod',
-            'interview_bod': 'mcu',
-            'mcu': 'offering_letter',
-            'offering_letter': 'hiring'
+            'interview_bod': 'offering_letter',
+            'offering_letter': 'mcu',
+            'mcu': 'hiring'
         },
 
         // Stage display names
@@ -617,13 +714,19 @@ document.addEventListener('alpine:init', () => {
         },
 
         handleResultChange() {
+            if (this.stageData.result === 'PINDAH_POSISI') {
+                this.openMovePositionModal();
+                this.stageData.result = ''; // Reset the selection
+                return;
+            }
+
             // Reset next stage fields first
             this.showNextStage = false;
             this.nextStageName = '';
             this.stageData.next_stage_date = '';
 
-            // Only show next stage if result is LULUS or DISARANKAN
-            if (this.stageData.result === 'LULUS' || this.stageData.result === 'DISARANKAN') {
+            // Only show next stage if result is LULUS, DISARANKAN, or DITERIMA
+            if (['LULUS', 'DISARANKAN', 'DITERIMA'].includes(this.stageData.result)) {
                 const nextStage = this.stageSequence[this.stageData.stage];
                 if (nextStage) {
                     this.showNextStage = true;
@@ -635,6 +738,12 @@ document.addEventListener('alpine:init', () => {
         openStageModal(stage, stageKey, result, notes) {
             this.selectedStage = stage;
             this.availableResults = this.stageOptions[stageKey] || [];
+            
+            // The 'Pindahkan Posisi' option should only be available for 'interview_bod'
+            if (stageKey !== 'interview_bod') {
+                this.availableResults = this.availableResults.filter(r => r !== 'PINDAH_POSISI');
+            }
+
             this.showNextStage = false;
             
             // Reset form data
@@ -656,6 +765,16 @@ document.addEventListener('alpine:init', () => {
         closeModal() {
             if (this.isSubmitting) return;
             this.showModal = false;
+        },
+
+        openMovePositionModal() {
+            this.selectedVacancyId = ''; // Reset selected vacancy
+            this.showMovePositionModal = true;
+        },
+
+        closeMovePositionModal() {
+            if (this.isSubmitting) return;
+            this.showMovePositionModal = false;
         },
 
         showComment(comment) {
@@ -711,8 +830,67 @@ document.addEventListener('alpine:init', () => {
                         alert(data.message);
                     }
                     window.location.reload();
-                } else {
+                }
+                else {
                     let errorMessage = 'Gagal memperbarui data.';
+                    if (data.errors) {
+                        const errors = Object.values(data.errors).flat();
+                        errorMessage = errors.join('\n');
+                    } else if (data.message) {
+                        errorMessage = data.message;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+            } catch (error) {
+                alert('Terjadi kesalahan: ' + error.message);
+            } finally {
+                this.isSubmitting = false;
+            }
+        },
+        
+        async submitMovePositionForm() {
+            if (this.isSubmitting) return;
+
+            if (!this.selectedVacancyId) {
+                alert('Pilih posisi baru terlebih dahulu.');
+                return;
+            }
+
+            this.isSubmitting = true;
+
+            const payload = {
+                new_vacancy_id: this.selectedVacancyId,
+            };
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (!csrfToken) {
+                    throw new Error('CSRF token tidak ditemukan di halaman.');
+                }
+
+                const response = await fetch(`/applications/{{ $application ? $application->id : '' }}/move-position`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    this.showMovePositionModal = false;
+                    this.showModal = false; // Close the main modal as well
+                    if (data.message) {
+                        alert(data.message);
+                    }
+                    window.location.reload();
+                } else {
+                    let errorMessage = 'Gagal memindahkan posisi.';
                     if (data.errors) {
                         const errors = Object.values(data.errors).flat();
                         errorMessage = errors.join('\n');

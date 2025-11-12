@@ -155,6 +155,34 @@
                 </div>
             </div>
 
+            <div class="mb-6 bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-md font-semibold text-gray-800">Active Openings</h3>
+                    @if(request('vacancy_id'))
+                    <a href="{{ route('candidates.index', array_merge(request()->except('vacancy_id'), [])) }}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <i class="fas fa-times mr-1"></i>Clear Filter
+                    </a>
+                    @endif
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    @forelse($activeVacancies as $vacancy)
+                        @php
+                            $neededCount = $vacancy->needed_count ?? 0;
+                            $isActive = request('vacancy_id') == $vacancy->id;
+                        @endphp
+                        <a href="{{ route('candidates.index', array_merge(request()->all(), ['vacancy_id' => $vacancy->id])) }}" 
+                           class="flex items-center text-sm font-medium px-3 py-2 rounded-full transition-all {{ $isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' }}">
+                            <span>{{ $vacancy->name }}</span>
+                            <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full {{ $isActive ? 'bg-white bg-opacity-30' : 'bg-blue-500 text-white' }}">
+                                {{ $neededCount }} 
+                            </span>
+                        </a>
+                    @empty
+                        <p class="text-sm text-gray-500">Tidak ada lowongan yang aktif saat ini.</p>
+                    @endforelse
+                </div>
+            </div>
+
             <div class="mb-6">
                 <div class="border-b border-gray-200">
                     <nav class="-mb-px flex flex-wrap gap-2 sm:space-x-8 sm:gap-0" aria-label="Tabs">
@@ -185,6 +213,14 @@
                             <span class="text-sm font-normal text-orange-600">(Mendaftar 2 kali dalam 1 tahun)</span>
                         @else
                             Daftar Kandidat
+                            @if(request('vacancy_id'))
+                                @php
+                                    $selectedVacancy = $activeVacancies->firstWhere('id', request('vacancy_id'));
+                                @endphp
+                                @if($selectedVacancy)
+                                    <span class="text-sm font-normal text-blue-600">- Posisi: {{ $selectedVacancy->name }}</span>
+                                @endif
+                            @endif
                             @if(request('status'))
                                 <span class="text-sm font-normal text-blue-600">- Status: {{ ucfirst(str_replace('_', ' ', request('status'))) }}</span>
                             @endif
@@ -222,7 +258,8 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($candidates as $candidate)
                                     @php
-                                        $application = $candidate->applications->first();
+                                        // Ambil aplikasi yang paling baru (berdasarkan updated_at)
+                                        $application = $candidate->applications->sortByDesc('updated_at')->first();
                                         $latestStage = $application ? $application->stages->sortByDesc('id')->first() : null;
                                     @endphp
                                     @if(Auth::user()->hasRole('department') && $candidate->department_id !== Auth::user()->department_id)
@@ -273,7 +310,11 @@
                                             {{ $candidate->source }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            @if($application && $application->overall_status == 'LULUS')
+                                            @if($application && $application->overall_status == 'HIRED')
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Hired</span>
+                                            @elseif($application && $application->overall_status == 'DITERIMA')
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Diterima</span>
+                                            @elseif($application && $application->overall_status == 'LULUS')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Lulus</span>
                                             @elseif($application && $application->overall_status == 'DITOLAK')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ditolak</span>
@@ -320,8 +361,15 @@
                                                     </a>
                                                 @endcan
                                                 @can('import-excel')
-                                                    <a href="{{ route('candidates.edit', $candidate) }}" class="text-indigo-600 hover:text-indigo-900 p-1" title="Edit">
-                                                        <i class="fas fa-edit text-sm"></i>
+                                                    <a href="{{ route('candidates.edit', $candidate) }}" class="text-indigo-600 hover:text-indigo-900 p-1" title="Edit Kandidat — Writer icon by SeyfDesigner (Flaticon)" aria-label="Edit Kandidat">
+                                                        <!-- person silhouette with pencil overlay -->
+                                                        <!-- Icon credit: Writer icons created by SeyfDesigner - Flaticon https://www.flaticon.com/free-icons/writer -->
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                                            <circle cx="8.5" cy="7.5" r="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                                                            <path d="M3 20c0-2 2.5-3.5 5.5-3.5S14 18 14 20" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                                                            <path d="M15.5 6.5l3 3L12 16l-3.5.5.5-3.5 6-6z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
+                                                            <path d="M18.2 5.8l.6.6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
+                                                        </svg>
                                                     </a>
                                                 @endcan
                                                 @can('delete-candidates')

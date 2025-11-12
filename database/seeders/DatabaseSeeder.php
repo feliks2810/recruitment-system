@@ -16,5 +16,10 @@ class DatabaseSeeder extends Seeder
             DepartmentUsersSeeder::class,
             VacancySeeder::class,
         ]);
+
+        // Call registerPermissions with the Gate facade
+        app()[\Spatie\Permission\PermissionRegistrar::class]->registerPermissions(
+            app(\Illuminate\Contracts\Auth\Access\Gate::class)
+        );
     }
 }

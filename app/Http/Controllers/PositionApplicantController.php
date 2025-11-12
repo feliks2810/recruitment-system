@@ -11,15 +11,27 @@ class PositionApplicantController extends Controller
 {
     public function index()
     {
-        $departments = Department::with(['vacancies.applications' => function ($query) {
-            $query->where('overall_status', '!=', 'Withdrawn');
+        $departments = Department::with(['vacancies' => function($query) {
+            $query->with(['applications' => function($q) {
+                // Load semua aplikasi
+                // Akan di-filter di map function
+            }]);
         }])->get();
 
         $data = $departments->map(function ($department) {
             return [
                 'name' => $department->name,
                 'vacancies' => $department->vacancies->map(function ($vacancy) {
-                    $applicantCount = $vacancy->applications->count();
+                    // Hitung aplikasi yang masih dalam proses (exclude LULUS, HIRED, DITERIMA, DITOLAK, CANCEL)
+                    $applicantCount = $vacancy->applications
+                        ->whereNotIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA', 'DITOLAK', 'CANCEL'])
+                        ->count();
+                    
+                    // Hitung kandidat yang berhasil diterima (HIRED atau DITERIMA)
+                    $acceptedCount = $vacancy->applications
+                        ->whereIn('overall_status', ['HIRED', 'DITERIMA'])
+                        ->count();
+                    
                     $status = 'Tidak Aktif';
                     if ($vacancy->is_active) {
                         if ($vacancy->needed_count == 0) {
@@ -38,6 +50,7 @@ class PositionApplicantController extends Controller
                         'needed_count' => $vacancy->needed_count,
                         'status' => $status,
                         'applicant_count' => $applicantCount,
+                        'accepted_count' => $acceptedCount,
                     ];
                 }),
             ];

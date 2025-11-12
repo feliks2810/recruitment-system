@@ -29,45 +29,26 @@ class VacancyProposalController extends Controller
     
             $proposals = $proposalsQuery->whereYear('created_at', $year)->get();
     
-            $historiesQuery = VacancyProposalHistory::with(['user', 'vacancy'])->whereYear('created_at', $year)->latest();
-            $allHistories = $historiesQuery->get();
-    
-            $groupedHistories = $allHistories->groupBy('vacancy_id')->map(function ($group) {
-                $pending = $group->firstWhere('status', 'pending');
-                $hc1_approval = $group->firstWhere('status', 'pending_hc2_approval');
-                $action = $group->whereIn('status', ['approved', 'rejected'])->first();
-    
-                if (!$pending) return null;
-    
-                return (
-                    (object)[
-                        'vacancy_name' => $pending->vacancy->name ?? 'N/A',
-                        'proposed_by' => $pending->user->name ?? 'N/A',
-                        'submission_date' => $pending->created_at,
-                        'action_date' => $action ? $action->created_at : null,
-                        'status' => $action ? $action->status : ($hc1_approval ? $hc1_approval->status : 'pending'),
-                        'notes' => $action ? $action->notes : ($hc1_approval ? $hc1_approval->notes : $pending->notes),
-                        'hc1_approved_at' => $hc1_approval ? $hc1_approval->created_at : null,
-                        'hc2_approved_at' => $action && $action->status == 'approved' ? $action->created_at : null,
-                    ]
-                );
-            })->filter()->values();
-        $stats = [
-            'total' => $groupedHistories->count(),
-            'pending' => $groupedHistories->where('status', 'pending')->count(),
-            'approved' => $groupedHistories->where('status', 'approved')->count(),
-            'rejected' => $groupedHistories->where('status', 'rejected')->count(),
-        ];
-
-        Log::info('Number of proposals found: ' . $proposals->count());
-
-        return view('proposals.index', [
-            'proposals' => $proposals,
-            'histories' => $groupedHistories,
-            'stats' => $stats,
-            'year' => $year,
-        ]);
-    }
+                    $histories = VacancyProposalHistory::with(['user', 'vacancy'])
+                        ->whereYear('created_at', $year)
+                        ->latest()
+                        ->get();
+            
+                    $stats = [
+                        'total' => $histories->count(),
+                        'pending' => $histories->whereIn('status', ['pending', 'pending_hc2_approval'])->count(),
+                        'approved' => $histories->where('status', 'approved')->count(),
+                        'rejected' => $histories->where('status', 'rejected')->count(),
+                    ];
+            
+                    Log::info('Number of proposals found: ' . $proposals->count());
+            
+                    return view('proposals.index', [
+                        'proposals' => $proposals,
+                        'histories' => $histories,
+                        'stats' => $stats,
+                        'year' => $year,
+                    ]);    }
 
     public function create(Request $request)
     {
@@ -91,39 +72,30 @@ class VacancyProposalController extends Controller
         $departmentVacancyIds = $vacancies->pluck('id')->toArray();
         Log::info('Department Vacancy IDs: ', ['ids' => $departmentVacancyIds]);
 
-        $proposalHistoriesQuery = VacancyProposalHistory::whereIn('vacancy_id', $departmentVacancyIds)->with(['user', 'vacancy'])->whereYear('created_at', $year)->latest();
-        $allHistories = $proposalHistoriesQuery->get();
+        $proposalHistories = VacancyProposalHistory::whereIn('vacancy_id', $departmentVacancyIds)
+            ->with(['user', 'vacancy'])
+            ->whereYear('created_at', $year)
+            ->latest()
+            ->get();
 
-        $groupedHistories = $allHistories->groupBy('vacancy_id')->map(function ($group) {
-            $pending = $group->firstWhere('status', 'pending');
-            $action = $group->whereIn('status', ['approved', 'rejected'])->first();
-
-            if (!$pending) return null;
-
-            return (
-                (object)[
-                    'vacancy_name' => $pending->vacancy->name ?? 'N/A',
-                    'proposed_by' => $pending->user->name ?? 'N/A',
-                    'submission_date' => $pending->created_at,
-                    'action_date' => $action ? $action->created_at : null,
-                    'status' => $action ? $action->status : 'pending',
-                    'notes' => $action ? $action->notes : $pending->notes,
-                ]
-            );
-        })->filter()->values();
+        $pendingProposalVacancyIds = VacancyProposalHistory::whereIn('vacancy_id', $departmentVacancyIds)
+            ->whereIn('status', ['pending', 'pending_hc2_approval'])
+            ->pluck('vacancy_id')
+            ->toArray();
 
         $stats = [
-            'total' => $groupedHistories->count(),
-            'pending' => $groupedHistories->where('status', 'pending')->count(),
-            'approved' => $groupedHistories->where('status', 'approved')->count(),
-            'rejected' => $groupedHistories->where('status', 'rejected')->count(),
+            'total' => $proposalHistories->count(),
+            'pending' => $proposalHistories->whereIn('status', ['pending', 'pending_hc2_approval'])->count(),
+            'approved' => $proposalHistories->where('status', 'approved')->count(),
+            'rejected' => $proposalHistories->where('status', 'rejected')->count(),
         ];
 
         $renderData = [
             'vacancies' => $vacancies,
-            'proposalHistories' => $groupedHistories,
+            'proposalHistories' => $proposalHistories,
             'stats' => $stats,
             'year' => $year,
+            'pendingProposalVacancyIds' => $pendingProposalVacancyIds,
         ];
         Log::info('Data passed to view: ', $renderData);
 
@@ -158,7 +130,8 @@ class VacancyProposalController extends Controller
             'vacancy_id' => $vacancy->id,
             'user_id' => $user->id,
             'status' => 'pending',
-            'notes' => 'Initial proposal created.',
+            'notes' => 'Initial proposal for ' . $request->input('proposed_needed_count') . ' positions.',
+            'proposed_needed_count' => $request->input('proposed_needed_count'),
         ]);
 
         return redirect()->route('proposals.create')->with('success', 'Vacancy proposal submitted successfully.');
@@ -166,31 +139,33 @@ class VacancyProposalController extends Controller
 
     public function approve(Vacancy $vacancy)
     {
+        $history = VacancyProposalHistory::where('vacancy_id', $vacancy->id)->latest()->first();
+
         if (Auth::user()->can('review-vacancy-proposals-step-1') && $vacancy->proposal_status === Vacancy::STATUS_PENDING) {
             $vacancy->update(['proposal_status' => Vacancy::STATUS_PENDING_HC2_APPROVAL]);
 
-            VacancyProposalHistory::create([
-                'vacancy_id' => $vacancy->id,
-                'user_id' => Auth::id(),
-                'status' => Vacancy::STATUS_PENDING_HC2_APPROVAL,
-                'notes' => 'Proposal approved by Team HC 1. Waiting for Team HC 2 approval.',
-                'hc1_approved_at' => now(),
-            ]);
+            if ($history) {
+                $history->update([
+                    'status' => Vacancy::STATUS_PENDING_HC2_APPROVAL,
+                    'notes' => 'Proposal approved by Team HC 1. Waiting for Team HC 2 approval.',
+                    'hc1_approved_at' => now(),
+                ]);
+            }
 
             return redirect()->back()->with('success', 'Vacancy proposal approved. Waiting for Team HC 2 approval.');
         } elseif (Auth::user()->can('review-vacancy-proposals-step-2') && $vacancy->proposal_status === Vacancy::STATUS_PENDING_HC2_APPROVAL) {
             $vacancy->update([
                 'proposal_status' => Vacancy::STATUS_APPROVED,
-                'needed_count' => $vacancy->proposed_needed_count,
+                'needed_count' => $vacancy->needed_count + $vacancy->proposed_needed_count,
             ]);
 
-            VacancyProposalHistory::create([
-                'vacancy_id' => $vacancy->id,
-                'user_id' => Auth::id(),
-                'status' => Vacancy::STATUS_APPROVED,
-                'notes' => 'Vacancy proposal approved by Team HC 2.',
-                'hc2_approved_at' => now(),
-            ]);
+            if ($history) {
+                $history->update([
+                    'status' => Vacancy::STATUS_APPROVED,
+                    'notes' => 'Vacancy proposal approved by Team HC 2.',
+                    'hc2_approved_at' => now(),
+                ]);
+            }
 
             return redirect()->back()->with('success', 'Vacancy proposal approved.');
         }
@@ -208,16 +183,33 @@ class VacancyProposalController extends Controller
             'rejection_reason' => ['required', 'string', 'min:10'],
         ]);
 
+        $rejectionReason = $request->input('rejection_reason');
+        $rejectionStage = '';
+
+        // Determine the rejection stage before updating the vacancy
+        if ($vacancy->proposal_status === Vacancy::STATUS_PENDING) {
+            $rejectionStage = 'HC1';
+        } elseif ($vacancy->proposal_status === Vacancy::STATUS_PENDING_HC2_APPROVAL) {
+            $rejectionStage = 'HC2';
+        }
+
         $vacancy->update([
             'proposal_status' => Vacancy::STATUS_REJECTED,
+            'rejection_reason' => $rejectionReason,
         ]);
 
-        VacancyProposalHistory::create([
-            'vacancy_id' => $vacancy->id,
-            'user_id' => Auth::id(),
-            'status' => 'rejected',
-            'notes' => $request->input('rejection_reason'),
-        ]);
+        $history = VacancyProposalHistory::where('vacancy_id', $vacancy->id)->latest()->first();
+        if ($history) {
+            $note = $rejectionReason;
+            if ($rejectionStage) {
+                $note = "Rejected at {$rejectionStage}: " . $rejectionReason;
+            }
+
+            $history->update([
+                'status' => 'rejected',
+                'notes' => $note,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Vacancy proposal rejected.');
     }

@@ -102,7 +102,10 @@
                         </div>
 
                         <div class="flex items-center justify-end mt-4">
-                            <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
+                            <div id="pending-proposal-info" style="display: none;" class="text-red-500 text-sm mr-4">
+                                A proposal for this position is already pending.
+                            </div>
+                            <button id="submit-proposal-btn" type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150" disabled>
                                 Submit Proposal
                             </button>
                         </div>
@@ -118,23 +121,49 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposed By</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposed Count</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submission Date</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Date</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC1 Processed Date</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HC2 Processed Date</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes / Rejection Reason</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($proposalHistories as $history)
                                     <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $history->vacancy_name }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->proposed_by }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->submission_date->format('d M Y H:i') }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->action_date ? $history->action_date->format('d M Y H:i') : '-' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $history->vacancy->name }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->proposed_needed_count }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $history->created_at->format('d M Y H:i') }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            @php
+                                                $hc1Date = null;
+                                                if ($history->hc1_approved_at) {
+                                                    $hc1Date = $history->hc1_approved_at;
+                                                } elseif ($history->status == 'rejected' && is_null($history->hc1_approved_at)) {
+                                                    $hc1Date = $history->updated_at;
+                                                }
+                                            @endphp
+                                            {{ $hc1Date ? \Carbon\Carbon::parse($hc1Date)->format('d M Y H:i') : 'N/A' }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            @php
+                                                $hc2Text = 'N/A';
+                                                if ($history->hc2_approved_at) {
+                                                    $hc2Text = \Carbon\Carbon::parse($history->hc2_approved_at)->format('d M Y H:i');
+                                                } elseif ($history->status == 'rejected' && $history->hc1_approved_at) {
+                                                    $hc2Text = \Carbon\Carbon::parse($history->updated_at)->format('d M Y H:i');
+                                                } elseif ($history->status == 'rejected' && is_null($history->hc1_approved_at)) {
+                                                    $hc2Text = 'Rejected at HC1';
+                                                }
+                                            @endphp
+                                            {{ $hc2Text }}
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             @if($history->status == 'pending')
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                                            @elseif($history->status == 'pending_hc2_approval')
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Pending HC 2 Approval</span>
                                             @elseif($history->status == 'approved')
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Approved</span>
                                             @elseif($history->status == 'rejected')
@@ -145,7 +174,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No proposal history.</td>
+                                        <td colspan="7" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No proposal history.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -155,4 +184,32 @@
             </div>
         </div>
     </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const pendingProposalVacancyIds = @json($pendingProposalVacancyIds ?? []);
+        const vacancySelect = document.getElementById('vacancy_id');
+        const submitButton = document.getElementById('submit-proposal-btn');
+        const infoMessage = document.getElementById('pending-proposal-info');
+
+        vacancySelect.addEventListener('change', function() {
+            const selectedVacancyId = parseInt(this.value);
+            if (this.value === "") {
+                submitButton.disabled = true;
+                infoMessage.style.display = 'none';
+            } else if (pendingProposalVacancyIds.includes(selectedVacancyId)) {
+                submitButton.disabled = true;
+                infoMessage.style.display = 'block';
+            } else {
+                submitButton.disabled = false;
+                infoMessage.style.display = 'none';
+            }
+        });
+
+        // Initial check in case a value is pre-selected
+        vacancySelect.dispatchEvent(new Event('change'));
+    });
+</script>
+@endpush
 @endsection

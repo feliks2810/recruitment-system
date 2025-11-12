@@ -12,6 +12,7 @@ class VacancyProposalHistory extends Model
         'user_id',
         'status',
         'notes',
+        'proposed_needed_count',
         'hc1_approved_at',
         'hc2_approved_at',
     ];

@@ -54,6 +54,7 @@ class RolesAndPermissionsSeeder extends Seeder
             // Stage management
             'update-stage',
             'move-stage',
+            'edit-timeline',
             
             // Statistics and reports
             'view-statistics',

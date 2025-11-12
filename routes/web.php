@@ -105,6 +105,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::post('/applications/{application}/stage', [CandidateController::class, 'updateStage'])->name('applications.updateStage');
+    Route::post('/applications/{application}/move-position', [CandidateController::class, 'movePosition'])->name('applications.move-position');
 
     // Bulk Delete route outside the prefix group
     Route::delete('/candidates/bulk-actions/delete', [CandidateController::class, 'bulkDelete'])->name('candidates.bulkDelete');
