@@ -77,7 +77,7 @@
                            value="{{ request('search') }}" 
                            placeholder="Cari nama, email, atau posisi..." 
                            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           @input.debounce.500ms="$refs.filterForm.submit()">
+                           @keydown.enter.prevent="$refs.filterForm.submit()">
                 </div>
                 <div class="min-w-[150px]">
                     <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -361,16 +361,21 @@
                                                     </a>
                                                 @endcan
                                                 @can('import-excel')
-                                                    <a href="{{ route('candidates.edit', $candidate) }}" class="text-indigo-600 hover:text-indigo-900 p-1" title="Edit Kandidat — Writer icon by SeyfDesigner (Flaticon)" aria-label="Edit Kandidat">
-                                                        <!-- person silhouette with pencil overlay -->
-                                                        <!-- Icon credit: Writer icons created by SeyfDesigner - Flaticon https://www.flaticon.com/free-icons/writer -->
-                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                                            <circle cx="8.5" cy="7.5" r="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-                                                            <path d="M3 20c0-2 2.5-3.5 5.5-3.5S14 18 14 20" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-                                                            <path d="M15.5 6.5l3 3L12 16l-3.5.5.5-3.5 6-6z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
-                                                            <path d="M18.2 5.8l.6.6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
-                                                        </svg>
-                                                    </a>
+                                                       <a href="{{ route('candidates.edit', $candidate) }}" 
+       class="text-indigo-600 hover:text-indigo-900 p-1 
+              hover:bg-indigo-50 rounded transition-colors" 
+       title="Edit Kandidat" 
+       aria-label="Edit Kandidat">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" 
+             stroke="currentColor" stroke-width="1.5" 
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 21.154C2 16.689 6.07 15 10 15c1.283 0 2.581.18 3.747.578" 
+                  stroke-linecap="round"/>
+            <path d="M14.308 7.237c0 2.51-.287 5.302-4.308 5.302s-4.308-2.792-4.308-5.302C5.692 4.727 7.621 2.692 10 2.692s4.308 2.035 4.308 4.545z"/>
+            <path d="M14.421 18.32l4.974-5.898.65-.173 1.77 1.492-.061.671-4.974 5.898-2.601.69.242-2.68z"/>
+            <path d="M18.464 13.383l2.421 2.152"/>
+        </svg>
+    </a>
                                                 @endcan
                                                 @can('delete-candidates')
                                                     <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
