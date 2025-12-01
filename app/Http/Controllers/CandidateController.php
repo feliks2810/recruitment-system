@@ -38,12 +38,12 @@ class CandidateController extends BaseController
     public function index(Request $request): View
     {
         $baseQuery = Candidate::with([
-            'department', 
-            'applications' => function($query) {
+            'department',
+            'applications' => function ($query) {
                 $query->orderByDesc('updated_at');
             },
-            'applications.stages', 
-            'applications.vacancy', 
+            'applications.stages',
+            'applications.vacancy',
             'educations'
         ]);
 
@@ -97,12 +97,15 @@ class CandidateController extends BaseController
 
         // Sort: Prioritas status PROSES di atas, LULUS/HIRED/DITERIMA di bawah
         $candidates = $baseQuery
-            ->orderByRaw("CASE 
+            ->orderByRaw("CASE
                 WHEN (SELECT overall_status FROM applications WHERE applications.candidate_id = candidates.id ORDER BY updated_at DESC LIMIT 1) IN ('LULUS', 'DITERIMA', 'HIRED') THEN 1
                 ELSE 0
             END")
             ->orderBy('updated_at', 'desc')
             ->paginate(15);
+
+
+        // $mergedCandidates = $this->handleDuplicate($candidates);
 
         // Base query untuk statistik berdasarkan role user
         $baseStatsQuery = Candidate::query();
@@ -110,7 +113,7 @@ class CandidateController extends BaseController
             $baseStatsQuery->where('department_id', Auth::user()->department_id);
         }
 
-        $candidatesForStats = (clone $baseStatsQuery)->with(['applications.stages' => function($query) {
+        $candidatesForStats = (clone $baseStatsQuery)->with(['applications.stages' => function ($query) {
             $query->orderBy('scheduled_date', 'desc')->orderBy('id', 'desc');
         }])->get();
 
@@ -150,16 +153,16 @@ class CandidateController extends BaseController
 
         // Query untuk kandidat yang butuh tindakan (tetap sama)
         $needsActionQuery = clone $baseStatsQuery;
-        $needsActionQuery->whereHas('applications', function($q) {
+        $needsActionQuery->whereHas('applications', function ($q) {
             $q->where('overall_status', 'PROSES')
-              ->whereHas('stages', function($sq) {
-                  $sq->whereDate('scheduled_date', '<=', now())
-                     ->where(function($ssq) {
-                         $ssq->whereNull('status')
-                            ->orWhere('status', '')
-                            ->orWhere('status', 'IN_PROGRESS');
-                     });
-              });
+                ->whereHas('stages', function ($sq) {
+                    $sq->whereDate('scheduled_date', '<=', now())
+                        ->where(function ($ssq) {
+                            $ssq->whereNull('status')
+                                ->orWhere('status', '')
+                                ->orWhere('status', 'IN_PROGRESS');
+                        });
+                });
         });
 
         $stats = [
@@ -171,9 +174,9 @@ class CandidateController extends BaseController
             'duplicate' => $duplicateQuery->count(),
             'needs_action' => $needsActionQuery->count(),
             // Tambahan statistik persentase
-            'success_rate' => $total_candidates > 0 ? 
+            'success_rate' => $total_candidates > 0 ?
                 round(($candidates_passed / $total_candidates) * 100, 2) : 0,
-            'rejection_rate' => $total_candidates > 0 ? 
+            'rejection_rate' => $total_candidates > 0 ?
                 round(($candidates_failed / $total_candidates) * 100, 2) : 0,
         ];
 
@@ -190,8 +193,42 @@ class CandidateController extends BaseController
             ->orderBy('name')
             ->get();
 
+
+
         return view('candidates.index', compact('candidates', 'statuses', 'stats', 'type', 'activeVacancies'));
     }
+
+    public function handleDuplicate($candidates)
+    {
+        $mergedCandidates = collect();
+        $processedCandidates = collect();
+
+        foreach ($candidates as $candidate) {
+            if ($processedCandidates->contains($candidate->id)) {
+                continue;
+            }
+
+            $duplicates = $candidates->filter(function ($c) use ($candidate) {
+                return $c->id !== $candidate->id &&
+                    $c->nama === $candidate->nama &&
+                    $c->tanggal_lahir == $candidate->tanggal_lahir;
+            });
+
+            if ($duplicates->isNotEmpty()) {
+                $candidate->is_duplicate = true;
+                $candidate->duplicates = $duplicates;
+
+                foreach ($duplicates as $duplicate) {
+                    $processedCandidates->push($duplicate->id);
+                }
+            }
+
+            $mergedCandidates->push($candidate);
+        }
+
+        return $mergedCandidates;
+    }
+
 
     public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
@@ -382,7 +419,7 @@ class CandidateController extends BaseController
     {
         $this->authorizeCandidate($candidate);
         $candidate->load(['department', 'educations', 'applications.stages']);
-        $application = $candidate->applications->first();
+        $application = $candidate->applications()->latest()->first();
 
         // If no application exists, create a default one to unlock the timeline for authorized users.
         if (!$application && Auth::user()->hasRole(['super_admin', 'admin', 'team_hc'])) {
@@ -400,53 +437,42 @@ class CandidateController extends BaseController
         if ($application) {
             $stages = $application->stages->keyBy('stage_name');
             $stageOrder = ['cv_review', 'psikotes', 'hc_interview', 'user_interview', 'interview_bod', 'offering_letter', 'mcu', 'hiring'];
+            $previousStagePassed = true; // The first stage is always unlocked
 
             foreach ($stageOrder as $stage_key) {
                 $stage = $stages->get($stage_key);
                 $result = $stage->status ?? null;
-                $status = 'pending';
+                $status = 'locked'; // Default to locked
 
-                // Map database status to a display-friendly result string
-                $displayResult = match (strtoupper((string)$result)) {
-                    'LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED' => 'Lulus',
-                    'TIDAK LULUS', 'TIDAK DISARANKAN', 'TIDAK DIHIRING' => 'Tidak Lulus',
-                    'DITOLAK' => 'Ditolak',
-                    'PROSES', 'IN_PROGRESS' => 'Proses',
-                    'PENDING' => 'Pending',
-                    'CANCEL' => 'Cancel',
-                    'DIPERTIMBANGKAN' => 'Dipertimbangkan',
-                    default => $result, // Keep original if no match
-                };
+                if ($previousStagePassed) {
+                    $status = 'pending'; // If previous stage passed, this one is at least pending
 
-                if ($stage) {
-                    // Convert to uppercase for case-insensitive comparison
-                    $upperResult = strtoupper((string)$result);
-                    
-                    if (in_array($upperResult, ['LULUS', 'DISARANKAN', 'HIRED', 'DITERIMA'])) {
-                        $status = 'completed';
-                    } elseif (in_array($upperResult, ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING', 'CANCEL'])) {
-                        $status = 'failed';
-                    } elseif (in_array($upperResult, ['PROSES', 'IN_PROGRESS', 'DIPERTIMBANGKAN'])) {
-                        $status = 'in_progress';
-                    } elseif ($upperResult === 'PENDING') {
-                        $status = 'pending';
-                    } else {
-                        // Default to in_progress if status is set but not recognized
-                        $status = 'in_progress';
+                    if ($stage) {
+                        $upperResult = strtoupper((string)$result);
+                        if (in_array($upperResult, ['LULUS', 'DISARANKAN', 'HIRED', 'DITERIMA'])) {
+                            $status = 'completed';
+                        } elseif (in_array($upperResult, ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING', 'CANCEL'])) {
+                            $status = 'failed';
+                        } elseif (in_array($upperResult, ['PROSES', 'IN_PROGRESS', 'DIPERTIMBANGKAN']) || !empty($upperResult)) {
+                            $status = 'in_progress';
+                        }
                     }
-                } else {
-                    $status = 'locked';
                 }
+
                 $timeline[] = [
                     'stage_key' => $stage_key,
                     'display_name' => Str::title(str_replace('_', ' ', $stage_key)),
                     'date' => $stage->scheduled_date ?? null,
-                    'result' => $displayResult, // Use the mapped result for display
+                    'result' => $result,
                     'notes' => $stage->notes ?? null,
                     'status' => $status,
-                    'is_locked' => !$stage,
                     'evaluator' => $stage->conducted_by ?? null,
                 ];
+
+                // For the next loop iteration, determine if it should be unlocked
+                if ($status !== 'completed') {
+                    $previousStagePassed = false;
+                }
             }
         }
 
@@ -696,6 +722,7 @@ class CandidateController extends BaseController
         // Update application overall status based on stage status
         if (in_array($result, ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING'])) {
             $application->overall_status = 'DITOLAK';
+            $application->candidate->status = 'inactive';
         } elseif ($validated['stage'] === 'hiring' && $result === 'HIRED') {
             $application->overall_status = 'HIRED';
             // Decrement needed_count jika vacancy ada
@@ -714,6 +741,7 @@ class CandidateController extends BaseController
         } else {
             $application->overall_status = 'PROSES';
         }
+        $application->candidate->save();
         $application->save();
 
         return response()->json(['success' => true, 'message' => 'Stage berhasil diperbarui.']);
@@ -882,9 +910,10 @@ class CandidateController extends BaseController
             }
         });
 
-        // Filter by application date
+        // Filter by application date and status
         $query->whereHas('applications', function ($appQuery) use ($oneYearAgo) {
-            $appQuery->where('created_at', '>=', $oneYearAgo);
+            $appQuery->where('created_at', '>=', $oneYearAgo)
+                ->whereIn('overall_status', ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING']);
         });
 
         return $query->first();

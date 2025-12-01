@@ -16,16 +16,14 @@ class TeamHc2RoleSeeder extends Seeder
         // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create the new permission for the second step of approval
-        Permission::firstOrCreate(['name' => 'review-vacancy-proposals-step-2']);
-
         // Create the Team HC 2 role
         $teamHc2Role = Role::firstOrCreate(['name' => 'team_hc_2']);
 
         $teamHc2Role->revokePermissionTo('manage-vacancies');
         $teamHc2Role->revokePermissionTo('propose-vacancy');
+        $teamHc2Role->revokePermissionTo('manage-departments');
 
-        // Assign the new permission to the Team HC 2 role
+        // Assign the same permissions as team_hc
         $teamHc2Role->givePermissionTo([
             'view-dashboard',
             // Candidate management

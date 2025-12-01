@@ -90,13 +90,13 @@
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        Baris {{ $error['row'] ?? 'N/A' }}
+                                        Baris {{ $error->row() ?? 'N/A' }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm text-gray-900">
-                                        @if(isset($error['errors']) && is_array($error['errors']))
-                                            @foreach($error['errors'] as $err)
+                                        @if(method_exists($error, 'errors') && is_array($error->errors()))
+                                            @foreach($error->errors() as $err)
                                                 <div class="mb-1">
                                                     <span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>
                                                     {{ $err['message'] ?? $err }}
@@ -104,15 +104,15 @@
                                             @endforeach
                                         @else
                                             <span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                                            {{ $error['error'] ?? 'Unknown error' }}
+                                            Unknown error
                                         @endif
                                     </div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm text-gray-600 max-w-xs">
-                                        @if(isset($error['data']) && is_array($error['data']))
+                                        @if(method_exists($error, 'values') && is_array($error->values()))
                                             <div class="space-y-1">
-                                                @foreach(array_slice($error['data'], 0, 3, true) as $key => $value)
+                                                @foreach(array_slice($error->values(), 0, 3, true) as $key => $value)
                                                     @if(!empty($value))
                                                     <div>
                                                         <span class="font-medium">{{ ucfirst($key) }}:</span> 
@@ -120,8 +120,8 @@
                                                     </div>
                                                     @endif
                                                 @endforeach
-                                                @if(count($error['data']) > 3)
-                                                <div class="text-xs text-gray-400">... dan {{ count($error['data']) - 3 }} lainnya</div>
+                                                @if(count($error->values()) > 3)
+                                                <div class="text-xs text-gray-400">... dan {{ count($error->values()) - 3 }} lainnya</div>
                                                 @endif
                                             </div>
                                         @else
@@ -133,10 +133,8 @@
                                     <div class="text-sm text-blue-600">
                                         @php
                                             $errorMessage = '';
-                                            if(isset($error['errors']) && is_array($error['errors'])) {
-                                                $errorMessage = $error['errors'][0]['message'] ?? $error['errors'][0] ?? '';
-                                            } else {
-                                                $errorMessage = $error['error'] ?? '';
+                                            if(method_exists($error, 'errors') && is_array($error->errors())) {
+                                                $errorMessage = $error->errors()[0] ?? '';
                                             }
                                         @endphp
                                         

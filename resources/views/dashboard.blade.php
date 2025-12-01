@@ -144,7 +144,7 @@
 </div>
 
 {{-- Calendar Section - Only for team_hc --}}
-@if(Auth::user()->hasRole('team_hc'))
+@if(Auth::user()->hasRole(['team_hc', 'team_hc_2']))
 <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm mb-6">
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2">
@@ -371,12 +371,14 @@
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
         <h3 class="text-lg font-semibold text-gray-900">Ringkasan Per Bulan</h3>
         <form id="monthlySummaryForm" method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-center gap-2">
-            <select name="summary_month" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            <label for="summary_month" class="sr-only">Bulan Ringkasan</label>
+            <select name="summary_month" id="summary_month" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                 @foreach (range(1, 12) as $month)
                     <option value="{{ $month }}" {{ $summaryMonth == $month ? 'selected' : '' }}>{{ Carbon\Carbon::create()->month($month)->isoFormat('MMMM') }}</option>
                 @endforeach
             </select>
-            <select name="summary_year" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            <label for="summary_year" class="sr-only">Tahun Ringkasan</label>
+            <select name="summary_year" id="summary_year" class="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                 @foreach ($availableYears as $yearOption)
                     <option value="{{ $yearOption }}" {{ $summaryYear == $yearOption ? 'selected' : '' }}>{{ $yearOption }}</option>
                 @endforeach

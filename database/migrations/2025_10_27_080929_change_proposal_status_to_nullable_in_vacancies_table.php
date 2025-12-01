@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // First clear any invalid data
+        DB::table('vacancies')->whereNull('proposal_status')->update(['proposal_status' => 'pending']);
+        
         Schema::table('vacancies', function (Blueprint $table) {
             $table->string('proposal_status')->nullable()->default(null)->change();
         });
@@ -22,7 +26,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('vacancies', function (Blueprint $table) {
-            $table->string('proposal_status')->default('pending')->change();
+            $table->string('proposal_status')->nullable()->change();
         });
     }
 };

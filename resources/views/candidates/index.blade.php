@@ -72,7 +72,9 @@
         <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 shadow-sm">
             <form method="GET" x-ref="filterForm" class="flex items-center gap-3 sm:gap-4 flex-wrap">
                 <div class="flex-1 min-w-64">
+                    <label for="search" class="sr-only">Cari Kandidat</label>
                     <input type="text" 
+                           id="search"
                            name="search" 
                            value="{{ request('search') }}" 
                            placeholder="Cari nama, email, atau posisi..." 
@@ -80,7 +82,8 @@
                            @keydown.enter.prevent="$refs.filterForm.submit()">
                 </div>
                 <div class="min-w-[150px]">
-                    <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    <label for="status" class="sr-only">Filter by Status</label>
+                    <select name="status" id="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             @change="$refs.filterForm.submit()">
                         <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
                         @foreach($statuses as $value => $display)
@@ -237,7 +240,10 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <label for="select-all-checkbox" class="sr-only">Select all candidates</label>
                                         <input type="checkbox"
+                                               id="select-all-checkbox"
+                                               name="select_all"
                                                @click="toggleAll($event.target.checked)"
                                                :checked="allVisibleSelected"
                                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -267,7 +273,10 @@
                                     @endif
                                     <tr class="hover:bg-gray-50 transition-colors {{ $candidate->is_suspected_duplicate ? 'bg-red-50 border-l-4 border-red-500' : '' }}">
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
+                                            <label for="candidate_checkbox_{{ $candidate->id }}" class="sr-only">Select {{ $candidate->nama }}</label>
                                             <input type="checkbox"
+                                                   id="candidate_checkbox_{{ $candidate->id }}"
+                                                   name="candidate_ids[]"
                                                    :value="{{ $candidate->id }}"
                                                    x-model="$store.candidates.selectedIds"
                                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -347,14 +356,7 @@
                                                         </button>
                                                     </form>
                                                 @endif
-                                                @can('import-excel')
-                                                    <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
-                                                        @csrf
-                                                        <button type="submit" class="text-gray-600 hover:text-gray-900 p-1" title="Pindahkan Tipe">
-                                                            <i class="fas fa-exchange-alt text-sm"></i>
-                                                        </button>
-                                                    </form>
-                                                @endcan
+
                                                 @can('show-candidates')
                                                     <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900 p-1" title="Lihat Detail">
                                                         <i class="fas fa-eye text-sm"></i>
@@ -377,15 +379,44 @@
         </svg>
     </a>
                                                 @endcan
-                                                @can('delete-candidates')
-                                                    <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="text-red-600 hover:text-red-900 p-1" title="Hapus">
-                                                            <i class="fas fa-trash text-sm"></i>
-                                                        </button>
-                                                    </form>
-                                                @endcan
+
+                                                <!-- Dropdown for other actions -->
+                                                <div x-data="{ open: false }" class="relative" @click.away="open = false">
+                                                    <button @click="open = !open" class="text-gray-500 hover:text-gray-700 p-1 rounded-full focus:outline-none">
+                                                        <i class="fas fa-ellipsis-v"></i>
+                                                    </button>
+                                                    <div x-show="open"
+                                                         x-transition:enter="transition ease-out duration-100"
+                                                         x-transition:enter-start="transform opacity-0 scale-95"
+                                                         x-transition:enter-end="transform opacity-100 scale-100"
+                                                         x-transition:leave="transition ease-in duration-75"
+                                                         x-transition:leave-start="transform opacity-100 scale-100"
+                                                         x-transition:leave-end="transform opacity-0 scale-95"
+                                                         class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-30 border"
+                                                         style="display: none;">
+                                                        <div class="py-1">
+                                                            @can('import-excel')
+                                                                <form method="POST" action="{{ route('candidates.switchType', $candidate) }}" class="w-full text-left" onsubmit="return confirm('Yakin ingin memindahkan tipe kandidat ini?')">
+                                                                    @csrf
+                                                                    <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                                                                        <i class="fas fa-exchange-alt fa-fw"></i>
+                                                                        <span>Pindahkan Tipe</span>
+                                                                    </button>
+                                                                </form>
+                                                            @endcan
+                                                            @can('delete-candidates')
+                                                                <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="w-full text-left" onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                                                        <i class="fas fa-trash fa-fw"></i>
+                                                                        <span>Hapus</span>
+                                                                    </button>
+                                                                </form>
+                                                            @endcan
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -448,8 +479,8 @@
                     <form @submit.prevent="submitBulkUpdate">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Stage</label>
-                                <select x-model="updateForm.stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label for="bulk_stage" class="block text-sm font-medium text-gray-700 mb-2">Stage</label>
+                                <select id="bulk_stage" name="bulk_stage" x-model="updateForm.stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">Pilih Stage</option>
                                     <option value="psikotes">Psikotes</option>
                                     <option value="interview_hc">Interview HC</option>
@@ -461,8 +492,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                                <select x-model="updateForm.status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label for="bulk_status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                <select id="bulk_status" name="bulk_status" x-model="updateForm.status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">Pilih Status</option>
                                     <option value="LULUS">LULUS</option>
                                     <option value="TIDAK LULUS">TIDAK LULUS</option>
@@ -475,8 +506,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
-                                <textarea x-model="updateForm.notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                                <label for="bulk_notes" class="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
+                                <textarea id="bulk_notes" name="bulk_notes" x-model="updateForm.notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
                             </div>
                         </div>
                         <div class="flex items-center justify-end gap-3 mt-6">
@@ -496,8 +527,8 @@
                     <form @submit.prevent="submitBulkMove">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Target Stage</label>
-                                <select x-model="moveForm.targetStage" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label for="bulk_move_target_stage" class="block text-sm font-medium text-gray-700 mb-2">Target Stage</label>
+                                <select id="bulk_move_target_stage" name="bulk_move_target_stage" x-model="moveForm.targetStage" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">Pilih Stage</option>
                                     <option value="psikotes">Psikotes</option>
                                     <option value="interview_hc">Interview HC</option>
@@ -509,8 +540,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
-                                <textarea x-model="moveForm.notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                                <label for="bulk_move_notes" class="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
+                                <textarea id="bulk_move_notes" name="bulk_move_notes" x-model="moveForm.notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
                             </div>
                         </div>
                         <div class="flex items-center justify-end gap-3 mt-6">
@@ -531,8 +562,8 @@
                 <form @submit.prevent="submitBulkExport">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Format Export</label>
-                            <select x-model="exportForm.format" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <label for="export_format" class="block text-sm font-medium text-gray-700 mb-2">Format Export</label>
+                            <select id="export_format" name="export_format" x-model="exportForm.format" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 <option value="excel">Excel (.xlsx)</option>
                                 <option value="csv">CSV (.csv)</option>
                                 <option value="pdf">PDF (.pdf)</option>
@@ -541,12 +572,30 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Kolom yang Diexport</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="nama" class="rounded"><span class="ml-2 text-sm">Nama</span></label>
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="vacancy" class="rounded"><span class="ml-2 text-sm">Posisi</span></label>
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="department" class="rounded"><span class="ml-2 text-sm">Departemen</span></label>
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="current_stage" class="rounded"><span class="ml-2 text-sm">Stage</span></label>
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="overall_status" class="rounded"><span class="ml-2 text-sm">Status</span></label>
-                                <label class="flex items-center"><input type="checkbox" x-model="exportForm.columns" value="created_at" class="rounded"><span class="ml-2 text-sm">Tanggal Daftar</span></label>
+                                <div>
+                                    <input type="checkbox" id="export_col_nama" name="export_columns[]" value="nama" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_nama" class="ml-2 text-sm">Nama</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" id="export_col_vacancy" name="export_columns[]" value="vacancy" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_vacancy" class="ml-2 text-sm">Posisi</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" id="export_col_department" name="export_columns[]" value="department" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_department" class="ml-2 text-sm">Departemen</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" id="export_col_current_stage" name="export_columns[]" value="current_stage" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_current_stage" class="ml-2 text-sm">Stage</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" id="export_col_overall_status" name="export_columns[]" value="overall_status" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_overall_status" class="ml-2 text-sm">Status</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" id="export_col_created_at" name="export_columns[]" value="created_at" x-model="exportForm.columns" class="rounded">
+                                    <label for="export_col_created_at" class="ml-2 text-sm">Tanggal Daftar</label>
+                                </div>
                             </div>
                         </div>
                     </div>

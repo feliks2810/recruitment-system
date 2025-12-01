@@ -7,6 +7,7 @@ use App\Imports\CandidatesImport;
 use App\Imports\StageUpdateImport;
 use App\Exports\CandidateTemplateExport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Validators\ValidationException;
 use Illuminate\Routing\Controller;
@@ -52,11 +53,9 @@ class ImportController extends Controller
                 
                 $import = new StageUpdateImport($stageName);
                 Excel::import($import, $request->file('file'));
-                $summary = $import->getSkippedRows();
 
                 return back()
-                    ->with('success', 'Stage update import completed.')
-                    ->with('import_summary', $summary);
+                    ->with('success', 'Stage update import completed. Check logs for skipped rows.');
 
             } else {
                 $request->validate([
@@ -66,18 +65,45 @@ class ImportController extends Controller
                 $type = $request->input('candidate_type', 'organic');
                 $headerRow = $request->input('header_row', 1);
 
-                // Note: To get a summary from CandidatesImport, it would also need to be modified
-                // to collect skipped rows, similar to StageUpdateImport.
-                $import = new CandidatesImport($type, $importMode, $headerRow);
-                Excel::import($import, $request->file('file'));
+                $file = $request->file('file');
+                $filePath = $file->store('temp_imports', 'local'); // Store the file temporarily
 
-                return redirect()->route('candidates.index')->with('success', 'Candidates imported successfully.');
+                $import = new CandidatesImport($type, $importMode, $headerRow, auth()->id(), $filePath);
+                Excel::queue($import, $filePath, 'local')->chain([
+                    function () use ($filePath) {
+                        // Delete the temporary file after all chunks are processed
+                        Storage::disk('local')->delete($filePath);
+                    }
+                ]);
+
+                $errors = $import->getErrors();
+                if (!empty($errors)) {
+                    $failures = collect($errors)->map(function ($error) {
+                        return new \Maatwebsite\Excel\Validators\Failure(
+                            $error['row'],
+                            'import_error',
+                            $error['errors'],
+                            $error['data']
+                        );
+                    })->all();
+                    return view('import.errors', ['errors' => $failures]);
+                }
+
+                return redirect()->route('candidates.index')->with('success', 'Your import has been queued and will be processed in the background.');
             }
         } catch (ValidationException $e) {
             $failures = $e->failures();
             return view('import.errors', compact('failures'));
         } catch (\Exception $e) {
-            return back()->with('error', 'An error occurred during import: ' . $e->getMessage());
+            $failures = [
+                new \Maatwebsite\Excel\Validators\Failure(
+                    1,
+                    'import_error',
+                    ['Terjadi kesalahan: ' . $e->getMessage() . ' di baris ' . $e->getLine() . ' file ' . $e->getFile()],
+                    []
+                )
+            ];
+            return view('import.errors', ['errors' => $failures]);
         }
     }
 

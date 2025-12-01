@@ -13,19 +13,28 @@ class VacancyProposalController extends Controller
 {
         public function index(Request $request)
         {
-            if (!Auth::user()->can('review-vacancy-proposals-step-1') && !Auth::user()->can('review-vacancy-proposals-step-2')) {
+            $canStep1 = Auth::user()->can('review-vacancy-proposals-step-1');
+            $canStep2 = Auth::user()->can('review-vacancy-proposals-step-2');
+    
+            if (!$canStep1 && !$canStep2) {
                 abort(403);
             }
     
             $year = $request->input('year', date('Y'));
     
-            $proposalsQuery = Vacancy::with(['proposedByUser', 'department'])->whereNotNull('proposal_status');
-    
-            if (Auth::user()->can('review-vacancy-proposals-step-1')) {
-                $proposalsQuery->where('proposal_status', Vacancy::STATUS_PENDING);
-            } elseif (Auth::user()->can('review-vacancy-proposals-step-2')) {
-                $proposalsQuery->whereIn('proposal_status', [Vacancy::STATUS_PENDING, Vacancy::STATUS_PENDING_HC2_APPROVAL]);
-            }
+            $proposalsQuery = Vacancy::with(['proposedByUser', 'department'])
+                ->whereNotNull('proposal_status')
+                ->where(function ($query) use ($canStep1, $canStep2) {
+                    if ($canStep1) {
+                        // Users who can do step 1 see proposals pending step 1.
+                        $query->orWhere('proposal_status', Vacancy::STATUS_PENDING);
+                    }
+                    if ($canStep2) {
+                        // Users who can do step 2 see proposals pending step 2.
+                        // The original logic also showed them step 1 proposals, so we keep that.
+                        $query->orWhereIn('proposal_status', [Vacancy::STATUS_PENDING, Vacancy::STATUS_PENDING_HC2_APPROVAL]);
+                    }
+                });
     
             $proposals = $proposalsQuery->whereYear('created_at', $year)->get();
     
@@ -48,7 +57,9 @@ class VacancyProposalController extends Controller
                         'histories' => $histories,
                         'stats' => $stats,
                         'year' => $year,
-                    ]);    }
+                    ]);    
+                
+            }
 
     public function create(Request $request)
     {

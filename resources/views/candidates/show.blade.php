@@ -94,11 +94,12 @@
                                 <h3 class="text-lg leading-6 font-medium text-gray-900" x-text="'Update ' + selectedStage"></h3>
                                 <div class="mt-4 space-y-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
-                    <select name="result"
-                        x-model="stageData.result"
-                        @change="handleResultChange"
-                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        <label for="stage_result" class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
+                                        <select name="result"
+                                                id="stage_result"
+                                                x-model="stageData.result"
+                                                @change="handleResultChange"
+                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                             <option value="">Pilih Hasil</option>
                                             <template x-for="opt in availableResults" :key="opt">
                                                 <option :value="opt" x-text="labelMap[opt] || opt"></option>
@@ -115,18 +116,20 @@
                                     </div>
 
                                     <div x-show="showNextStage">
-                                        <label class="block text-sm font-medium text-gray-700">Tanggal Stage Selanjutnya <span class="text-red-500">*</span></label>
-                         <input type="date" 
-                             name="next_stage_date" 
-                             x-model="stageData.next_stage_date"
-                             :min="getCurrentDate()"
-                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        <label for="next_stage_date" class="block text-sm font-medium text-gray-700">Tanggal Stage Selanjutnya <span class="text-red-500">*</span></label>
+                                        <input type="date"
+                                               id="next_stage_date"
+                                               name="next_stage_date" 
+                                               x-model="stageData.next_stage_date"
+                                               :min="getCurrentDate()"
+                                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     </div>
 
                                     <!-- Catatan -->
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Catatan</label>
+                                        <label for="stage_notes" class="block text-sm font-medium text-gray-700">Catatan</label>
                                         <textarea name="notes"
+                                                  id="stage_notes"
                                                   x-model="stageData.notes"
                                                   rows="3"
                                                   maxlength="1000"

@@ -5,15 +5,18 @@ namespace App\Imports;
 use App\Models\Candidate;
 use App\Models\Application;
 use App\Models\ApplicationStage;
-use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\OnEachRow;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\WithStartRow;
+use Maatwebsite\Excel\Row;
 
-class StageUpdateImport implements ToModel, WithHeadingRow, WithStartRow
+use Illuminate\Support\Facades\Log;
+
+class StageUpdateImport implements OnEachRow, WithHeadingRow, WithStartRow, WithChunkReading, WithBatchInserts
 {
     protected $stageName;
-    public array $skippedRows = [];
     private int $rowNumber = 1;
 
     public function __construct(string $stageName)
@@ -27,25 +30,36 @@ class StageUpdateImport implements ToModel, WithHeadingRow, WithStartRow
         return 2;
     }
 
+    public function chunkSize(): int
+    {
+        return 1000;
+    }
+
+    public function batchSize(): int
+    {
+        return 1000;
+    }
+
     /**
-    * @param array $row
+    * @param Row $row
     *
     * @return null
     */
-    public function model(array $row)
+    public function onRow(Row $row)
     {
-        $this->rowNumber++;
+        $this->rowNumber = $row->getIndex();
+        $row = $row->toArray();
 
         $email = $this->getFieldValue($row, ['email', 'alamat_email', 'email_address', 'email address']);
         $status = $this->getFieldValue($row, ['status', 'result', 'hasil', 'keterangan', 'final_result', 'final result']);
 
         // Enhanced validation to automatically skip non-candidate rows
         if (empty($email) || strpos($email, '@') === false || empty($status)) {
-            $this->skippedRows[] = [
+            Log::warning('Skipping row in StageUpdateImport', [
                 'row' => $this->rowNumber,
                 'reason' => 'Invalid data format (row does not appear to be a valid candidate record)',
                 'data' => $row
-            ];
+            ]);
             return null;
         }
 
@@ -53,11 +67,11 @@ class StageUpdateImport implements ToModel, WithHeadingRow, WithStartRow
             $candidate = Candidate::where('alamat_email', $email)->first();
 
             if (!$candidate) {
-                $this->skippedRows[] = [
+                Log::warning('Skipping row in StageUpdateImport', [
                     'row' => $this->rowNumber,
                     'reason' => "Candidate with email '{$email}' not found",
                     'data' => $row
-                ];
+                ]);
                 return null;
             }
 
@@ -65,20 +79,21 @@ class StageUpdateImport implements ToModel, WithHeadingRow, WithStartRow
             $application = $candidate->applications()->latest()->first();
 
             if (!$application) {
-                $this->skippedRows[] = [
+                Log::warning('Skipping row in StageUpdateImport', [
                     'row' => $this->rowNumber,
                     'reason' => "Application not found for candidate '{$email}'",
                     'data' => $row
-                ];
+                ]);
                 return null;
             }
 
-            // --- NEW LOGIC: Auto-pass previous stages ---
+            // --- AUTO-PASS PREVIOUS STAGES ---
             $stagesConfig = $this->getStagesConfig();
             $stageOrder = array_keys($stagesConfig);
             $currentStageIndex = array_search($this->stageName, $stageOrder);
 
-            if ($currentStageIndex !== false) {
+            if ($currentStageIndex !== false && $currentStageIndex > 0) {
+                // Auto-pass all previous stages
                 for ($i = 0; $i < $currentStageIndex; $i++) {
                     $previousStageName = $stageOrder[$i];
                     ApplicationStage::updateOrCreate(
@@ -88,82 +103,124 @@ class StageUpdateImport implements ToModel, WithHeadingRow, WithStartRow
                         ],
                         [
                             'status' => 'LULUS', // Mark as passed
-                            'scheduled_date' => now()->subMinutes(($currentStageIndex - $i) * 1), // Ensure chronological order
+                            'scheduled_date' => now()->subDays($currentStageIndex - $i), // Chronological order
+                            'notes' => 'Otomatis lolos (import)',
                         ]
                     );
                 }
             }
-            // --- END NEW LOGIC ---
 
-            $applicationStage = ApplicationStage::updateOrCreate(
+            // --- UPDATE CURRENT STAGE ---
+            $upperStatus = strtoupper($status);
+            $currentStageConfig = $stagesConfig[$this->stageName];
+            
+            ApplicationStage::updateOrCreate(
                 [
                     'application_id' => $application->id,
                     'stage_name' => $this->stageName,
                 ],
                 [
-                    'status' => strtoupper($status),
-                    'scheduled_date' => now(), // Set the date to mark this as the latest stage
+                    'status' => $upperStatus,
+                    'scheduled_date' => now(),
+                    'notes' => 'Diupdate via import Excel',
                 ]
             );
 
-            // --- NEW LOGIC: Handle PASS/FAIL and next stage --- //
-            $currentStageConfig = $this->getStagesConfig()[$this->stageName];
-            $isPass = in_array(strtoupper($status), $currentStageConfig['pass_values']);
+            // --- DETERMINE NEXT ACTION BASED ON STATUS ---
+            $isPass = in_array($upperStatus, $currentStageConfig['pass_values']);
+            $failValues = ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING', 'CANCEL', 'TIDAK DISARANKAN'];
 
-            Log::info('StageUpdateImport Debug', [
-                'status_from_excel' => strtoupper($status),
-                'expected_pass_values' => $currentStageConfig['pass_values'],
-                'is_pass_evaluated' => $isPass,
-            ]);
-
-            if (!$isPass) {
-                // If FAIL, set overall status to DITOLAK
-                $application->overall_status = 'DITOLAK';
-                $application->save();
-            } else {
-                // If PASS, determine next stage
+            if ($isPass) {
+                // If PASS, create the next stage
                 $nextStageName = $currentStageConfig['next_stage'];
 
                 if ($nextStageName) {
-                    // Create/update the next stage with a future date
+                    // Delete all stages after next stage (reset future progress)
+                    $nextStageIndex = array_search($nextStageName, $stageOrder);
+                    if ($nextStageIndex !== false) {
+                        foreach ($stageOrder as $idx => $stageName) {
+                            if ($idx > $nextStageIndex) {
+                                ApplicationStage::where('application_id', $application->id)
+                                    ->where('stage_name', $stageName)
+                                    ->delete();
+                            }
+                        }
+                    }
+
+                    // Create/update next stage with empty status
                     ApplicationStage::updateOrCreate(
                         [
                             'application_id' => $application->id,
                             'stage_name' => $nextStageName,
                         ],
                         [
-                            'status' => 'PROSES', // Set to 'PROSES' for the next stage
+                            'status' => '', // Empty status for pending stage
                             'scheduled_date' => now()->addDays(5),
+                            'notes' => 'Otomatis dibuka setelah ' . ucwords(str_replace('_', ' ', $this->stageName)) . ' lulus',
                         ]
                     );
-                    // Keep overall status as 'On Process' if there's a next stage
-                    $application->overall_status = 'On Process';
+                    
+                    $application->overall_status = 'PROSES';
                     $application->save();
+
+                    Log::info('Stage updated successfully', [
+                        'email' => $email,
+                        'current_stage' => $this->stageName,
+                        'next_stage' => $nextStageName,
+                        'status' => $upperStatus
+                    ]);
                 } else {
-                    // If no next stage (final stage and PASS), set overall status to LULUS
+                    // This is the final stage (hiring), and they passed
                     $application->overall_status = 'LULUS';
                     $application->save();
+
+                    Log::info('Candidate completed all stages', [
+                        'email' => $email,
+                        'final_stage' => $this->stageName,
+                        'status' => 'LULUS'
+                    ]);
                 }
+            } elseif (in_array($upperStatus, $failValues)) {
+                // If FAIL, set overall status to DITOLAK and delete future stages
+                foreach ($stageOrder as $idx => $stageName) {
+                    if ($idx > $currentStageIndex) {
+                        ApplicationStage::where('application_id', $application->id)
+                            ->where('stage_name', $stageName)
+                            ->delete();
+                    }
+                }
+                
+                $application->overall_status = 'DITOLAK';
+                $application->save();
+
+                Log::info('Candidate failed at stage', [
+                    'email' => $email,
+                    'failed_stage' => $this->stageName,
+                    'status' => $upperStatus
+                ]);
+            } else {
+                // Neutral status (e.g., 'PROSES', 'DIPERTIMBANGKAN')
+                // Keep current stage, don't create next stage yet
+                $application->overall_status = 'PROSES';
+                $application->save();
+
+                Log::info('Stage updated with neutral status', [
+                    'email' => $email,
+                    'stage' => $this->stageName,
+                    'status' => $upperStatus
+                ]);
             }
 
         } catch (\Exception $e) {
-            $this->skippedRows[] = [
-                'row' => $this->rowNumber,
-                'reason' => 'An unexpected error occurred: ' . $e->getMessage(),
-                'data' => $row
-            ];
             Log::error('Error processing stage update import for row', [
-                'row' => $row,
-                'error' => $e->getMessage()
+                'row_number' => $this->rowNumber,
+                'reason' => 'An unexpected error occurred: ' . $e->getMessage(),
+                'data' => $row,
+                'trace' => $e->getTraceAsString()
             ]);
         }
 
         return null; // We are handling the logic here, not creating a new model directly
-    }
-
-    public function getSkippedRows(): array
-    {
-        return $this->skippedRows;
     }
 
     private function getStagesConfig(): array

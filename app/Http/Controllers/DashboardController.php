@@ -35,34 +35,43 @@ class DashboardController extends Controller
             $query->orderBy('scheduled_date', 'desc')->orderBy('id', 'desc');
         }])->get();
 
-        $total_candidates = 0;
         $candidates_passed = 0;
         $candidates_in_process = 0;
         $candidates_failed = 0;
         $candidates_cancelled = 0;
+        $unaccounted_for = 0; // To handle edge cases and ensure sum is correct
 
         $passedStatuses = ['LULUS', 'DITERIMA', 'HIRED'];
         $failedStatuses = ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'];
         $inProcessStatuses = ['PROSES', 'PENDING', 'DISARANKAN', 'DIPERTIMBANGKAN', 'CV_REVIEW'];
 
         foreach ($applications as $application) {
-            $total_candidates++;
             $latestStage = $application->stages->first();
 
-            if ($latestStage) {
-                $status = $latestStage->status;
+            if (!$latestStage) {
+                // If no stage, count as "in process"
+                $candidates_in_process++;
+                continue;
+            }
 
-                if (in_array($status, $passedStatuses)) {
-                    $candidates_passed++;
-                } elseif (in_array($status, $failedStatuses)) {
-                    $candidates_failed++;
-                } elseif ($status === 'CANCEL') {
-                    $candidates_cancelled++;
-                } elseif (in_array($status, $inProcessStatuses)) {
-                    $candidates_in_process++;
-                }
+            $status = $latestStage->status;
+
+            if (in_array($status, $passedStatuses)) {
+                $candidates_passed++;
+            } elseif (in_array($status, $failedStatuses)) {
+                $candidates_failed++;
+            } elseif ($status === 'CANCEL') {
+                $candidates_cancelled++;
+            } elseif (in_array($status, $inProcessStatuses)) {
+                $candidates_in_process++;
+            } else {
+                // If status doesn't match any category, increment unaccounted
+                $unaccounted_for++;
             }
         }
+
+        // The total is the sum of all categories
+        $total_candidates = $candidates_passed + $candidates_in_process + $candidates_failed + $candidates_cancelled + $unaccounted_for;
 
         $stats = [
             'total_candidates' => $total_candidates,
@@ -229,33 +238,34 @@ class DashboardController extends Controller
         $user = Auth::user();
         $events = [];
 
-        $stagesQuery = ApplicationStage::with(['application.candidate'])
-            ->whereNotNull('scheduled_date')
-            ->whereDate('scheduled_date', '>=', now()->startOfYear())
-            ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
+        // Commenting out ApplicationStage based events as per user request to not show "history tests" or "stages" in the calendar.
+        // $stagesQuery = ApplicationStage::with(['application.candidate'])
+        //     ->whereNotNull('scheduled_date')
+        //     ->whereDate('scheduled_date', '>=', now()->startOfYear())
+        //     ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
 
-        if ($user->hasRole('department')) {
-            $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
-                $q->where('department_id', $user->department_id);
-            });
-        }
+        // if ($user->hasRole('department')) {
+        //     $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
+        //         $q->where('department_id', $user->department_id);
+        //     });
+        // }
 
-        $stages = $stagesQuery->get();
+        // $stages = $stagesQuery->get();
 
-        foreach ($stages as $stage) {
-            $events[] = [
-                'id' => 'stage_' . $stage->id,
-                'type' => 'candidate_test',
-                'title' => $stage->application->candidate->nama . ' - ' . Str::title(str_replace('_', ' ', $stage->stage_name)),
-                'description' => 'Test ' . Str::title(str_replace('_', ' ', $stage->stage_name)) . ' untuk kandidat ' . $stage->application->candidate->nama,
-                'date' => Carbon::parse($stage->scheduled_date)->format('Y-m-d'),
-                'time' => Carbon::parse($stage->scheduled_date)->format('H:i'),
-                'url' => route('candidates.show', $stage->application->candidate_id),
-                'candidate_id' => $stage->application->candidate_id,
-                'stage' => $stage->stage_name,
-                'applicant_id' => $stage->application->candidate->applicant_id ?? 'N/A'
-            ];
-        }
+        // foreach ($stages as $stage) {
+        //     $events[] = [
+        //         'id' => 'stage_' . $stage->id,
+        //         'type' => 'candidate_test',
+        //         'title' => $stage->application->candidate->nama . ' - ' . Str::title(str_replace('_', ' ', $stage->stage_name)),
+        //         'description' => 'Test ' . Str::title(str_replace('_', ' ', $stage->stage_name)) . ' untuk kandidat ' . $stage->application->candidate->nama,
+        //         'date' => Carbon::parse($stage->scheduled_date)->format('Y-m-d'),
+        //         'time' => Carbon::parse($stage->scheduled_date)->format('H:i'),
+        //         'url' => route('candidates.show', $stage->application->candidate_id),
+        //         'candidate_id' => $stage->application->candidate_id,
+        //         'stage' => $stage->stage_name,
+        //         'applicant_id' => $stage->application->candidate->applicant_id ?? 'N/A'
+        //     ];
+        // }
 
         $customEventsQuery = Event::whereNotNull('date')
             ->whereDate('date', '>=', now()->startOfYear())
@@ -270,23 +280,12 @@ class DashboardController extends Controller
         foreach ($customEvents as $event) {
             $events[] = [
                 'id' => 'custom_' . $event->id,
-                'type' => 'candidate_test',
-                'title' => $event->title,
-                'description' => $event->description,
-                'date' => Carbon::parse($event->date)->format('Y-m-d'),
-                'time' => $event->time,
-                'url' => $event->candidate_id ? route('candidates.show', $event->candidate_id) : null,
-                'candidate_id' => $event->candidate_id,
-                'stage' => $event->stage,
-            ];
-            $events[] = [
-                'id' => 'custom_' . $event->id,
                 'type' => 'custom_event',
                 'title' => $event->title,
                 'description' => $event->description ?? 'No description',
-                'date' => Carbon::parse($event->event_date)->format('Y-m-d'),
-                'time' => $event->event_time ? Carbon::parse($event->event_time)->format('H:i') : null,
-                'url' => '#',
+                'date' => Carbon::parse($event->date)->format('Y-m-d'),
+                'time' => $event->time ? Carbon::parse($event->time)->format('H:i') : null,
+                'url' => $event->candidate_id ? route('candidates.show', $event->candidate_id) : '#',
             ];
         }
 

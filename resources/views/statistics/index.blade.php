@@ -342,6 +342,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // 4. Gender Distribution Chart
+    const totalGender = Object.values(genderData).reduce((sum, value) => sum + value, 0);
     new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
         data: {
@@ -360,12 +361,28 @@ document.addEventListener('DOMContentLoaded', function () {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.raw !== null) {
+                                label += context.raw;
+                            }
+                            const percentage = (context.raw / totalGender * 100).toFixed(2);
+                            return `${label} (${percentage}%)`;
+                        }
+                    }
+                }
             }
         }
     });
 
     // 5. University Distribution Chart
+    const totalUniversity = Object.values(universityData).reduce((sum, value) => sum + value, 0);
     new Chart(document.getElementById('universityChart'), {
         type: 'doughnut',
         data: {
@@ -391,7 +408,22 @@ document.addEventListener('DOMContentLoaded', function () {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.raw !== null) {
+                                label += context.raw;
+                            }
+                            const percentage = (context.raw / totalUniversity * 100).toFixed(2);
+                            return `${label} (${percentage}%)`;
+                        }
+                    }
+                }
             }
         }
     });

@@ -81,6 +81,7 @@ class RolesAndPermissionsSeeder extends Seeder
             // Vacancy Proposals
             'propose-vacancy',
             'review-vacancy-proposals-step-1',
+            'review-vacancy-proposals-step-2',
         ];
 
         // Create all permissions

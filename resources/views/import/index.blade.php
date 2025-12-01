@@ -63,7 +63,19 @@
                     <i class="fas fa-file-excel text-blue-600 text-2xl"></i>
                 </div>
                 <h2 class="text-xl font-semibold text-gray-900 mb-2">Upload File Excel</h2>
-                <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) untuk import data</p>
+                <p class="text-gray-600">Pilih file Excel (.xlsx, .xls) untuk import data kandidat</p>
+                
+                <!-- Instructions -->
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 text-left mt-4 max-w-2xl mx-auto rounded-r-lg">
+                    <p class="text-sm font-semibold text-blue-900 mb-2">📋 Petunjuk:</p>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>✓ File harus mengandung kolom: <strong>nama</strong> (wajib), dan kolom lainnya seperti email, jenjang_pendidikan, dll</li>
+                        <li>✓ Untuk vacancy: gunakan kolom <strong>vacancy_name</strong> atau <strong>nama_posisi</strong></li>
+                        <li>✓ Untuk department: gunakan kolom <strong>department_name</strong>, <strong>departemen</strong>, atau <strong>departemen_id</strong></li>
+                        <li>✓ Download template di tombol <strong>"Template XLSX"</strong> untuk format yang benar</li>
+                        <li>✓ Jangan upload file vacancy, hanya file candidate</li>
+                    </ul>
+                </div>
             </div>
 
             <form action="{{ route('import.store') }}" method="POST" enctype="multipart/form-data" id="uploadForm" class="max-w-2xl mx-auto">
@@ -117,8 +129,8 @@
                     </div>
 
                     <div id="stage_selection_wrapper" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Pilih Tahap</label>
-                        <select name="stage_name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <label for="stage_name" class="block text-sm font-medium text-gray-700 mb-2">Pilih Tahap</label>
+                        <select name="stage_name" id="stage_name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             @foreach($stages as $stage)
                                 <option value="{{ $stage }}">{{ ucwords(str_replace('_', ' ', $stage)) }}</option>
                             @endforeach
@@ -128,8 +140,8 @@
                     <div id="candidate_options_wrapper">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Jenis Kandidat</label>
-                                <select name="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label for="candidate_type" class="block text-sm font-medium text-gray-700 mb-2">Jenis Kandidat</label>
+                                <select name="candidate_type" id="candidate_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="organic">Organik</option>
                                     <option value="non-organic">Non-Organik</option>
                                 </select>

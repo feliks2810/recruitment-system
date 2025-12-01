@@ -23,7 +23,8 @@
                     <!-- Search Form -->
                     <div class="mb-6">
                         <div class="flex items-center space-x-2">
-                            <input type="text" x-model="search" x-on:input.debounce.500ms="fetchDocuments" placeholder="Search documents by title..."
+                            <label for="search_documents" class="sr-only">Search Documents</label>
+                            <input type="text" id="search_documents" name="search_documents" x-model="search" x-on:input.debounce.500ms="fetchDocuments" placeholder="Search documents by title..."
                                    class="block w-full rounded-md shadow-sm border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                             <button x-show="search" x-on:click="search = ''; fetchDocuments()" type="button" class="inline-flex items-center px-4 py-2 bg-gray-200 border border-transparent rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-300 focus:outline-none focus:border-gray-300 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
                                 Clear

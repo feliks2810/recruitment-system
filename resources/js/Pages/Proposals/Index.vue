@@ -94,7 +94,8 @@ const submitRejection = () => {
                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <h3 class="text-lg leading-6 font-medium text-gray-900">Reason for Rejection</h3>
                             <div class="mt-2">
-                                <textarea v-model="rejectionForm.rejection_reason" rows="3" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md"></textarea>
+                                <label for="rejection_reason" class="sr-only">Reason for Rejection</label>
+                                <textarea id="rejection_reason" name="rejection_reason" v-model="rejectionForm.rejection_reason" rows="3" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md"></textarea>
                                 <div v-if="rejectionForm.errors.rejection_reason" class="text-red-500 text-xs mt-1">{{ rejectionForm.errors.rejection_reason }}</div>
                             </div>
                         </div>
