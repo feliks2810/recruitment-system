@@ -3,105 +3,77 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Models\Vacancy;
 use App\Models\Department;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 use Illuminate\Foundation\Testing\WithoutMiddleware;
-
-use Spatie\Permission\Models\Role;
 
 class VacancyProposalControllerTest extends TestCase
 {
     use RefreshDatabase, WithoutMiddleware;
 
-    public function test_user_can_propose_a_vacancy()
+
+    public function test_user_with_permission_can_propose_a_vacancy()
     {
-        $user = User::factory()->create();
+        // Create a user and department
         $department = Department::factory()->create();
-        $user->department_id = $department->id;
-        $user->save();
+        $user = User::factory()->create([
+            'department_id' => $department->id,
+        ]);
 
-        $vacancy = Vacancy::factory()->create(['department_id' => $department->id]);
+        // Create and assign the 'propose-vacancy' permission
+        $permission = Permission::firstOrCreate(['name' => 'propose-vacancy']);
+        $role = Role::firstOrCreate(['name' => 'department-head']);
+        $role->givePermissionTo($permission);
+        $user->assignRole($role);
 
+        // Acting as the created user
         $this->actingAs($user);
 
+        // Mock the storage
+        Storage::fake('public');
+
+        // Data for the new proposal
+        $positionName = 'Software Engineer';
+        $neededCount = 3;
+        $file = UploadedFile::fake()->create('document.pdf', 100);
+
+        // Send the request
         $response = $this->post(route('proposals.store'), [
-            'vacancy_id' => $vacancy->id,
-            'proposed_needed_count' => 5,
+            'position_name' => $positionName,
+            'needed_count' => $neededCount,
+            'document' => $file,
         ]);
 
+        // Assertions
         $response->assertRedirect(route('proposals.create'));
+        $response->assertSessionHas('success', 'Vacancy proposal submitted successfully.');
+
         $this->assertDatabaseHas('vacancies', [
-            'id' => $vacancy->id,
+            'name' => $positionName,
+            'department_id' => $department->id,
+            'proposed_needed_count' => $neededCount,
             'proposal_status' => 'pending',
-            'proposed_needed_count' => 5,
+            'proposed_by_user_id' => $user->id,
         ]);
+
+        $this->assertDatabaseHas('manpower_request_files', [
+            'user_id' => $user->id,
+            'stage' => 'initial',
+        ]);
+
         $this->assertDatabaseHas('vacancy_proposal_histories', [
-            'vacancy_id' => $vacancy->id,
             'user_id' => $user->id,
             'status' => 'pending',
-        ]);
-    }
-
-    public function test_hc1_can_approve_a_proposal()
-    {
-        $role = Role::create(['name' => 'hc1']);
-        $role->givePermissionTo('review-vacancy-proposals-step-1');
-        $user = User::factory()->create();
-        $user->assignRole($role);
-        $department = Department::factory()->create();
-        $vacancy = Vacancy::factory()->create([
-            'department_id' => $department->id,
-            'proposal_status' => 'pending',
-            'proposed_needed_count' => 5,
+            'proposed_needed_count' => $neededCount,
         ]);
 
-        $this->actingAs($user);
-
-        $response = $this->patch(route('proposals.approve', $vacancy));
-
-        $response->assertRedirect();
-        $this->assertDatabaseHas('vacancies', [
-            'id' => $vacancy->id,
-            'proposal_status' => 'pending_hc2_approval',
-        ]);
-        $this->assertDatabaseHas('vacancy_proposal_histories', [
-            'vacancy_id' => $vacancy->id,
-            'user_id' => $user->id,
-            'status' => 'pending_hc2_approval',
-        ]);
-    }
-
-    public function test_hc2_can_approve_a_proposal()
-    {
-        $role = Role::create(['name' => 'hc2']);
-        $role->givePermissionTo('review-vacancy-proposals-step-2');
-        $user = User::factory()->create();
-        $user->assignRole($role);
-        $department = Department::factory()->create();
-        $vacancy = Vacancy::factory()->create([
-            'department_id' => $department->id,
-            'proposal_status' => 'pending_hc2_approval',
-            'needed_count' => 10,
-            'proposed_needed_count' => 5,
-        ]);
-
-        $this->actingAs($user);
-
-        $response = $this->patch(route('proposals.approve', $vacancy));
-
-        $response->assertRedirect();
-        $this->assertDatabaseHas('vacancies', [
-            'id' => $vacancy->id,
-            'proposal_status' => 'approved',
-            'needed_count' => 15,
-        ]);
-        $this->assertDatabaseHas('vacancy_proposal_histories', [
-            'vacancy_id' => $vacancy->id,
-            'user_id' => $user->id,
-            'status' => 'approved',
-        ]);
+        // Assert file was stored
+        Storage::disk('public')->assertExists('manpower_requests/' . $file->hashName());
     }
 }

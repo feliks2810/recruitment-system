@@ -25,8 +25,13 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('events', function (Blueprint $table) {
-            $table->dropUnique(['candidate_id', 'stage']);
+            // Drop the foreign key first
             $table->dropForeign(['candidate_id']);
+            
+            // Then drop the unique index
+            $table->dropUnique('events_candidate_id_stage_unique');
+            
+            // Finally, drop the columns
             $table->dropColumn(['candidate_id', 'stage']);
         });
     }

@@ -87,6 +87,46 @@
         </div>
     </div>
 
+    <!-- Universities Pass Rate Pie Chart -->
+    <div class="bg-white rounded-xl p-6 border border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Universitas dengan Kelulusan Tertinggi</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div style="height: 350px; lg:col-span-1;"><canvas id="universityPassRateChart"></canvas></div>
+            <div class="lg:col-span-2">
+                <div class="overflow-y-auto max-h-80">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-700">Universitas</th>
+                                <th class="px-4 py-2 text-center font-semibold text-gray-700">Lulus</th>
+                                <th class="px-4 py-2 text-center font-semibold text-gray-700">Total</th>
+                                <th class="px-4 py-2 text-center font-semibold text-gray-700">Tingkat Lulus</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($universityPassRateData as $data)
+                                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                    <td class="px-4 py-2 font-medium text-gray-800">{{ $data['institution'] }}</td>
+                                    <td class="px-4 py-2 text-center text-green-600 font-semibold">{{ $data['passed_count'] }}</td>
+                                    <td class="px-4 py-2 text-center text-gray-600">{{ $data['total_candidates'] }}</td>
+                                    <td class="px-4 py-2 text-center">
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $data['pass_rate'] >= 50 ? 'bg-green-100 text-green-800' : ($data['pass_rate'] >= 25 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                            {{ $data['pass_rate'] }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-4 text-center text-gray-500">Tidak ada data universitas</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Timeline Analysis Chart -->
     <div class="bg-white rounded-xl p-6 border border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Analisis Alur Waktu per Tahapan</h3>
@@ -427,6 +467,56 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
+    // 6. University Pass Rate Pie Chart
+    const universityPassRateData = @json($universityPassRateData ?? []);
+    const colors = [
+        'rgba(34, 197, 94, 0.8)',
+        'rgba(59, 130, 246, 0.8)',
+        'rgba(249, 115, 22, 0.8)',
+        'rgba(168, 85, 247, 0.8)',
+        'rgba(236, 72, 153, 0.8)',
+        'rgba(6, 182, 212, 0.8)',
+        'rgba(251, 146, 60, 0.8)',
+        'rgba(79, 70, 229, 0.8)',
+        'rgba(14, 165, 233, 0.8)',
+        'rgba(244, 114, 182, 0.8)',
+        'rgba(34, 197, 94, 0.6)',
+        'rgba(59, 130, 246, 0.6)',
+        'rgba(249, 115, 22, 0.6)',
+        'rgba(168, 85, 247, 0.6)',
+        'rgba(236, 72, 153, 0.6)'
+    ];
+
+    if (document.getElementById('universityPassRateChart')) {
+        new Chart(document.getElementById('universityPassRateChart'), {
+            type: 'pie',
+            data: {
+                labels: universityPassRateData.map(d => d.institution),
+                datasets: [{
+                    data: universityPassRateData.map(d => d.passed_count),
+                    backgroundColor: colors.slice(0, universityPassRateData.length),
+                    borderWidth: 1,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const data = universityPassRateData[context.dataIndex];
+                                return `${data.institution}: ${data.passed_count} (${data.pass_rate}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 });
 </script>
 @endpush

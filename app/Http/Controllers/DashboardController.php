@@ -31,55 +31,18 @@ class DashboardController extends Controller
             $baseQuery->whereYear('created_at', $year);
         }
 
+        // Get real statistics based on overall_status
+        $stats = [
+            'total_candidates' => (clone $baseQuery)->count(),
+            'candidates_in_process' => (clone $baseQuery)->where('overall_status', 'PROSES')->count(),
+            'candidates_passed' => (clone $baseQuery)->where('overall_status', 'LULUS')->count(),
+            'candidates_failed' => (clone $baseQuery)->where('overall_status', 'DITOLAK')->count(),
+            'candidates_cancelled' => (clone $baseQuery)->where('overall_status', 'CANCEL')->count(),
+        ];
+
         $applications = (clone $baseQuery)->with(['stages' => function($query) {
             $query->orderBy('scheduled_date', 'desc')->orderBy('id', 'desc');
         }])->get();
-
-        $candidates_passed = 0;
-        $candidates_in_process = 0;
-        $candidates_failed = 0;
-        $candidates_cancelled = 0;
-        $unaccounted_for = 0; // To handle edge cases and ensure sum is correct
-
-        $passedStatuses = ['LULUS', 'DITERIMA', 'HIRED'];
-        $failedStatuses = ['TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'];
-        $inProcessStatuses = ['PROSES', 'PENDING', 'DISARANKAN', 'DIPERTIMBANGKAN', 'CV_REVIEW'];
-
-        foreach ($applications as $application) {
-            $latestStage = $application->stages->first();
-
-            if (!$latestStage) {
-                // If no stage, count as "in process"
-                $candidates_in_process++;
-                continue;
-            }
-
-            $status = $latestStage->status;
-
-            if (in_array($status, $passedStatuses)) {
-                $candidates_passed++;
-            } elseif (in_array($status, $failedStatuses)) {
-                $candidates_failed++;
-            } elseif ($status === 'CANCEL') {
-                $candidates_cancelled++;
-            } elseif (in_array($status, $inProcessStatuses)) {
-                $candidates_in_process++;
-            } else {
-                // If status doesn't match any category, increment unaccounted
-                $unaccounted_for++;
-            }
-        }
-
-        // The total is the sum of all categories
-        $total_candidates = $candidates_passed + $candidates_in_process + $candidates_failed + $candidates_cancelled + $unaccounted_for;
-
-        $stats = [
-            'total_candidates' => $total_candidates,
-            'candidates_passed' => $candidates_passed,
-            'candidates_in_process' => $candidates_in_process,
-            'candidates_failed' => $candidates_failed,
-            'candidates_cancelled' => $candidates_cancelled,
-        ];
 
         $recentCandidatesQuery = Candidate::with('department', 'applications')
             ->orderBy('created_at', 'desc')
@@ -97,7 +60,6 @@ class DashboardController extends Controller
         });
 
         $stageOrder = [
-            'cv_review',
             'psikotes',
             'hc_interview',
             'user_interview',
@@ -108,7 +70,6 @@ class DashboardController extends Controller
         ];
 
         $stageDisplayMap = [
-            'cv_review' => 'Cv Review',
             'psikotes' => 'Psikotes',
             'hc_interview' => 'HC Interview',
             'user_interview' => 'User Interview',

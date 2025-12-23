@@ -65,4 +65,14 @@ class Vacancy extends Model
     {
         return $this->belongsTo(User::class, 'proposed_by_user_id');
     }
+
+    public function manpowerRequestFiles(): HasMany
+    {
+        return $this->hasMany(ManpowerRequestFile::class);
+    }
+
+    public function proposalHistories(): HasMany
+    {
+        return $this->hasMany(VacancyProposalHistory::class);
+    }
 }

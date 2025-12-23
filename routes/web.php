@@ -14,6 +14,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionApplicantController;
 use App\Http\Controllers\VacancyManagementController;
+use App\Http\Controllers\VacancyProposalController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -115,6 +116,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('import')->name('import.')->middleware('can:import-excel')->group(function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
         Route::post('/', [ImportController::class, 'store'])->name('store');
+        Route::post('/preview', [ImportController::class, 'preview'])->name('preview');
+        Route::post('/confirm', [ImportController::class, 'confirmImport'])->name('confirm');
+        Route::post('/cancel', [ImportController::class, 'cancelImport'])->name('cancel');
         Route::get('/template/{type?}', [ImportController::class, 'downloadTemplate'])->name('template');
         Route::get('/errors', function() {
             return view('import.errors', ['errors' => []]);
@@ -146,8 +150,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export', [AccountController::class, 'export'])->name('export');
     });
 
-    // ⬅️ KODE PERBAIKAN DIMULAI DARI SINI
-    // Departemen management for Admin only (as per file structure)
+    // Departemen management for Admin only
     Route::resource('departments', DepartmentController::class)
         ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
         ->middleware('can:manage-departments');
@@ -167,13 +170,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Vacancy Proposal Routes
     Route::prefix('proposals')->name('proposals.')->middleware('auth')->group(function () {
-        Route::get('/', [\App\Http\Controllers\VacancyProposalController::class, 'index'])->name('index');
-        Route::get('/create', [\App\Http\Controllers\VacancyProposalController::class, 'create'])->name('create');
-        Route::post('/', [\App\Http\Controllers\VacancyProposalController::class, 'store'])->name('store');
-        Route::patch('/{vacancy}/approve', [\App\Http\Controllers\VacancyProposalController::class, 'approve'])->name('approve');
-        Route::patch('/{vacancy}/reject', [\App\Http\Controllers\VacancyProposalController::class, 'reject'])->name('reject');
+        Route::get('/', [VacancyProposalController::class, 'index'])->name('index');
+        Route::get('/create', [VacancyProposalController::class, 'create'])->name('create');
+        Route::post('/', [VacancyProposalController::class, 'store'])->name('store');
+        Route::get('/{vacancy}', [VacancyProposalController::class, 'show'])->name('show');
+        Route::patch('/{vacancy}/approve', [VacancyProposalController::class, 'approve'])->name('approve');
+        Route::patch('/{vacancy}/reject', [VacancyProposalController::class, 'reject'])->name('reject');
+        Route::post('/{vacancy}/hc1-upload', [VacancyProposalController::class, 'hc1Upload'])->name('hc1-upload');
+        Route::post('/{vacancy}/hc2-upload', [VacancyProposalController::class, 'hc2Upload'])->name('hc2-upload');
+        Route::get('/download/{manpowerRequestFile}', [VacancyProposalController::class, 'downloadFile'])->name('download');
+        Route::post('/upload-document', [VacancyProposalController::class, 'uploadDocument'])->name('uploadDocument');
     });
-    // ⬅️ KODE PERBAIKAN BERAKHIR DI SINI
 
     // Document Routes
     Route::middleware('can:manage-documents')->group(function () {
@@ -196,9 +203,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_view_reports' => $user->can('view-reports'),
             'can_import_excel' => $user->can('import-excel'),
             'can_manage_users' => $user->can('manage-users'),
-            'can_manage_documents' => $user->can('manage-documents'), // ⬅️ Tambahan untuk konsistensi
-            'can_manage_departments' => $user->can('manage-departments'), // ⬅️ Tambahan untuk konsistensi
-            'can_view_posisi_pelamar' => $user->can('view-posisi-pelamar'), // Debug for new menu
+            'can_manage_documents' => $user->can('manage-documents'),
+            'can_manage_departments' => $user->can('manage-departments'),
+            'can_view_posisi_pelamar' => $user->can('view-posisi-pelamar'),
             'can_manage_vacancies' => $user->can('manage-vacancies'),
         ]);
     });

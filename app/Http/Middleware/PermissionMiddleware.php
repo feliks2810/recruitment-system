@@ -26,8 +26,11 @@ class PermissionMiddleware
             ? $permission
             : explode('|', $permission);
 
+        /** @var \App\Models\User $user */
+        $user = Auth::guard($guard)->user();
+
         foreach ($permissions as $p) {
-            if (Auth::guard($guard)->user()->can($p)) {
+            if ($user->can($p)) {
                 Log::info('PermissionMiddleware: User has permission ' . $p); // Add this line
                 return $next($request);
             }

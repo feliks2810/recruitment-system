@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\Application;
+use App\Models\Candidate;
 use App\Models\Vacancy;
 use App\Observers\ApplicationObserver;
+use App\Observers\CandidateObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Application::observe(ApplicationObserver::class);
+        Candidate::observe(CandidateObserver::class);
         
         // Share pending proposals count with sidebar view
         View::composer('layouts.sidebar', function ($view) {

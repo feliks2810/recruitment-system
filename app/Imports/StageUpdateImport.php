@@ -5,264 +5,261 @@ namespace App\Imports;
 use App\Models\Candidate;
 use App\Models\Application;
 use App\Models\ApplicationStage;
-use Maatwebsite\Excel\Concerns\OnEachRow;
-use Maatwebsite\Excel\Concerns\WithChunkReading;
-use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithStartRow;
-use Maatwebsite\Excel\Row;
-
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class StageUpdateImport implements OnEachRow, WithHeadingRow, WithStartRow, WithChunkReading, WithBatchInserts
+class StageUpdateImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
     protected $stageName;
-    private int $rowNumber = 1;
+    
+    // Field mappings
+    private const EMAIL_FIELDS = ['email', 'alamat_email', 'email_address'];
+    private const STATUS_FIELDS = ['psikotest_result', 'hasil', 'status', 'result', 'keterangan'];
+    
+    // Status mapping
+    private const STATUS_MAP = [
+        'pass' => ['final' => 'LULUS', 'overall' => 'PROSES', 'create_next' => true],
+        'fail' => ['final' => 'DITOLAK', 'overall' => 'DITOLAK', 'create_next' => false],
+        'retest' => ['final' => 'CANCEL', 'overall' => 'PROSES', 'create_next' => false],
+    ];
 
     public function __construct(string $stageName)
     {
         $this->stageName = $stageName;
     }
 
-    public function startRow(): int
+    public function collection(Collection $rows)
     {
-        // Assuming the first row is the header
-        return 2;
+        // Early exit for non-psikotes stages
+        if ($this->stageName !== 'psikotes') {
+            Log::info("Skipping import - Not Psikotes stage");
+            return;
+        }
+
+        if ($rows->isEmpty()) return;
+
+        // Step 1: Extract dan validate semua emails
+        $validRows = [];
+        $emails = [];
+
+        foreach ($rows as $index => $row) {
+            $rowArray = $row->toArray();
+            $email = $this->extractEmail($rowArray);
+            $status = $this->extractStatus($rowArray);
+
+            if (!$email || !$status) {
+                Log::warning("Skipping row " . ($index + 2) . " - Missing email or status");
+                continue;
+            }
+
+            $validRows[] = [
+                'email' => $email,
+                'status' => $status,
+                'row_number' => $index + 2
+            ];
+            $emails[] = $email;
+        }
+
+        if (empty($validRows)) return;
+
+        // Step 2: Bulk fetch candidates & applications
+        $candidates = Candidate::whereIn('email', $emails)
+            ->with(['applications' => function($q) {
+                $q->latest()->limit(1);
+            }])
+            ->get()
+            ->keyBy('email');
+
+        // Step 3: Prepare bulk updates
+        $stagesToUpdate = [];
+        $stagesToCreate = [];
+        $applicationsToUpdate = [];
+        $now = now();
+
+        foreach ($validRows as $rowData) {
+            $email = $rowData['email'];
+            $rawStatus = $rowData['status'];
+            $rowNumber = $rowData['row_number'];
+
+            if (!isset($candidates[$email])) {
+                Log::warning("Candidate not found for email {$email} on row {$rowNumber}");
+                continue;
+            }
+
+            $candidate = $candidates[$email];
+            $application = $candidate->applications->first();
+
+            if (!$application) {
+                Log::warning("Application not found for {$email} on row {$rowNumber}");
+                continue;
+            }
+
+            // Get status configuration
+            if (!isset(self::STATUS_MAP[$rawStatus])) {
+                Log::warning("Invalid status '{$rawStatus}' on row {$rowNumber}");
+                continue;
+            }
+
+            $statusConfig = self::STATUS_MAP[$rawStatus];
+            $applicationId = $application->id;
+
+            // Psikotes stage update
+            $stagesToUpdate[$applicationId] = [
+                'application_id' => $applicationId,
+                'stage_name' => 'psikotes',
+                'status' => $statusConfig['final'],
+                'scheduled_date' => $now,
+                'notes' => 'Update via Import Excel (Psikotes)',
+                'updated_at' => $now,
+            ];
+
+            // HC Interview stage creation (if pass)
+            if ($statusConfig['create_next']) {
+                $stagesToCreate[$applicationId] = [
+                    'application_id' => $applicationId,
+                    'stage_name' => 'hc_interview',
+                    'status' => '',
+                    'scheduled_date' => $now->copy()->addWeek(),
+                    'notes' => 'Otomatis dibuat setelah Psikotes Lulus (Import)',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            // Application overall status update
+            if ($application->overall_status !== $statusConfig['overall']) {
+                $applicationsToUpdate[$applicationId] = [
+                    'id' => $applicationId,
+                    'overall_status' => $statusConfig['overall']
+                ];
+            }
+
+            Log::info("Prepared row {$rowNumber} — Psikotes: {$statusConfig['final']}");
+        }
+
+        // Step 4: Execute bulk operations in transaction
+        try {
+            DB::transaction(function () use ($stagesToUpdate, $stagesToCreate, $applicationsToUpdate) {
+                // Bulk upsert psikotes stages
+                if (!empty($stagesToUpdate)) {
+                    foreach ($stagesToUpdate as $stage) {
+                        DB::table('application_stages')
+                            ->updateOrInsert(
+                                [
+                                    'application_id' => $stage['application_id'],
+                                    'stage_name' => $stage['stage_name']
+                                ],
+                                $stage
+                            );
+                    }
+                }
+
+                // Bulk insert HC interview stages (skip duplicates)
+                if (!empty($stagesToCreate)) {
+                    foreach ($stagesToCreate as $stage) {
+                        DB::table('application_stages')
+                            ->updateOrInsert(
+                                [
+                                    'application_id' => $stage['application_id'],
+                                    'stage_name' => $stage['stage_name']
+                                ],
+                                $stage
+                            );
+                    }
+                }
+
+                // Bulk update applications
+                if (!empty($applicationsToUpdate)) {
+                    foreach ($applicationsToUpdate as $appId => $data) {
+                        DB::table('applications')
+                            ->where('id', $appId)
+                            ->update([
+                                'overall_status' => $data['overall_status'],
+                                'updated_at' => now()
+                            ]);
+                    }
+                }
+            });
+
+            Log::info("Successfully processed " . count($validRows) . " rows");
+
+        } catch (\Exception $e) {
+            Log::error('Bulk update failed', ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Extract dan normalize email
+     */
+    private function extractEmail(array $row): ?string
+    {
+        $value = $this->getField($row, self::EMAIL_FIELDS);
+        
+        if (!$value) return null;
+        
+        $email = strtolower(trim($value));
+        
+        return str_contains($email, '@') ? $email : null;
+    }
+
+    /**
+     * Extract dan normalize status
+     */
+    private function extractStatus(array $row): ?string
+    {
+        $value = $this->getField($row, self::STATUS_FIELDS);
+        
+        if (!$value) return null;
+        
+        $status = strtolower(trim($value));
+        
+        return isset(self::STATUS_MAP[$status]) ? $status : null;
+    }
+
+    /**
+     * Get field value dari berbagai kemungkinan nama kolom
+     */
+    private function getField(array $row, array $names): ?string
+    {
+        static $keyCache = [];
+        
+        foreach ($names as $name) {
+            if (!isset($keyCache[$name])) {
+                $keyCache[$name] = $this->normalizeKey($name);
+            }
+            $target = $keyCache[$name];
+            
+            foreach ($row as $key => $value) {
+                if (!isset($keyCache[$key])) {
+                    $keyCache[$key] = $this->normalizeKey($key);
+                }
+                
+                if ($keyCache[$key] === $target && $value !== null && trim($value) !== '') {
+                    return trim($value);
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Normalize header key
+     */
+    private function normalizeKey(string $key): string
+    {
+        return preg_replace('/\s+/', ' ', 
+            str_replace("\xC2\xA0", ' ', strtolower(trim($key)))
+        );
     }
 
     public function chunkSize(): int
     {
         return 1000;
-    }
-
-    public function batchSize(): int
-    {
-        return 1000;
-    }
-
-    /**
-    * @param Row $row
-    *
-    * @return null
-    */
-    public function onRow(Row $row)
-    {
-        $this->rowNumber = $row->getIndex();
-        $row = $row->toArray();
-
-        $email = $this->getFieldValue($row, ['email', 'alamat_email', 'email_address', 'email address']);
-        $status = $this->getFieldValue($row, ['status', 'result', 'hasil', 'keterangan', 'final_result', 'final result']);
-
-        // Enhanced validation to automatically skip non-candidate rows
-        if (empty($email) || strpos($email, '@') === false || empty($status)) {
-            Log::warning('Skipping row in StageUpdateImport', [
-                'row' => $this->rowNumber,
-                'reason' => 'Invalid data format (row does not appear to be a valid candidate record)',
-                'data' => $row
-            ]);
-            return null;
-        }
-
-        try {
-            $candidate = Candidate::where('alamat_email', $email)->first();
-
-            if (!$candidate) {
-                Log::warning('Skipping row in StageUpdateImport', [
-                    'row' => $this->rowNumber,
-                    'reason' => "Candidate with email '{$email}' not found",
-                    'data' => $row
-                ]);
-                return null;
-            }
-
-            // Find the latest application for the candidate
-            $application = $candidate->applications()->latest()->first();
-
-            if (!$application) {
-                Log::warning('Skipping row in StageUpdateImport', [
-                    'row' => $this->rowNumber,
-                    'reason' => "Application not found for candidate '{$email}'",
-                    'data' => $row
-                ]);
-                return null;
-            }
-
-            // --- AUTO-PASS PREVIOUS STAGES ---
-            $stagesConfig = $this->getStagesConfig();
-            $stageOrder = array_keys($stagesConfig);
-            $currentStageIndex = array_search($this->stageName, $stageOrder);
-
-            if ($currentStageIndex !== false && $currentStageIndex > 0) {
-                // Auto-pass all previous stages
-                for ($i = 0; $i < $currentStageIndex; $i++) {
-                    $previousStageName = $stageOrder[$i];
-                    ApplicationStage::updateOrCreate(
-                        [
-                            'application_id' => $application->id,
-                            'stage_name' => $previousStageName,
-                        ],
-                        [
-                            'status' => 'LULUS', // Mark as passed
-                            'scheduled_date' => now()->subDays($currentStageIndex - $i), // Chronological order
-                            'notes' => 'Otomatis lolos (import)',
-                        ]
-                    );
-                }
-            }
-
-            // --- UPDATE CURRENT STAGE ---
-            $upperStatus = strtoupper($status);
-            $currentStageConfig = $stagesConfig[$this->stageName];
-            
-            ApplicationStage::updateOrCreate(
-                [
-                    'application_id' => $application->id,
-                    'stage_name' => $this->stageName,
-                ],
-                [
-                    'status' => $upperStatus,
-                    'scheduled_date' => now(),
-                    'notes' => 'Diupdate via import Excel',
-                ]
-            );
-
-            // --- DETERMINE NEXT ACTION BASED ON STATUS ---
-            $isPass = in_array($upperStatus, $currentStageConfig['pass_values']);
-            $failValues = ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING', 'CANCEL', 'TIDAK DISARANKAN'];
-
-            if ($isPass) {
-                // If PASS, create the next stage
-                $nextStageName = $currentStageConfig['next_stage'];
-
-                if ($nextStageName) {
-                    // Delete all stages after next stage (reset future progress)
-                    $nextStageIndex = array_search($nextStageName, $stageOrder);
-                    if ($nextStageIndex !== false) {
-                        foreach ($stageOrder as $idx => $stageName) {
-                            if ($idx > $nextStageIndex) {
-                                ApplicationStage::where('application_id', $application->id)
-                                    ->where('stage_name', $stageName)
-                                    ->delete();
-                            }
-                        }
-                    }
-
-                    // Create/update next stage with empty status
-                    ApplicationStage::updateOrCreate(
-                        [
-                            'application_id' => $application->id,
-                            'stage_name' => $nextStageName,
-                        ],
-                        [
-                            'status' => '', // Empty status for pending stage
-                            'scheduled_date' => now()->addDays(5),
-                            'notes' => 'Otomatis dibuka setelah ' . ucwords(str_replace('_', ' ', $this->stageName)) . ' lulus',
-                        ]
-                    );
-                    
-                    $application->overall_status = 'PROSES';
-                    $application->save();
-
-                    Log::info('Stage updated successfully', [
-                        'email' => $email,
-                        'current_stage' => $this->stageName,
-                        'next_stage' => $nextStageName,
-                        'status' => $upperStatus
-                    ]);
-                } else {
-                    // This is the final stage (hiring), and they passed
-                    $application->overall_status = 'LULUS';
-                    $application->save();
-
-                    Log::info('Candidate completed all stages', [
-                        'email' => $email,
-                        'final_stage' => $this->stageName,
-                        'status' => 'LULUS'
-                    ]);
-                }
-            } elseif (in_array($upperStatus, $failValues)) {
-                // If FAIL, set overall status to DITOLAK and delete future stages
-                foreach ($stageOrder as $idx => $stageName) {
-                    if ($idx > $currentStageIndex) {
-                        ApplicationStage::where('application_id', $application->id)
-                            ->where('stage_name', $stageName)
-                            ->delete();
-                    }
-                }
-                
-                $application->overall_status = 'DITOLAK';
-                $application->save();
-
-                Log::info('Candidate failed at stage', [
-                    'email' => $email,
-                    'failed_stage' => $this->stageName,
-                    'status' => $upperStatus
-                ]);
-            } else {
-                // Neutral status (e.g., 'PROSES', 'DIPERTIMBANGKAN')
-                // Keep current stage, don't create next stage yet
-                $application->overall_status = 'PROSES';
-                $application->save();
-
-                Log::info('Stage updated with neutral status', [
-                    'email' => $email,
-                    'stage' => $this->stageName,
-                    'status' => $upperStatus
-                ]);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error processing stage update import for row', [
-                'row_number' => $this->rowNumber,
-                'reason' => 'An unexpected error occurred: ' . $e->getMessage(),
-                'data' => $row,
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
-
-        return null; // We are handling the logic here, not creating a new model directly
-    }
-
-    private function getStagesConfig(): array
-    {
-        return [
-            'cv_review'       => ['field' => 'cv_review_status',      'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'next_stage' => 'psikotes'],
-            'psikotes'        => ['field' => 'psikotes_result',       'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'next_stage' => 'hc_interview'],
-            'hc_interview'    => ['field' => 'hc_interview_status',   'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'next_stage' => 'user_interview'],
-            'user_interview'  => ['field' => 'user_interview_status', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'next_stage' => 'interview_bod'],
-            'interview_bod'   => ['field' => 'bod_interview_status',  'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'next_stage' => 'offering_letter'],
-            'offering_letter' => ['field' => 'offering_letter_status','pass_values' => ['DITERIMA', 'PASS', 'OK', 'DONE'], 'next_stage' => 'mcu'],
-            'mcu'             => ['field' => 'mcu_status',            'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'next_stage' => 'hiring'],
-            'hiring'          => ['field' => 'hiring_status',         'pass_values' => ['HIRED', 'PASS', 'OK', 'DONE'], 'next_stage' => null], // No next stage after hiring
-        ];
-    }
-
-    /**
-     * Get a value from the row array by searching through possible header names.
-     */
-    protected function getFieldValue(array $row, array $possibleNames)
-    {
-        foreach ($possibleNames as $name) {
-            $target = $this->normalizeHeaderKey($name);
-            foreach ($row as $key => $value) {
-                $current = $this->normalizeHeaderKey($key);
-                if ($current === $target) {
-                    return trim((string)$value) !== '' ? trim((string)$value) : null;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Normalize a header key for case-insensitive and space-insensitive comparison.
-     */
-    private function normalizeHeaderKey(?string $key): ?string
-    {
-        if ($key === null) return null;
-        $k = str_replace("\xC2\xA0", ' ', (string) $key); // Non-breaking space
-        $k = preg_replace('/\s+/u', ' ', $k);
-        $k = trim($k);
-        return strtolower($k);
     }
 }

@@ -12,9 +12,9 @@ class ApplicationObserver
      */
     public function created(Application $application): void
     {
-        // Create the initial 'cv_review' stage for the new application
+        // Create the initial 'psikotes' stage for the new application, as 'cv_review' is now bypassed.
         $application->stages()->create([
-            'stage_name' => 'cv_review',
+            'stage_name' => 'psikotes',
             'status' => 'PROSES',
             'scheduled_date' => now(),
             'conducted_by' => Auth::user()?->name ?? 'System',

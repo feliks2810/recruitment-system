@@ -84,6 +84,7 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposed By</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Needed</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documents</th>
                                 <th scope="col" class="relative px-6 py-3">
                                     <span class="sr-only">Actions</span>
                                 </th>
@@ -92,7 +93,7 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @if($proposals->isEmpty())
                                 <tr>
-                                    <td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No pending proposals.</td>
+                                    <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No pending proposals.</td>
                                 </tr>
                             @else
                                 @foreach($proposals as $proposal)
@@ -101,68 +102,114 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $proposal->department->name ?? 'N/A' }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $proposal->proposedByUser->name ?? 'N/A' }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $proposal->proposed_needed_count }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            @forelse($proposal->manpowerRequestFiles as $file)
+                                                <a href="{{ route('proposals.download', $file->id) }}" class="text-indigo-600 hover:text-indigo-900 underline">
+                                                    {{ $file->stage }}
+                                                </a>
+                                            @empty
+                                                <span>No documents.</span>
+                                            @endforelse
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            @if($proposal->proposal_status == \App\Models\Vacancy::STATUS_PENDING && Auth::user()->can('review-vacancy-proposals-step-2'))
-                                                <span class="text-gray-500">Waiting for HC1 Approval</span>
-                                            @else
-                                                <div class="flex items-center justify-end">
-                                                    <form action="{{ route('proposals.approve', $proposal->id) }}" method="POST" class="inline-block">
-                                                        @csrf
-                                                        @method('PATCH')
-                                                        <button type="submit" class="text-indigo-600 hover:text-indigo-900">Approve</button>
-                                                    </form>
-                                                    <div x-data="{ showModal: @if($errors->has('rejection_reason') && old('proposal_id') == $proposal->id) true @else false @endif }" class="inline-block ml-4">
-                                                        <button @click="showModal = true" type="button" class="text-red-600 hover:text-red-900">Reject</button>
+                                            <div x-data="{ showHc1Modal: false, showRejectModal: false, hc1Action: 'approve' }">
+                                                @if($proposal->proposal_status == \App\Models\Vacancy::STATUS_PENDING && Auth::user()->can('review-vacancy-proposals-step-1'))
+                                                    <button @click="showHc1Modal = true" type="button" class="text-blue-600 hover:text-blue-900">Process (HC1)</button>
 
-                                                        <div x-show="showModal" class="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                                                            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                                                                <div x-show="showModal" @click="showModal = false" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+                                                    <!-- HC1 Process Modal -->
+                                                    <div x-show="showHc1Modal" class="fixed z-10 inset-0 overflow-y-auto" style="display: none;">
+                                                        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                                                            <div x-show="showHc1Modal" @click="showHc1Modal = false" class="fixed inset-0 bg-gray-500 bg-opacity-75"></div>
+                                                            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+                                                            <div x-show="showHc1Modal" @click.stop class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                                                                <div class="border-b border-gray-200">
+                                                                    <nav class="-mb-px flex" aria-label="Tabs">
+                                                                        <button @click="hc1Action = 'approve'" :class="{ 'border-blue-500 text-blue-600': hc1Action === 'approve', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': hc1Action !== 'approve' }" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
+                                                                            Approve
+                                                                        </button>
+                                                                        <button @click="hc1Action = 'reject'" :class="{ 'border-red-500 text-red-600': hc1Action === 'reject', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': hc1Action !== 'reject' }" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
+                                                                            Reject
+                                                                        </button>
+                                                                    </nav>
+                                                                </div>
 
-                                                                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                                                                <div x-show="showModal" @click.stop class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                                                                    <form action="{{ route('proposals.reject', $proposal->id) }}" method="POST">
+                                                                <!-- HC1 Approve Form -->
+                                                                <div x-show="hc1Action === 'approve'">
+                                                                    <form action="{{ route('proposals.hc1-upload', $proposal->id) }}" method="POST" enctype="multipart/form-data">
                                                                         @csrf
-                                                                        @method('PATCH')
-                                                                        <input type="hidden" name="proposal_id" value="{{ $proposal->id }}">
                                                                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                                                            <div class="sm:flex sm:items-start">
-                                                                                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                                                                    <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                                                    </svg>
-                                                                                </div>
-                                                                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                                                                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                                                                        Reject Proposal
-                                                                                    </h3>
-                                                                                    <div class="mt-2">
-                                                                                        <label for="rejection_reason_{{ $proposal->id }}" class="block text-sm font-medium text-gray-700">
-                                                                                            Reason for rejection <span class="text-red-500">*</span>
-                                                                                        </label>
-                                                                                        <textarea id="rejection_reason_{{ $proposal->id }}" name="rejection_reason" rows="3" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md @if($errors->has('rejection_reason') && old('proposal_id') == $proposal->id) border-red-500 @endif" placeholder="Enter rejection reason...">{{ old('rejection_reason') }}</textarea>
-                                                                                        @if($errors->has('rejection_reason') && old('proposal_id') == $proposal->id)
-                                                                                            <p class="mt-1 text-sm text-red-500">{{ $errors->first('rejection_reason') }}</p>
-                                                                                        @endif
-                                                                                    </div>
-                                                                                </div>
+                                                                            <h3 class="text-lg leading-6 font-medium text-gray-900">Approve and Submit to HC2</h3>
+                                                                            <div class="mt-4">
+                                                                                <label for="document_{{ $proposal->id }}" class="block text-sm font-medium text-gray-700">Upload Revised Document <span class="text-red-500">*</span></label>
+                                                                                <input type="file" name="document" id="document_{{ $proposal->id }}" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
                                                                             </div>
                                                                         </div>
                                                                         <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                                                            <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
-                                                                                Reject
-                                                                            </button>
-                                                                            <button @click="showModal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                                                                                Cancel
-                                                                            </button>
+                                                                            <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:ml-3 sm:w-auto sm:text-sm">Approve and Submit</button>
+                                                                            <button @click="showHc1Modal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
+                                                                        </div>
+                                                                    </form>
+                                                                </div>
+
+                                                                <!-- HC1 Reject Form -->
+                                                                <div x-show="hc1Action === 'reject'" style="display: none;">
+                                                                    <form action="{{ route('proposals.reject', $proposal->id) }}" method="POST">
+                                                                        @csrf
+                                                                        @method('PATCH')
+                                                                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                                                            <h3 class="text-lg leading-6 font-medium text-gray-900">Reject Proposal</h3>
+                                                                            <div class="mt-2">
+                                                                                <label for="rejection_reason_hc1_{{ $proposal->id }}" class="block text-sm font-medium text-gray-700">Reason for rejection <span class="text-red-500">*</span></label>
+                                                                                <textarea name="rejection_reason" id="rejection_reason_hc1_{{ $proposal->id }}" rows="3" class="shadow-sm mt-1 block w-full sm:text-sm border-gray-300 rounded-md" required></textarea>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                                                            <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">Submit Rejection</button>
+                                                                            <button @click="showHc1Modal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
                                                                         </div>
                                                                     </form>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
+                                                @elseif($proposal->proposal_status == \App\Models\Vacancy::STATUS_PENDING_HC2_APPROVAL && Auth::user()->can('review-vacancy-proposals-step-2'))
+                                                    <div class="flex items-center justify-end">
+                                                        <form action="{{ route('proposals.approve', $proposal->id) }}" method="POST" class="inline-block">
+                                                            @csrf
+                                                            @method('PATCH')
+                                                            <button type="submit" class="text-green-600 hover:text-green-900">Approve (HC2)</button>
+                                                        </form>
+                                                        <button @click="showRejectModal = true" type="button" class="text-red-600 hover:text-red-900 ml-4">Reject</button>
+                                                    </div>
+                                                @else
+                                                    <span class="text-gray-400 italic">No action available</span>
+                                                @endif
+
+                                                <!-- HC2 Reject Modal -->
+                                                <div x-show="showRejectModal" class="fixed z-10 inset-0 overflow-y-auto" style="display: none;">
+                                                    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                                                        <div x-show="showRejectModal" @click="showRejectModal = false" class="fixed inset-0 bg-gray-500 bg-opacity-75"></div>
+                                                        <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+                                                        <div x-show="showRejectModal" @click.stop class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                                                            <form action="{{ route('proposals.reject', $proposal->id) }}" method="POST">
+                                                                @csrf
+                                                                @method('PATCH')
+                                                                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Reject Proposal</h3>
+                                                                    <div class="mt-2">
+                                                                        <label for="rejection_reason_{{ $proposal->id }}" class="block text-sm font-medium text-gray-700">Reason for rejection <span class="text-red-500">*</span></label>
+                                                                        <textarea name="rejection_reason" id="rejection_reason_{{ $proposal->id }}" rows="3" class="shadow-sm mt-1 block w-full sm:text-sm border-gray-300 rounded-md" required></textarea>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                                                    <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">Submit Rejection</button>
+                                                                    <button @click="showRejectModal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach

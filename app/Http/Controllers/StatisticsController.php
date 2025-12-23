@@ -34,6 +34,7 @@ class StatisticsController extends Controller
         $sourceData = $this->getSourceEffectivenessData($startDate, $endDate, $source);
         $genderData = $this->getGenderDistributionData(clone $baseQuery);
         $universityData = $this->getUniversityDistributionData(clone $baseQuery);
+        $universityPassRateData = $this->getUniversityPassRateData(clone $baseQuery);
         $monthlyData = $this->getMonthlyApplicationData($startDate, $endDate, $source);
 
         $passRateAnalysis = $this->getPassRateAnalysisData(clone $baseQuery);
@@ -47,6 +48,7 @@ class StatisticsController extends Controller
             'sourceData',
             'genderData',
             'universityData',
+            'universityPassRateData',
             'monthlyData',
             'passRateAnalysis',
             'timelineAnalysis',
@@ -354,5 +356,55 @@ class StatisticsController extends Controller
 
         \Log::info("Timeline Analysis - Final analysis count: " . count($analysis));
         return $analysis;
+    }
+
+    /**
+     * Get universities with most graduates (LULUS status)
+     */
+    private function getUniversityPassRateData($query)
+    {
+        $data = (clone $query)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('educations', 'candidates.id', '=', 'educations.candidate_id')
+            ->select(
+                'educations.institution',
+                DB::raw('COUNT(*) as total_candidates'),
+                DB::raw('SUM(CASE WHEN applications.overall_status = \'LULUS\' THEN 1 ELSE 0 END) as passed_count')
+            )
+            ->whereNotNull('educations.institution')
+            ->where('educations.institution', '!=', '')
+            ->groupBy('educations.institution')
+            ->orderByDesc('passed_count')
+            ->limit(15)
+            ->get();
+
+        // Transform untuk pie chart
+        $transformedData = [];
+        foreach ($data as $item) {
+            $transformedData[] = [
+                'institution' => $item->institution,
+                'passed_count' => $item->passed_count,
+                'total_candidates' => $item->total_candidates,
+                'pass_rate' => $item->total_candidates > 0 ? round(($item->passed_count / $item->total_candidates) * 100, 1) : 0,
+            ];
+        }
+
+        return $transformedData;
+    }
+
+    /**
+     * Get summary statistics for candidates status
+     */
+    public function getSummaryStats()
+    {
+        $stats = [
+            'total_candidates' => Candidate::count(),
+            'in_process' => Application::where('overall_status', 'PROSES')->count(),
+            'passed' => Application::where('overall_status', 'LULUS')->count(),
+            'rejected' => Application::where('overall_status', 'DITOLAK')->count(),
+            'cancelled' => Application::where('overall_status', 'CANCEL')->count(),
+        ];
+
+        return $stats;
     }
 }

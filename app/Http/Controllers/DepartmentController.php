@@ -76,4 +76,17 @@ class DepartmentController extends Controller
 
         return redirect()->route('departments.index')->with('success', 'Department deleted successfully.');
     }
+
+    /**
+     * Get unique vacancy positions for a given department.
+     */
+    public function positions(Department $department)
+    {
+        $positions = $department->vacancies()
+            ->select('name')
+            ->distinct()
+            ->pluck('name');
+            
+        return response()->json($positions);
+    }
 }

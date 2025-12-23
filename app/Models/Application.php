@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property int $id
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read \App\Models\User|null $processedByUser
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ApplicationStage> $stages
  * @property-read int|null $stages_count
+ * @property-read ApplicationStage|null $latestStage
  */
 class Application extends Model
 {
@@ -69,5 +71,10 @@ class Application extends Model
     public function stages(): HasMany
     {
         return $this->hasMany(ApplicationStage::class)->orderBy('scheduled_date', 'asc');
+    }
+
+    public function latestStage(): HasOne
+    {
+        return $this->hasOne(ApplicationStage::class)->latest('updated_at');
     }
 }

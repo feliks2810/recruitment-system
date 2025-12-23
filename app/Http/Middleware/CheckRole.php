@@ -10,7 +10,10 @@ class CheckRole
 {
     public function handle(Request $request, Closure $next, ...$roles)
     {
-        if (!in_array($request->user()->role, $roles)) {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        if (!$user || !in_array($user->role, $roles)) {
             // Redirect them to the home page or show an error
             return redirect('/');
         }

@@ -30,6 +30,7 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        /** @var \App\Models\User|null $user */
         $user = $request->user();
         $pendingProposalsCount = Vacancy::where('proposal_status', 'pending')->count();
 
