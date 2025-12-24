@@ -115,7 +115,6 @@ class VacancyProposalController extends Controller
     {
         $request->validate([
             'vacancy_id' => ['required', 'integer', 'exists:vacancies,id'],
-            'proposed_needed_count' => ['required', 'integer', 'min:1'],
             'document' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:10240'],
         ]);
 
@@ -139,8 +138,11 @@ class VacancyProposalController extends Controller
         }
 
         DB::transaction(function () use ($request, $user, $vacancy) {
+            // Set default proposed_needed_count to 1 if not provided
+            $proposedCount = $request->input('proposed_needed_count', 1);
+            
             $vacancy->update([
-                'proposed_needed_count' => $request->input('proposed_needed_count'),
+                'proposed_needed_count' => $proposedCount,
                 'proposal_status' => Vacancy::STATUS_PENDING,
                 'proposed_by_user_id' => $user->id,
             ]);
@@ -153,15 +155,15 @@ class VacancyProposalController extends Controller
                 'vacancy_id' => $vacancy->id,
                 'user_id' => $user->id,
                 'file_path' => $filePath,
-                'stage' => 'initial',
+                'stage' => 'download_file',
             ]);
 
             VacancyProposalHistory::create([
                 'vacancy_id' => $vacancy->id,
                 'user_id' => $user->id,
                 'status' => Vacancy::STATUS_PENDING,
-                'notes' => 'Initial proposal for ' . $request->input('proposed_needed_count') . ' positions.',
-                'proposed_needed_count' => $request->input('proposed_needed_count'),
+                'notes' => 'Initial proposal for ' . $proposedCount . ' positions.',
+                'proposed_needed_count' => $proposedCount,
             ]);
         });
 
@@ -190,13 +192,15 @@ class VacancyProposalController extends Controller
                  'is_active' => true,
             ]);
     
-            VacancyProposalHistory::create([
-                'vacancy_id' => $vacancy->id,
-                'user_id' => $user->id,
-                'status' => Vacancy::STATUS_APPROVED,
-                'notes' => 'Vacancy proposal approved by Team HC 2.',
-                'hc2_approved_at' => now(),
-            ]);
+            // Update existing history record
+            $history = VacancyProposalHistory::where('vacancy_id', $vacancy->id)->latest()->first();
+            if ($history) {
+                $history->update([
+                    'status' => Vacancy::STATUS_APPROVED,
+                    'notes' => 'Vacancy proposal approved by Team HC 2.',
+                    'hc2_approved_at' => now(),
+                ]);
+            }
         });
 
         return redirect()->back()->with('success', 'Vacancy proposal approved.');
@@ -250,12 +254,14 @@ class VacancyProposalController extends Controller
             'rejection_reason' => $rejectionReason,
         ]);
 
-        VacancyProposalHistory::create([
-            'vacancy_id' => $vacancy->id,
-            'user_id' => $user->id,
-            'status' => 'rejected',
-            'notes' => "Rejected at {$rejectionStage}: " . $rejectionReason,
-        ]);
+        // Update existing history record
+        $history = VacancyProposalHistory::where('vacancy_id', $vacancy->id)->latest()->first();
+        if ($history) {
+            $history->update([
+                'status' => 'rejected',
+                'notes' => "Rejected at {$rejectionStage}: " . $rejectionReason,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Vacancy proposal rejected.');
     }
@@ -282,18 +288,20 @@ class VacancyProposalController extends Controller
                 'vacancy_id' => $vacancy->id,
                 'user_id' => $user->id,
                 'file_path' => $filePath,
-                'stage' => 'hc1_revised',
+                'stage' => 'hc1_approved',
             ]);
 
             $vacancy->update(['proposal_status' => Vacancy::STATUS_PENDING_HC2_APPROVAL]);
 
-            VacancyProposalHistory::create([
-                'vacancy_id' => $vacancy->id,
-                'user_id' => $user->id,
-                'status' => Vacancy::STATUS_PENDING_HC2_APPROVAL,
-                'notes' => 'Proposal reviewed and approved by HC1. Forwarded to HC2.',
-                'hc1_approved_at' => now(),
-            ]);
+            // Update existing history record
+            $history = VacancyProposalHistory::where('vacancy_id', $vacancy->id)->latest()->first();
+            if ($history) {
+                $history->update([
+                    'status' => Vacancy::STATUS_PENDING_HC2_APPROVAL,
+                    'notes' => 'Proposal reviewed and approved by HC1. Forwarded to HC2.',
+                    'hc1_approved_at' => now(),
+                ]);
+            }
         });
 
         return redirect()->route('proposals.index')->with('success', 'HC1 review uploaded successfully.');

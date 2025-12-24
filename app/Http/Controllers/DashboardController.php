@@ -117,6 +117,8 @@ class DashboardController extends Controller
         }
         $gender_distribution = $genderDistributionQuery
             ->select('jk', DB::raw('count(*) as count'))
+            ->whereNotNull('jk')
+            ->where('jk', '!=', '')
             ->groupBy('jk')
             ->get();
 

@@ -105,7 +105,7 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             @forelse($proposal->manpowerRequestFiles as $file)
                                                 <a href="{{ route('proposals.download', $file->id) }}" class="text-indigo-600 hover:text-indigo-900 underline">
-                                                    {{ $file->stage }}
+                                                    @if($file->stage === 'download_file') Download File @elseif($file->stage === 'hc1_approved') HC1 Approved @elseif($file->stage === 'rejected') Rejected @else {{ ucfirst(str_replace('_', ' ', $file->stage)) }} @endif
                                                 </a>
                                             @empty
                                                 <span>No documents.</span>

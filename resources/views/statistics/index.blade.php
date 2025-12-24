@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }),
             datasets: [{
                 data: Object.values(genderData),
-                backgroundColor: ['rgba(59, 130, 246, 0.8)', 'rgba(236, 72, 153, 0.8)'],
+                backgroundColor: ['rgba(59, 130, 246, 0.8)', 'rgba(236, 72, 153, 0.8)', 'rgba(156, 163, 175, 0.8)'],
                 borderWidth: 0
             }]
         },

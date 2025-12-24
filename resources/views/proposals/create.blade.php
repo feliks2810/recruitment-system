@@ -94,14 +94,6 @@
                         </div>
 
                         <div class="mb-4">
-                            <label for="proposed_needed_count" class="block text-sm font-medium text-gray-700">Number of People Needed</label>
-                            <input name="proposed_needed_count" type="number" id="proposed_needed_count" min="1" value="1" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
-                            @error('proposed_needed_count')
-                                <div class="text-red-500 text-xs mt-1">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-4">
                             <label for="document" class="block text-sm font-medium text-gray-700">Manpower Request Document <span class="text-red-500">*</span></label>
                             <input type="file" name="document" id="document" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
                             @error('document')

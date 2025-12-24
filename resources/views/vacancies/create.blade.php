@@ -27,13 +27,6 @@
                 <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
             @enderror
         </div>
-        <div>
-            <label for="needed_count" class="block text-sm font-medium text-gray-700">Jumlah Orang Dibutuhkan</label>
-            <input type="number" name="needed_count" id="needed_count" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" value="0" required>
-            @error('needed_count')
-                <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
         <div class="flex items-center">
             <input type="checkbox" name="is_active" id="is_active" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
             <label for="is_active" class="ml-2 block text-sm text-gray-900">Aktif</label>
