@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Application;
 use App\Models\Candidate;
+use App\Models\Department;
 use App\Models\Vacancy;
 use App\Services\ApplicationStageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CandidateController extends Controller
 {
@@ -39,6 +41,73 @@ class CandidateController extends Controller
             ]);
             return response()->json(['message' => 'Error updating stage: ' . $e->getMessage()], 500);
         }
+    }
+    
+    /**
+     * Show the form for creating a new candidate
+     */
+    public function create()
+    {
+        $vacancies = Vacancy::where('proposal_status', 'approved')->orderBy('name')->get();
+        $departments = Department::orderBy('name')->get();
+        return view('candidates.create', compact('vacancies', 'departments'));
+    }
+
+    /**
+     * Store a newly created candidate
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'alamat_email' => 'required|email|unique:candidates,email',
+            'phone' => 'nullable|string',
+            'jenis_kelamin' => 'nullable|string',
+            'tanggal_lahir' => 'nullable|date',
+            'alamat' => 'nullable|string',
+        ]);
+
+        $candidate = Candidate::create($validated);
+
+        return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate created successfully.');
+    }
+
+    /**
+     * Show the form for editing a candidate
+     */
+    public function edit(Candidate $candidate)
+    {
+        $departments = Department::orderBy('name')->get();
+        return view('candidates.edit', compact('candidate', 'departments'));
+    }
+
+    /**
+     * Update a candidate
+     */
+    public function update(Request $request, Candidate $candidate)
+    {
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'alamat_email' => 'required|email|unique:candidates,email,' . $candidate->id,
+            'phone' => 'nullable|string',
+            'jenis_kelamin' => 'nullable|string',
+            'tanggal_lahir' => 'nullable|date',
+            'alamat' => 'nullable|string',
+        ]);
+
+        $candidate->update($validated);
+
+        return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate updated successfully.');
+    }
+
+    /**
+     * Delete a candidate
+     */
+    public function destroy(Candidate $candidate)
+    {
+        $candidate->delete();
+
+        return redirect()->route('candidates.index')->with('success', 'Candidate deleted successfully.');
     }
     
 
@@ -233,5 +302,145 @@ class CandidateController extends Controller
         );
 
         return response()->json(['message' => 'Candidate position moved successfully.']);
+    }
+
+    /**
+     * Export candidates
+     */
+    public function export(Request $request)
+    {
+        return Excel::download(new \App\Exports\CandidatesExport(), 'candidates_' . date('Ymd') . '.xlsx');
+    }
+
+    /**
+     * Bulk export candidates
+     */
+    public function bulkExport(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+        ]);
+
+        return Excel::download(new \App\Exports\CandidatesExport($validated['ids']), 'candidates_bulk_' . date('Ymd') . '.xlsx');
+    }
+
+    /**
+     * Toggle duplicate candidate
+     */
+    public function toggleDuplicate(Request $request, Candidate $candidate)
+    {
+        $candidate->update(['is_duplicate' => !$candidate->is_duplicate]);
+
+        return response()->json(['message' => 'Duplicate status toggled.']);
+    }
+
+    /**
+     * Switch candidate type
+     */
+    public function switchType(Request $request, Candidate $candidate)
+    {
+        $validated = $request->validate([
+            'type' => 'required|string|in:internal,external',
+        ]);
+
+        $candidate->update(['type' => $validated['type']]);
+
+        return response()->json(['message' => 'Candidate type switched.']);
+    }
+
+    /**
+     * Bulk switch candidate type
+     */
+    public function bulkSwitchType(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'type' => 'required|string|in:internal,external',
+        ]);
+
+        Candidate::whereIn('id', $validated['ids'])->update(['type' => $validated['type']]);
+
+        return response()->json(['message' => 'Candidate types switched.']);
+    }
+
+    /**
+     * Bulk update candidate status
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'status' => 'required|string',
+        ]);
+
+        Candidate::whereIn('id', $validated['ids'])->update(['status' => $validated['status']]);
+
+        return response()->json(['message' => 'Candidate statuses updated.']);
+    }
+
+    /**
+     * Bulk move candidates to a stage
+     */
+    public function bulkMoveStage(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'stage' => 'required|string',
+        ]);
+
+        // Move applications to the specified stage
+        Application::whereIn('candidate_id', $validated['ids'])->update([
+            'overall_status' => $validated['stage'],
+        ]);
+
+        return response()->json(['message' => 'Candidates moved to stage.']);
+    }
+
+    /**
+     * Set next test date for a candidate
+     */
+    public function setNextTestDate(Request $request, Candidate $candidate)
+    {
+        $validated = $request->validate([
+            'next_test_date' => 'required|date',
+        ]);
+
+        // Update the next test date in the latest application
+        $candidate->applications()->latest()->first()?->update([
+            'next_test_date' => $validated['next_test_date'],
+        ]);
+
+        return response()->json(['message' => 'Next test date set.']);
+    }
+
+    /**
+     * Check for duplicate candidates
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $duplicate = Candidate::where('email', $validated['email'])->first();
+
+        return response()->json([
+            'is_duplicate' => !!$duplicate,
+            'candidate' => $duplicate,
+        ]);
+    }
+
+    /**
+     * Bulk delete candidates
+     */
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+        ]);
+
+        Candidate::whereIn('id', $validated['ids'])->delete();
+
+        return response()->json(['message' => 'Candidates deleted.']);
     }
 }
