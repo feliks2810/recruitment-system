@@ -49,28 +49,39 @@ class ProcessCandidateImport implements ShouldQueue
         }
 
         try {
-            if (!Storage::exists($this->path)) {
+            $path = $this->path;
+            
+            // Support both relative (Storage path) and absolute paths
+            if (!str_starts_with($path, '/') && !preg_match('/^[a-z]:/i', $path)) {
+                // Relative path - use Storage
+                $path = Storage::path($path);
+            }
+
+            if (!file_exists($path)) {
                 throw new \Exception('Import file not found: ' . $this->path);
             }
 
             $import = new CandidatesImport($this->authUserId);
 
-            Excel::import($import, Storage::path($this->path));
+            Excel::import($import, $path);
 
             $processed = $import->getProcessedCount();
             $skipped = $import->getSkippedCount();
+            $errors = $import->getErrors();
 
             $importHistory->update([
                 'success_rows' => $processed,
                 'failed_rows' => $skipped,
                 'status' => 'completed',
                 'error_message' => null,
+                'error_details' => count($errors) > 0 ? $errors : null,
             ]);
 
             Log::info('ProcessCandidateImport: Import completed', [
                 'history_id' => $this->importHistoryId,
                 'processed' => $processed,
                 'skipped' => $skipped,
+                'error_count' => count($errors),
             ]);
 
         } catch (Throwable $e) {
@@ -90,8 +101,15 @@ class ProcessCandidateImport implements ShouldQueue
         } finally {
 
             // DELETE FILE HANYA JIKA JOB SUKSES ATAU FINAL FAIL
-            if (Storage::exists($this->path)) {
-                Storage::delete($this->path);
+            $path = $this->path;
+            
+            // Support both relative and absolute paths
+            if (!str_starts_with($path, '/') && !preg_match('/^[a-z]:/i', $path)) {
+                $path = Storage::path($path);
+            }
+            
+            if (file_exists($path)) {
+                unlink($path);
                 Log::info('ProcessCandidateImport: File deleted', [
                     'history_id' => $this->importHistoryId,
                 ]);

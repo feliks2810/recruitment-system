@@ -38,6 +38,12 @@ class ImportHistory extends Model
         'failed_rows',
         'status',
         'user_id',
+        'error_message',
+        'error_details',
+    ];
+
+    protected $casts = [
+        'error_details' => 'array',
     ];
 
     /**

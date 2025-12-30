@@ -143,17 +143,21 @@ class ApplicationStageService
 
     private function updateOverallApplicationStatus(Application $application, string $stageKey, string $result): void
     {
+        // DITOLAK at any stage means rejection
         if (in_array($result, ['GAGAL', 'TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'])) {
-            $application->overall_status = 'GAGAL';
+            $application->overall_status = 'DITOLAK';
             $application->candidate->status = 'inactive';
-        } elseif (($this->stageConfig[$stageKey]['next'] === null) && in_array($result, ['LULUS', 'DITERIMA', 'HIRED'])) {
-            // If it's the last stage and it's passed
-            $application->overall_status = 'HIRED';
-            $application->candidate->status = 'active'; // Or 'hired'
+        } 
+        // If last stage (hiring) and LULUS/DITERIMA/HIRED -> LULUS (fully passed)
+        elseif (($this->stageConfig[$stageKey]['next'] === null) && in_array($result, ['LULUS', 'DITERIMA', 'HIRED'])) {
+            $application->overall_status = 'LULUS';
+            $application->candidate->status = 'active';
             if ($application->vacancy) {
                 $application->vacancy->increment('accepted_count');
             }
-        } else {
+        } 
+        // All other cases -> PROSES (still in process)
+        else {
             $application->overall_status = 'PROSES';
             $application->candidate->status = 'active';
         }

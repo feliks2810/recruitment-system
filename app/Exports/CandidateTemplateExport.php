@@ -15,6 +15,7 @@ class CandidateTemplateExport implements WithHeadings, ShouldAutoSize, WithStyle
     public function headings(): array
     {
         return [
+            'applicant_id',
             'nama',
             'email',
             'phone',
@@ -26,15 +27,19 @@ class CandidateTemplateExport implements WithHeadings, ShouldAutoSize, WithStyle
             'jurusan',
             'ipk',
             'source',
-            'department_name',
-            'vacancy_name',
+            'vacancy',
+            'department', // OPTIONAL: Will be auto-filled from vacancy if exists
+            'psikotest_result',
+            'psikotest_date',
+            'cv',
+            'flk',
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
         // Style the first row (headings)
-        $sheet->getStyle('A1:L1')->applyFromArray([
+        $sheet->getStyle('A1:R1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'color' => ['argb' => 'FFFFFFFF'],

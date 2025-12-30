@@ -191,7 +191,7 @@
             @foreach($import_history as $history)
             <div class="px-6 py-4">
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 flex-1">
                         <div class="w-10 h-10 
                             @if($history->status == 'success' || $history->status == 'completed') bg-green-50 @elseif($history->status == 'failed') bg-red-50 @else bg-blue-50 @endif 
                             rounded-lg flex items-center justify-center">
@@ -203,7 +203,7 @@
                                 <i class="fas fa-clock text-blue-600"></i>
                             @endif
                         </div>
-                        <div>
+                        <div class="flex-1">
                             <p class="font-medium text-gray-900">{{ $history->filename }}</p>
                             <p class="text-sm text-gray-600">
                                 {{ number_format($history->total_rows) }} baris • 
@@ -229,6 +229,44 @@
                         @endif
                     </div>
                 </div>
+                
+                <!-- Error Details Expandable Section -->
+                @if($history->failed_rows > 0 && $history->error_details && count($history->error_details) > 0)
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <details class="group">
+                        <summary class="flex items-center gap-2 text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer list-none group-open:text-red-700">
+                            <i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>
+                            <span>Lihat {{ count($history->error_details) }} error yang terjadi</span>
+                        </summary>
+                        
+                        <div class="mt-3 space-y-2 bg-red-50 rounded-lg p-4 border border-red-100">
+                            @foreach($history->error_details as $error)
+                            <div class="bg-white rounded p-3 border border-red-200">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex-shrink-0 mt-0.5">
+                                        <i class="fas fa-exclamation-circle text-red-600 text-sm"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-xs text-gray-500 font-medium">Baris {{ $error['row'] }}</p>
+                                        <p class="text-sm text-gray-900 mt-1">
+                                            <span class="font-medium">{{ $error['nama'] }}</span> 
+                                            <span class="text-gray-600">(ID: {{ $error['applicant_id'] }})</span>
+                                        </p>
+                                        <p class="text-sm text-red-700 mt-2">
+                                            <i class="fas fa-info-circle text-xs"></i>
+                                            {{ $error['error'] }}
+                                        </p>
+                                        @if(isset($error['vacancy_name_provided']))
+                                        <p class="text-xs text-gray-600 mt-1">Vacancy yang dicari: <span class="font-mono bg-gray-100 px-1 rounded">{{ $error['vacancy_name_provided'] }}</span></p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </details>
+                </div>
+                @endif
             </div>
             @endforeach
         </div>

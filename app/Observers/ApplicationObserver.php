@@ -13,11 +13,17 @@ class ApplicationObserver
     public function created(Application $application): void
     {
         // Create the initial 'psikotes' stage for the new application, as 'cv_review' is now bypassed.
+        try {
+            $conductedBy = Auth::user()?->name ?? 'System';
+        } catch (\Exception $e) {
+            $conductedBy = 'System';
+        }
+        
         $application->stages()->create([
             'stage_name' => 'psikotes',
             'status' => 'PROSES',
             'scheduled_date' => now(),
-            'conducted_by' => Auth::user()?->name ?? 'System',
+            'conducted_by' => $conductedBy,
         ]);
     }
 
