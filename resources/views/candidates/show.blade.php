@@ -1,52 +1,73 @@
 @extends('layouts.app')
 
 @section('title', 'Detail Kandidat - ' . $candidate->nama)
+
+@push('styles')
+<style>
+    /* Fix untuk halaman show kandidat */
+    #main-content {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    main {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    
+    .header-filters-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+</style>
+@endpush
+
 @section('page-title', 'Detail Kandidat')
 @section('page-subtitle', 'Informasi dan timeline rekrutmen')
 
 @push('header-filters')
-<div class="flex items-center space-x-4">
-    <a href="{{ route('candidates.index') }}" class="text-gray-400 hover:text-gray-600 transition-colors">
-        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-    </a>
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">{{ $candidate->nama }}</h1>
-        <p class="text-sm text-gray-500">{{ $candidate->applicant_id }} • {{ $candidate->alamat_email }}</p>
-    </div>
-</div>
-
-<div class="flex items-center space-x-2">
-    @can('edit-candidates')
-     <a href="{{ route('candidates.edit', $candidate) }}"
-         class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200"
-         title="Edit Kandidat — Writer icon by SeyfDesigner (Flaticon)"
-         aria-label="Edit Kandidat">
-        <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="9" cy="8" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-            <path d="M4 20c0-2.5 3.5-4.5 7-4.5s7 2 7 4.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-            <path d="M16.5 7.5l3 3L14 16l-3.5.5.5-3.5 5-5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
-            <path d="M18.2 6.8l.6.6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" />
-        </svg>
-        Edit
-    </a>
-    @endcan
-
-    @can('delete-candidates')
-    <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline"
-          onsubmit="return confirm('Yakin ingin menghapus kandidat ini? Tindakan ini tidak dapat dibatalkan.')">
-        @csrf
-        @method('DELETE')
-        <button type="submit"
-                class="inline-flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors duration-200">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-2 border-t border-gray-100">
+    <div class="flex items-center gap-3 flex-1 min-w-0">
+        <a href="{{ route('candidates.index') }}" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
-            Hapus
-        </button>
-    </form>
-    @endcan
+        </a>
+        <div class="min-w-0">
+            <h2 class="text-base sm:text-lg font-bold text-gray-900 truncate">{{ $candidate->nama }}</h2>
+            <p class="text-xs text-gray-500 truncate">{{ $candidate->applicant_id }} • {{ $candidate->alamat_email }}</p>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+        @can('edit-candidates')
+         <a href="{{ route('candidates.edit', $candidate) }}"
+             class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
+            <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+            </svg>
+            <span class="hidden sm:inline">Edit</span>
+        </a>
+        @endcan
+
+        @can('delete-candidates')
+        <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline"
+              onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
+            @csrf
+            @method('DELETE')
+            <button type="submit"
+                    class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors duration-200">
+                <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span class="hidden sm:inline">Hapus</span>
+            </button>
+        </form>
+        @endcan
+    </div>
 </div>
 @endpush
 
@@ -497,45 +518,51 @@
                                 </tr>
                             </thead>
                                                             <tbody class="bg-white divide-y divide-gray-200">
-                                                            @forelse ($candidate->applications->sortByDesc('created_at') as $app)
-                                                                @php
-                                                                    $isCancelled = strtoupper($app->overall_status) === 'CANCEL';
-                                                                @endphp
-                                                                <tr @click="{{ $isCancelled ? '' : "setActiveApplication({$app->id}, '{$app->vacancy->name ?? 'N/A'}')" }}"
-                                                                    :class="{ 'bg-blue-50': !{{ $isCancelled ? 'true' : 'false' }} && activeApplicationId === {{ $app->id }}, 'hover:bg-gray-50': !{{ $isCancelled ? 'true' : 'false' }} }"
-                                                                    class="transition-colors duration-150 {{ $isCancelled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer' }}">
-                                                                    <td class="px-6 py-4 whitespace-nowrap">
-                                                                        <div class="text-sm font-medium text-gray-900">{{ $app->vacancy->name ?? 'N/A' }}</div>
-                                                                        <div class="text-xs text-gray-500">{{ $app->vacancy->department->name ?? 'No Department' }}</div>
-                                                                    </td>
-                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                        {{ $app->created_at->format('d M Y') }}
-                                                                    </td>
-                                                                    <td class="px-6 py-4 whitespace-nowrap">
-                                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                                            @switch(strtoupper($app->overall_status))
-                                                                                @case('PROSES') bg-blue-100 text-blue-800 @break
-                                                                                @case('LULUS') bg-green-100 text-green-800 @break
-                                                                                @case('DITOLAK') bg-red-100 text-red-800 @break
-                                                                                @case('PINDAH') bg-yellow-100 text-yellow-800 @break
-                                                                                @case('CANCEL') bg-gray-100 text-gray-800 @break
-                                                                                @default bg-gray-100 text-gray-800
-                                                                            @endswitch">
-                                                                            {{ $app->overall_status }}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                        {{ $app->id }}
-                                                                    </td>
-                                                                </tr>
-                                                            @empty
-                                                                <tr>
-                                                                    <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">
-                                                                        Belum ada data lamaran.
-                                                                    </td>
-                                                                </tr>
-                                                            @endforelse
-                                                        </tbody>
+@forelse ($candidate->applications->sortByDesc('created_at') as $app)
+    @php
+        $isCancelled = strtoupper($app->overall_status) === 'CANCEL';
+        $vacancyName = $app->vacancy->name ?? 'N/A';
+    @endphp
+    <tr @if(!$isCancelled) 
+            @click="setActiveApplication({{ $app->id }}, '{{ $vacancyName }}')" 
+        @endif
+        :class="{ 
+            'bg-blue-50': {{ $isCancelled ? 'false' : 'true' }} && activeApplicationId === {{ $app->id }}, 
+            'hover:bg-gray-50': {{ $isCancelled ? 'false' : 'true' }} 
+        }"
+        class="transition-colors duration-150 {{ $isCancelled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer' }}">
+        <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">{{ $vacancyName }}</div>
+            <div class="text-xs text-gray-500">{{ $app->vacancy->department->name ?? 'No Department' }}</div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ $app->created_at->format('d M Y') }}
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                @switch(strtoupper($app->overall_status))
+                    @case('PROSES') bg-blue-100 text-blue-800 @break
+                    @case('LULUS') bg-green-100 text-green-800 @break
+                    @case('DITOLAK') bg-red-100 text-red-800 @break
+                    @case('PINDAH') bg-yellow-100 text-yellow-800 @break
+                    @case('CANCEL') bg-gray-100 text-gray-800 @break
+                    @default bg-gray-100 text-gray-800
+                @endswitch">
+                {{ $app->overall_status }}
+            </span>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ $app->id }}
+        </td>
+    </tr>
+@empty
+    <tr>
+        <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">
+            Belum ada data lamaran.
+        </td>
+    </tr>
+@endforelse
+</tbody>
                                                     </table>
                                                 </div>
                                             </div>
