@@ -19,7 +19,7 @@ class DepartmentSeeder extends Seeder
             ['name' => 'Engineering'],
             ['name' => 'Finance & Accounting'],
             ['name' => 'HCGAESRIT'],
-            ['name' => 'MDRM Legal & Communication Function'],
+            ['name' => 'Strategic Planning Function'],
             ['name' => 'Procurement & Subcontractor'],
             ['name' => 'Production Control'],
             ['name' => 'PE & Facility'],

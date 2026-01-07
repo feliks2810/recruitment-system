@@ -357,7 +357,10 @@
                     const response = await fetch('{{ route("import.preview") }}', {
                         method: 'POST',
                         body: formData,
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+                        headers: { 
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        }
                     });
 
                     clearInterval(interval);

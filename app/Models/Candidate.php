@@ -33,14 +33,12 @@ class Candidate extends Model
         'ipk',
         'cv',
         'flk',
-        'is_suspected_duplicate',
         'airsys_internal',
         'status',
     ];
 
     protected $casts = [
         'tanggal_lahir' => 'date',
-        'is_suspected_duplicate' => 'boolean',
     ];
 
     /**
@@ -237,6 +235,26 @@ class Candidate extends Model
      */
     public function getTimelineAttribute(): array
     {
+        // For backward compatibility, default to the latest application's timeline
+        $latestApplication = $this->applications()
+                                  ->with(['stages' => function ($query) {
+                                      $query->orderBy('created_at', 'asc');
+                                  }, 'stages.conductedByUser'])
+                                  ->latest('updated_at') // Use updated_at for latest overall activity
+                                  ->first();
+
+        if (!$latestApplication) {
+            return [];
+        }
+
+        return $this->getTimelineForApplication($latestApplication);
+    }
+
+    /**
+     * Generates the timeline data for a specific application.
+     */
+    public function getTimelineForApplication(Application $application): array
+    {
         // Single source of truth for stage order and display names.
         $stageConfig = [
             'psikotes' => 'Psikotest',
@@ -248,13 +266,11 @@ class Candidate extends Model
             'hiring' => 'Hiring',
         ];
 
-        // Eager load the latest application with its stages, ordered by creation date.
-        $application = $this->applications()->with(['stages' => function ($query) {
-            $query->orderBy('created_at', 'asc');
-        }, 'stages.conductedByUser'])->latest()->first();
-
-        if (!$application) {
-            return [];
+        // Ensure stages and conductedByUser are loaded for the provided application
+        if (!$application->relationLoaded('stages') || !$application->stages->every(fn($stage) => $stage->relationLoaded('conductedByUser'))) {
+            $application->load(['stages' => function ($query) {
+                $query->orderBy('created_at', 'asc');
+            }, 'stages.conductedByUser']);
         }
 
         // Create a lookup map of existing stages for efficient access.

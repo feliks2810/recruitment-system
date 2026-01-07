@@ -146,15 +146,28 @@ class ApplicationStageService
         // DITOLAK at any stage means rejection
         if (in_array($result, ['GAGAL', 'TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'])) {
             $application->overall_status = 'DITOLAK';
-            $application->candidate->status = 'inactive';
+            // Check if all other applications are also rejected before marking candidate as inactive
+            $otherApplications = $application->candidate->applications()->where('id', '!=', $application->id)->get();
+            $allOthersRejected = $otherApplications->every(fn($app) => $app->overall_status === 'DITOLAK' || $app->overall_status === 'CANCEL');
+            if ($allOthersRejected) {
+                $application->candidate->status = 'inactive';
+            }
         } 
         // If last stage (hiring) and LULUS/DITERIMA/HIRED -> LULUS (fully passed)
         elseif (($this->stageConfig[$stageKey]['next'] === null) && in_array($result, ['LULUS', 'DITERIMA', 'HIRED'])) {
             $application->overall_status = 'LULUS';
-            $application->candidate->status = 'active';
             if ($application->vacancy) {
                 $application->vacancy->increment('accepted_count');
             }
+
+            // --- NEW LOGIC: Cancel other applications ---
+            $candidateId = $application->candidate_id;
+            Application::where('candidate_id', $candidateId)
+                ->where('id', '!=', $application->id)
+                ->update(['overall_status' => 'CANCEL']);
+            
+            // Set candidate status to inactive since they are hired
+            $application->candidate->status = 'inactive';
         } 
         // All other cases -> PROSES (still in process)
         else {

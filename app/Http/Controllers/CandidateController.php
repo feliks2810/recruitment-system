@@ -121,42 +121,50 @@ class CandidateController extends Controller
     {
         $type = $request->input('type', 'organic');
 
-        $query = Candidate::with([
-            'department',
-            'latestPsikotest',
-            'latestHCInterview',
-            'applications.vacancy',
+        // Start with Application query
+        $query = Application::with([
+            'candidate.department',
+            'candidate.latestPsikotest',
+            'candidate.latestHCInterview',
+            'vacancy',
         ]);
+
+        // --- DUPLICATE LOGIC ---
+        // Find candidate_ids that have more than one application
+        $duplicateCandidateIds = Application::select('candidate_id')
+            ->groupBy('candidate_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('candidate_id');
 
         // Handle candidate type filter
         if ($type === 'duplicate') {
-            $query->where('is_suspected_duplicate', true);
-        } else if ($type === 'non-organic') {
-            $query->where('airsys_internal', 'No');
-        } else { // organic
-            $query->where('airsys_internal', 'Yes');
+            // New logic: filter applications whose candidate_id is in the duplicate list
+            $query->whereIn('candidate_id', $duplicateCandidateIds);
+        } else {
+            // For organic/non-organic, we need to filter based on the candidate's `airsys_internal` status
+            // and ensure they are not in the duplicate list to avoid showing them in the wrong tab.
+            $query->whereNotIn('candidate_id', $duplicateCandidateIds)
+                  ->whereHas('candidate', function ($q) use ($type) {
+                      $q->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
+                  });
         }
 
-        // Filter by status (simplified)
+        // Filter by status
         if ($request->filled('status')) {
             $status = strtoupper($request->status);
-            // This is a simplified filter. A full implementation would require more complex queries
-            // to perfectly match the computed `getFinalStatusAttribute`.
             if ($status === 'FAILED') {
-                $query->whereHas('applicationStages', function ($q) {
-                    $q->where('status', 'GAGAL');
-                });
+                $query->where('overall_status', 'DITOLAK');
             } elseif ($status === 'HIRED') {
-                $query->whereHas('applicationStages', function ($q) {
-                    $q->whereIn('status', ['LULUS', 'DITERIMA'])->where('stage_name', 'hc_interview');
-                });
+                $query->where('overall_status', 'LULUS');
+            } elseif ($status === 'ON_PROCESS') {
+                $query->where('overall_status', 'PROSES');
             }
         }
 
-        // Search by name, applicant_id, or email
+        // Search by name, applicant_id, or email (on the related candidate)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
+            $query->whereHas('candidate', function ($q) use ($search) {
                 $q->where('nama', 'like', "%{$search}%")
                   ->orWhere('applicant_id', 'like', "%{$search}%")
                   ->orWhere('alamat_email', 'like', "%{$search}%");
@@ -165,28 +173,24 @@ class CandidateController extends Controller
         
         // Filter by vacancy
         if ($request->filled('vacancy_id')) {
-            $query->whereHas('applications', function ($q) use ($request) {
-                $q->where('vacancy_id', $request->vacancy_id);
-            });
+            $query->where('vacancy_id', $request->vacancy_id);
         }
 
         // Order by overall_status (PROSES dulu, DITOLAK terakhir), then by created_at desc
-        $candidates = $query
-            ->leftJoin('applications', 'candidates.id', '=', 'applications.candidate_id')
-            ->select('candidates.*')
+        $applications = $query
             ->orderByRaw("CASE 
-                WHEN applications.overall_status = 'PROSES' THEN 1
-                WHEN applications.overall_status = 'LULUS' THEN 2
-                WHEN applications.overall_status = 'CANCEL' THEN 3
-                WHEN applications.overall_status = 'DITOLAK' THEN 4
+                WHEN overall_status = 'PROSES' THEN 1
+                WHEN overall_status = 'LULUS' THEN 2
+                WHEN overall_status = 'CANCEL' THEN 3
+                WHEN overall_status = 'DITOLAK' THEN 4
                 ELSE 5
             END")
-            ->orderByDesc('candidates.created_at')
+            ->orderByDesc('created_at')
             ->paginate(15);
 
         $statuses = [
             'ON_PROCESS' => 'On Process',
-            'WAITING_HC_INTERVIEW' => 'Waiting HC Interview',
+            'WAITING_HC_INTERVIEW' => 'Waiting HC Interview', // This might need more complex logic if kept
             'HIRED' => 'Hired',
             'FAILED' => 'Failed',
         ];
@@ -198,17 +202,19 @@ class CandidateController extends Controller
             'candidates_passed' => Application::where('overall_status', 'LULUS')->count(),
             'candidates_failed' => Application::where('overall_status', 'DITOLAK')->count(),
             'candidates_cancelled' => Application::where('overall_status', 'CANCEL')->count(),
-            'duplicate' => Candidate::where('is_suspected_duplicate', true)->count(),
+            // The count of duplicate candidates, not applications
+            'duplicate' => $duplicateCandidateIds->count(),
         ];
 
         $activeVacancies = \App\Models\Vacancy::where('proposal_status', 'approved')->get();
 
         return view('candidates.index', compact(
-            'candidates', 
+            'applications', // <-- Renamed from 'candidates'
             'statuses', 
             'stats',
             'activeVacancies',
-            'type'
+            'type',
+            'duplicateCandidateIds' // <-- Pass the list of duplicate IDs
         ));
     }
 
@@ -221,27 +227,37 @@ class CandidateController extends Controller
     {
         $candidate = Candidate::with([
             'department',
+            'applications' => function($query) {
+                $query->orderByDesc('updated_at'); // Order applications to easily get the "latest"
+            },
             'applications.vacancy',
-            'applications.stages',
-            'latestPsikotest',
-            'latestHCInterview',
+            'applications.stages.conductedByUser', // Eager load user for each stage
         ])->findOrFail($id);
 
-        // Get the most recent application to work with in the view
-        $application = $candidate->applications->sortByDesc('updated_at')->first();
+        $allTimelines = [];
+        $primaryApplication = null;
 
-        // The timeline is an accessor on the Candidate model
-        $timeline = $candidate->timeline;
-        
-        // The "Move Position" modal needs a list of other active vacancies
+        if ($candidate->applications->isNotEmpty()) {
+            foreach ($candidate->applications as $app) {
+                // Ensure stages are loaded for each application before generating timeline
+                $app->loadMissing(['stages' => function ($query) {
+                    $query->orderBy('created_at', 'asc');
+                }, 'stages.conductedByUser']);
+                $allTimelines[$app->id] = $candidate->getTimelineForApplication($app);
+            }
+            $primaryApplication = $candidate->applications->first(); // The first one after ordering is the latest
+        }
+
+        // The "Move Position" modal needs a list of other active vacancies.
+        $appliedVacancyIds = $candidate->applications->pluck('vacancy_id')->filter()->unique();
         $activeVacancies = \App\Models\Vacancy::where('proposal_status', 'approved')
-                                               ->where('id', '!=', $application?->vacancy_id)
+                                               ->whereNotIn('id', $appliedVacancyIds)
                                                ->get();
 
         return view('candidates.show', compact(
             'candidate', 
-            'application',
-            'timeline',
+            'allTimelines', // Pass all generated timelines
+            'primaryApplication', // Pass the primary application object
             'activeVacancies'
         ));
     }
@@ -322,16 +338,6 @@ class CandidateController extends Controller
         ]);
 
         return Excel::download(new \App\Exports\CandidatesExport($validated['ids']), 'candidates_bulk_' . date('Ymd') . '.xlsx');
-    }
-
-    /**
-     * Toggle duplicate candidate
-     */
-    public function toggleDuplicate(Request $request, Candidate $candidate)
-    {
-        $candidate->update(['is_duplicate' => !$candidate->is_duplicate]);
-
-        return response()->json(['message' => 'Duplicate status toggled.']);
     }
 
     /**

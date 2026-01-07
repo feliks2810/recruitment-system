@@ -266,7 +266,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
             if ($psikotesStage) {
                 // Update existing stage
                 $psikotesStage->update([
-                    'scheduled_date' => $row['psikotest_date'] ?? now(),
+                    'scheduled_date' => $row['psikotest_date'] ?? $row['psikotes_date'] ?? $row['test_date'] ?? now(),
                     'status' => $psikotestResult,
                     'notes' => $row['psikotes_notes'] ?? null,
                     'conducted_by_user_id' => $this->userId,
@@ -280,7 +280,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 // Create new stage
                 $application->stages()->create([
                     'stage_name' => 'psikotes',
-                    'scheduled_date' => $row['psikotest_date'] ?? now(),
+                    'scheduled_date' => $row['psikotest_date'] ?? $row['psikotes_date'] ?? $row['test_date'] ?? now(),
                     'status' => $psikotestResult,
                     'notes' => $row['psikotes_notes'] ?? null,
                     'conducted_by_user_id' => $this->userId,

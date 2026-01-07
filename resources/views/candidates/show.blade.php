@@ -52,8 +52,19 @@
 
 @section('content')
 
+@php
+    // The primary application is passed from the controller, or null if no applications
+    // This will be the default active application for the timeline view.
+    $primaryApplicationId = $primaryApplication->id ?? null;
+    $primaryApplicationVacancyName = $primaryApplication->vacancy->name ?? 'N/A';
+@endphp
+
 @can('show-candidates')
-<div x-data="candidateDetail()" class="space-y-6">
+<div x-data="candidateDetail(
+    {{ json_encode($allTimelines) }},
+    {{ $primaryApplicationId ?? 'null' }},
+    {{ json_encode($primaryApplicationVacancyName) }}
+)" class="space-y-6">
 
     <!-- Modal untuk Update Stage -->
     <div x-show="showModal"
@@ -258,7 +269,7 @@
                     <div class="sm:flex sm:items-start">
                         <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
                             <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.083-.98L2 17l1.02-3.11A8.841 8.841 0 012 10c0-4.418 4.03-8 9-8s9 3.134 8 7zM4.5 10a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z" clip-rule="evenodd" />
                             </svg>
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
@@ -312,14 +323,14 @@
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Jenis Kelamin</dt>
                             <dd class="mt-1 text-sm text-gray-900">
-                                @if($candidate->jk === 'L')
+                                @if($candidate->jk && $candidate->jk[0] === 'L')
                                     <span class="inline-flex items-center">
                                         <svg class="w-4 h-4 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM8 10a2 2 0 114 0 2 2 0 01-4 0z"/>
                                         </svg>
                                         Laki-laki
                                     </span>
-                                @elseif($candidate->jk === 'P')
+                                @elseif($candidate->jk && $candidate->jk[0] === 'P')
                                     <span class="inline-flex items-center">
                                         <svg class="w-4 h-4 mr-1 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM8 10a2 2 0 114 0 2 2 0 01-4 0z"/>
@@ -334,10 +345,10 @@
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Tanggal Lahir</dt>
                             <dd class="mt-1 text-sm text-gray-900">
-                                {{ $candidate->tanggal_lahir ? \Carbon\Carbon::parse($candidate->tanggal_lahir)->format('d F Y') : '-' }}
+                                {{ $candidate->tanggal_lahir ? $candidate->tanggal_lahir->format('d F Y') : '-' }}
                                 @if($candidate->tanggal_lahir)
                                     <span class="text-gray-400 text-xs ml-1">
-                                        ({{ \Carbon\Carbon::parse($candidate->tanggal_lahir)->age }} tahun)
+                                        ({{ $candidate->tanggal_lahir->age }} tahun)
                                     </span>
                                 @endif
                             </dd>
@@ -381,20 +392,20 @@
                 </div>
             </div>
 
-            @if($application)
+            @if($primaryApplication)
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Informasi Posisi</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Informasi Posisi (Aktif)</h3>
                 </div>
                 <div class="px-6 py-4">
                     <dl class="space-y-4">
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Vacancy</dt>
-                            <dd class="mt-1 text-sm text-gray-900 font-medium">{{ $application->vacancy->name ?? 'N/A' }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900 font-medium"><span x-text="activeApplicationVacancyName"></span></dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Department</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $candidate->department->name ?? '-' }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900">{{ ($primaryApplication->vacancy?->department?->name ?? $primaryApplication->department?->name) ?? '-' }}</dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Source</dt>
@@ -465,569 +476,544 @@
             @endif
         </div>
 
-        <!-- Timeline Rekrutmen -->
-        <div class="lg:col-span-2">
+        <!-- Konten Utama - Riwayat dan Timeline -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- NEW: Application History Card -->
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Timeline Rekrutmen</h3>
-                    <p class="mt-1 text-sm text-gray-500">Progress tahapan seleksi kandidat</p>
+                    <h3 class="text-lg font-medium text-gray-900">Riwayat Lamaran</h3>
+                    <p class="mt-1 text-sm text-gray-500">Klik baris untuk melihat timeline detail lamaran tersebut.</p>
                 </div>
-                <div class="px-6 py-6">
-                    <div class="flow-root">
-                        @if($application)
-                        <ul class="space-y-8">
-                            @if($timeline)
-                            @foreach($timeline as $index => $stage)
-                                <li class="relative">
-                                    @if(!$loop->last)
-                                        @php
-                                            $lineColor = 'bg-gray-300';
-                                            if ($stage['status'] === 'completed') {
-                                                $lineColor = 'bg-green-500';
-                                            } elseif ($stage['status'] === 'failed') {
-                                                $lineColor = 'bg-red-500';
-                                            }
-                                        @endphp
-                                        <div class="absolute left-4 top-4 -ml-px mt-0.5 h-full w-0.5 {{ $lineColor }}"></div>
-                                    @endif
-
-                                    <div class="relative flex items-start space-x-4">
-                                        <div class="flex-shrink-0">
-                                            @if($stage['status'] === 'completed')
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-8 ring-white">
-                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            @elseif($stage['status'] === 'failed')
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 ring-8 ring-white">
-                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            @elseif($stage['status'] === 'in_progress')
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-500 bg-white ring-8 ring-white">
-                                                    <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
-                                                </div>
-                                            @elseif($stage['status'] === 'pending')
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500 ring-8 ring-white">
-                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            @else
-                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 ring-8 ring-white">
-                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            @endif
-                                        </div>
-
-                                        <div class="min-w-0 flex-1 pt-1.5">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2">
-                                                    <h4 class="text-sm font-medium {{ $stage['status'] === 'locked' ? 'text-gray-500' : 'text-gray-900' }}">
-                                                        {{ $stage['display_name'] }}
-                                                    </h4>
-                                                    @if($stage['status'] === 'locked')
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="Tahap ini terkunci sampai tahap sebelumnya lulus.">
-                                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
-                                                            </svg>
-                                                            Terkunci
-                                                        </span>
-                                                    @endif
-                                                </div>
-
-                                                <div class="flex items-center space-x-2">
-                                                    @if($stage['date'] && $stage['result'])
-                                                        <span class="text-xs text-gray-500">
-                                                            {{ \Carbon\Carbon::parse($stage['date'])->format('d M Y') }}
-                                                        </span>
-                                                    @endif
-
-                                                    @if($stage['notes'])
-                                                        <button @click="showComment(`{{ addslashes($stage['notes']) }}`)"
-                                                                class="text-gray-400 hover:text-gray-600 transition-colors"
-                                                                title="Lihat catatan">
-                                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.02-3.11A8.841 8.841 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.5 10a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z" clip-rule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    @endif
-
-                                                    @canany(['edit-candidates','edit-timeline'])
-                                                        <button @click="openStageModal(
-                                                            '{{ $stage['display_name'] }}',
-                                                            '{{ $stage['stage_key'] }}',
-                                                            '{{ $stage['result'] ?? '' }}',
-                                                            {{ json_encode($stage['notes'] ?? '') }}
-                                                        )"
-                                                        class="text-blue-600 hover:text-blue-800 transition-colors {{ $stage['status'] === 'locked' ? 'hidden' : '' }}"
-                                                        title="Update status {{ $stage['display_name'] }}">
-                                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    @endcanany
+                <div class="flow-root">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posisi (Vacancy)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Melamar</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aplikasi ID</th>
+                                </tr>
+                            </thead>
+                                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                            @forelse ($candidate->applications->sortByDesc('created_at') as $app)
+                                                                @php
+                                                                    $isCancelled = strtoupper($app->overall_status) === 'CANCEL';
+                                                                @endphp
+                                                                <tr @click="{{ $isCancelled ? '' : "setActiveApplication({$app->id}, '{$app->vacancy->name ?? 'N/A'}')" }}"
+                                                                    :class="{ 'bg-blue-50': !{{ $isCancelled ? 'true' : 'false' }} && activeApplicationId === {{ $app->id }}, 'hover:bg-gray-50': !{{ $isCancelled ? 'true' : 'false' }} }"
+                                                                    class="transition-colors duration-150 {{ $isCancelled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer' }}">
+                                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                                        <div class="text-sm font-medium text-gray-900">{{ $app->vacancy->name ?? 'N/A' }}</div>
+                                                                        <div class="text-xs text-gray-500">{{ $app->vacancy->department->name ?? 'No Department' }}</div>
+                                                                    </td>
+                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                        {{ $app->created_at->format('d M Y') }}
+                                                                    </td>
+                                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                                            @switch(strtoupper($app->overall_status))
+                                                                                @case('PROSES') bg-blue-100 text-blue-800 @break
+                                                                                @case('LULUS') bg-green-100 text-green-800 @break
+                                                                                @case('DITOLAK') bg-red-100 text-red-800 @break
+                                                                                @case('PINDAH') bg-yellow-100 text-yellow-800 @break
+                                                                                @case('CANCEL') bg-gray-100 text-gray-800 @break
+                                                                                @default bg-gray-100 text-gray-800
+                                                                            @endswitch">
+                                                                            {{ $app->overall_status }}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                        {{ $app->id }}
+                                                                    </td>
+                                                                </tr>
+                                                            @empty
+                                                                <tr>
+                                                                    <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">
+                                                                        Belum ada data lamaran.
+                                                                    </td>
+                                                                </tr>
+                                                            @endforelse
+                                                        </tbody>
+                                                    </table>
                                                 </div>
                                             </div>
-
-                                            <div class="mt-2 text-sm">
-                                                @if($stage['result'])
-                                                    <div class="flex items-center space-x-2">
-                                                        @php
-                                                            $resultConfig = [
-                                                                'LULUS' => ['bg-green-100 text-green-800', '✓'],
-                                                                'DISARANKAN' => ['bg-green-100 text-green-800', '✓'],
-                                                                'DITERIMA' => ['bg-green-100 text-green-800', '✓'],
-                                                                'HIRED' => ['bg-green-100 text-green-800', '✓'],
-                                                                'PENDING' => ['bg-blue-100 text-blue-800', '…'],
-                                                                'SENT' => ['bg-blue-100 text-blue-800', '…'],
-                                                                'DIPERTIMBANGKAN' => ['bg-yellow-100 text-yellow-800', '…'],
-                                                                'default' => ['bg-red-100 text-red-800', '✗']
-                                                            ];
-                                                            $config = $resultConfig[strtoupper($stage['result'])] ?? $resultConfig['default'];
-                                                        @endphp
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $config[0] }}">
-                                                            <span class="mr-1">{{ $config[1] }}</span>
-                                                            {{ $stage['result'] }}
-                                                        </span>
-                                                        @if($stage['evaluator'])
-                                                            <p class="text-gray-500">oleh {{ $stage['evaluator'] }}</p>
-                                                        @endif
-                                                    </div>
-                                                @else
-                                                    <p class="text-gray-500">Menunggu hasil...</p>
-                                                @endif
-
-                                                @if($stage['stage_key'] === 'interview_bod' && $stage['notes'] && str_contains($stage['notes'], 'dipindahkan ke posisi baru'))
-                                                    <p class="text-red-600 text-xs mt-1 font-semibold">
-                                                        * Kandidat ini dipindahkan dari posisi sebelumnya pada tahap ini.
-                                                    </p>
-                                                @endif
+                                        </div>
+                            
+                                        <!-- Timeline Rekrutmen for Active Application -->
+                                        <div class="overflow-hidden rounded-lg bg-white shadow">
+                                            <div class="px-6 py-4 border-b border-gray-200">
+                                                <h3 class="text-lg font-medium text-gray-900">Timeline Rekrutmen</h3>
+                                                <p class="mt-1 text-sm text-gray-500">
+                                                    Progress untuk lamaran: 
+                                                    <span class="font-semibold text-gray-700" x-text="activeApplicationVacancyName"></span>
+                                                </p>
+                                            </div>
+                                            <div class="px-6 py-6">
+                                                <div class="flow-root">
+                                                    <template x-if="currentTimeline && Object.keys(currentTimeline).length > 0">
+                                                        <ul class="space-y-8">
+                                                            <template x-for="(stage, index) in currentTimeline" :key="stage.stage_key">
+                                                                <li class="relative">
+                                                                    <template x-if="index < currentTimeline.length - 1">
+                                                                        <div class="absolute left-4 top-4 -ml-px mt-0.5 h-full w-0.5" 
+                                                                            :class="{
+                                                                                'bg-green-500': stage.status === 'completed',
+                                                                                'bg-red-500': stage.status === 'failed',
+                                                                                'bg-gray-300': stage.status !== 'completed' && stage.status !== 'failed'
+                                                                            }"></div>
+                                                                    </template>
+                            
+                                                                    <div class="relative flex items-start space-x-4">
+                                                                        <div class="flex-shrink-0">
+                                                                            <template x-if="stage.status === 'completed'">
+                                                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 ring-8 ring-white">
+                                                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </template>
+                                                                            <template x-if="stage.status === 'failed'">
+                                                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 ring-8 ring-white">
+                                                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </template>
+                                                                            <template x-if="stage.status === 'in_progress'">
+                                                                                <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-500 bg-white ring-8 ring-white">
+                                                                                    <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                                                                                </div>
+                                                                            </template>
+                                                                            <template x-if="stage.status === 'pending'">
+                                                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500 ring-8 ring-white">
+                                                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </template>
+                                                                            <template x-if="stage.status === 'locked'">
+                                                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 ring-8 ring-white">
+                                                                                    <svg class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </template>
+                                                                        </div>
+                            
+                                                                        <div class="min-w-0 flex-1 pt-1.5">
+                                                                            <div class="flex items-center justify-between">
+                                                                                <div class="flex items-center space-x-2">
+                                                                                    <h4 class="text-sm font-medium" 
+                                                                                        :class="{ 'text-gray-500': stage.status === 'locked', 'text-gray-900': stage.status !== 'locked' }"
+                                                                                        x-text="stage.display_name"></h4>
+                                                                                    <template x-if="stage.status === 'locked'">
+                                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="Tahap ini terkunci sampai tahap sebelumnya lulus.">
+                                                                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                                                <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
+                                                                                            </svg>
+                                                                                            Terkunci
+                                                                                        </span>
+                                                                                    </template>
+                                                                                </div>
+                            
+                                                                                <div class="flex items-center space-x-2">
+                                                                                    <template x-if="stage.date && stage.result">
+                                                                                        <span class="text-xs text-gray-500" x-text="formatDate(stage.date)"></span>
+                                                                                    </template>
+                            
+                                                                                    <template x-if="stage.notes">
+                                                                                        <button @click="showComment(stage.notes)"
+                                                                                                class="text-gray-400 hover:text-gray-600 transition-colors"
+                                                                                                title="Lihat catatan">
+                                                                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.02-3.11A8.841 8.841 0 012 10c0-4.418 4.03-8 9-8s8 3.134 8 7zM4.5 10a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z" clip-rule="evenodd" />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                </template>
+                            
+                                                                                    @canany(['edit-candidates','edit-timeline'])
+                                                                                        <template x-if="stage.status !== 'locked'">
+                                                                                            <button @click="openStageModal(
+                                                                                                stage.display_name,
+                                                                                                stage.stage_key,
+                                                                                                stage.result || '',
+                                                                                                stage.notes || ''
+                                                                                            )"
+                                                                                            class="text-blue-600 hover:text-blue-800 transition-colors"
+                                                                                            :title="'Update status ' + stage.display_name">
+                                                                                                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                                                                                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                                                                                                </svg>
+                                                                                            </button>
+                                                                                        </template>
+                                                                                    @endcanany
+                                                                                </div>
+                                                                            </div>
+                            
+                                                                            <div class="mt-2 text-sm">
+                                                                                <template x-if="stage.result">
+                                                                                    <div class="flex items-center space-x-2">
+                                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" 
+                                                                                            :class="getResultClass(stage.result).bgColor + ' ' + getResultClass(stage.result).textColor"
+                                                                                            x-html="getResultClass(stage.result).icon + ' ' + stage.result"></span>
+                                                                                        <template x-if="stage.evaluator">
+                                                                                            <p class="text-gray-500" x-text="'oleh ' + stage.evaluator"></p>
+                                                                                        </template>
+                                                                                    </div>
+                                                                                </template>
+                                                                                <template x-if="!stage.result && stage.status !== 'locked'">
+                                                                                    <p class="text-gray-500">Menunggu hasil...</p>
+                                                                                </template>
+                            
+                                                                                <template x-if="stage.stage_key === 'interview_bod' && stage.notes && stage.notes.includes('dipindahkan ke posisi baru')">
+                                                                                    <p class="text-red-600 text-xs mt-1 font-semibold">
+                                                                                        * Kandidat ini dipindahkan dari posisi sebelumnya pada tahap ini.
+                                                                                    </p>
+                                                                                </template>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </template>
+                                                    <template x-if="!currentTimeline || Object.keys(currentTimeline).length === 0">
+                                                        <div class="text-center py-12">
+                                                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            <h3 class="text-lg font-medium text-gray-900 mb-2 mt-4">Belum ada aplikasi</h3>
+                                                            <p class="text-gray-500">Kandidat ini belum memiliki aplikasi pekerjaan.</p>
+                                                        </div>
+                                                    </template>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </li>
-                            @endforeach
-                            @endif
-                        </ul>
-                        @else
-                        <div class="text-center py-12">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <h3 class="text-lg font-medium text-gray-900 mb-2 mt-4">Belum ada aplikasi</h3>
-                            <p class="text-gray-500">Kandidat ini belum memiliki aplikasi pekerjaan.</p>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-@endcan
-
-@push('scripts')
-<script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('candidateDetail', () => ({
-        showModal: false,
-        showCommentModal: false,
-        showMovePositionModal: false,
-        selectedStage: null,
-        selectedComment: '',
-        isSubmitting: false,
-        selectedVacancyId: '',
-
-        activeVacancies: @json($activeVacancies ?? []),
-
-        stageData: {
-            stage: '',
-            result: '',
-            notes: '',
-            next_stage_date: '',
-        },
-        showNextStage: false,
-        nextStageName: '',
-
-        stageOptions: {
-            screening: ['LULUS', 'TIDAK LULUS'],
-            psikotes: ['LULUS', 'TIDAK LULUS'],
-            hc_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-            user_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN'],
-            interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'PINDAH_POSISI'],
-            offering_letter: ['DITERIMA', 'DITOLAK'],
-            mcu: ['LULUS', 'TIDAK LULUS'],
-            hiring: ['HIRED', 'TIDAK DIHIRING']
-        },
-        
-        labelMap: {
-            'LULUS': 'Lulus',
-            'TIDAK LULUS': 'Tidak Lulus',
-            'DIPERTIMBANGKAN': 'Dipertimbangkan',
-            'DISARANKAN': 'Disarankan',
-            'TIDAK DISARANKAN': 'Tidak Disarankan',
-            'PINDAH_POSISI': 'Pindahkan Posisi',
-            'DITERIMA': 'Diterima',
-            'DITOLAK': 'Ditolak',
-            'HIRED': 'Hired',
-            'TIDAK DIHIRING': 'Tidak Dihiring',
-        },
-        
-        availableResults: [],
-
-        stageSequence: {
-            'psikotes': 'hc_interview',
-            'hc_interview': 'user_interview',
-            'user_interview': 'interview_bod',
-            'interview_bod': 'offering_letter',
-            'offering_letter': 'mcu',
-            'mcu': 'hiring'
-        },
-
-        stageDisplayNames: {
-            'psikotes': 'Psikotest',
-            'hc_interview': 'Interview HR',
-            'user_interview': 'Interview User',
-            'interview_bod': 'Interview BOD',
-            'mcu': 'MCU',
-            'offering_letter': 'Offering Letter',
-            'hiring': 'Hiring'
-        },
-
-        getCurrentDate() {
-            const today = new Date();
-            return today.toISOString().split('T')[0];
-        },
-
-        handleResultChange() {
-            if (this.stageData.result === 'PINDAH_POSISI') {
-                this.openMovePositionModal();
-                this.stageData.result = '';
-                return;
-            }
-
-            this.showNextStage = false;
-            this.nextStageName = '';
-            this.stageData.next_stage_date = '';
-
-            if (['LULUS', 'DISARANKAN', 'DITERIMA'].includes(this.stageData.result)) {
-                const nextStage = this.stageSequence[this.stageData.stage];
-                if (nextStage) {
-                    this.showNextStage = true;
-                    this.nextStageName = this.stageDisplayNames[nextStage];
-                }
-            }
-        },
-
-        openStageModal(stage, stageKey, result, notes) {
-            this.selectedStage = stage;
-            this.availableResults = this.stageOptions[stageKey] || [];
-            
-            if (stageKey !== 'interview_bod') {
-                this.availableResults = this.availableResults.filter(r => r !== 'PINDAH_POSISI');
-            }
-
-            this.showNextStage = false;
-            
-            this.stageData = {
-                stage: stageKey,
-                result: result || '',
-                notes: notes || '',
-                next_stage_date: ''
-            };
-
-            if (this.stageData.result === 'LULUS' || this.stageData.result === 'DISARANKAN') {
-                this.handleResultChange();
-            }
-
-            this.showModal = true;
-        },
-
-        closeModal() {
-            if (this.isSubmitting) return;
-            this.showModal = false;
-        },
-
-        openMovePositionModal() {
-            this.selectedVacancyId = '';
-            this.showMovePositionModal = true;
-        },
-
-        closeMovePositionModal() {
-            if (this.isSubmitting) return;
-            this.showMovePositionModal = false;
-        },
-
-        showComment(comment) {
-            this.selectedComment = comment;
-            this.showCommentModal = true;
-        },
-
-        async submitForm() {
-            if (this.isSubmitting) return;
-
-            if (!this.stageData.result) {
-                alert('Hasil harus diisi.');
-                return;
-            }
-
-            if (this.showNextStage && !this.stageData.next_stage_date) {
-                alert('Tanggal stage selanjutnya harus diisi.');
-                return;
-            }
-
-            this.isSubmitting = true;
-
-            const payload = {
-                stage: this.stageData.stage,
-                result: this.stageData.result,
-                notes: this.stageData.notes || null,
-                next_stage_date: this.showNextStage ? this.stageData.next_stage_date : null,
-            };
-
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]');
-                if (!csrfToken) {
-                    throw new Error('CSRF token tidak ditemukan di halaman.');
-                }
-
-                const response = await fetch(`/applications/{{ $application ? $application->id : '' }}/stage`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    this.showModal = false;
-                    if (data.message) {
-                        alert(data.message);
-                    }
-                    window.location.reload();
-                }
-                else {
-                    let errorMessage = 'Gagal memperbarui data.';
-                    if (data.errors) {
-                        const errors = Object.values(data.errors).flat();
-                        errorMessage = errors.join('\n');
-                    } else if (data.message) {
-                        errorMessage = data.message;
-                    }
-                    throw new Error(errorMessage);
-                }
-
-            } catch (error) {
-                alert('Terjadi kesalahan: ' + error.message);
-            } finally {
-                this.isSubmitting = false;
-            }
-        },
-        
-        async submitMovePositionForm() {
-            if (this.isSubmitting) return;
-
-            if (!this.selectedVacancyId) {
-                alert('Pilih posisi baru terlebih dahulu.');
-                return;
-            }
-
-            this.isSubmitting = true;
-
-            const payload = {
-                new_vacancy_id: this.selectedVacancyId,
-            };
-
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]');
-                if (!csrfToken) {
-                    throw new Error('CSRF token tidak ditemukan di halaman.');
-                }
-
-                const response = await fetch(`/applications/{{ $application ? $application->id : '' }}/move-position`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    this.showMovePositionModal = false;
-                    this.showModal = false;
-                    if (data.message) {
-                        alert(data.message);
-                    }
-                    window.location.reload();
-                } else {
-                    let errorMessage = 'Gagal memindahkan posisi.';
-                    if (data.errors) {
-                        const errors = Object.values(data.errors).flat();
-                        errorMessage = errors.join('\n');
-                    } else if (data.message) {
-                        errorMessage = data.message;
-                    }
-                    throw new Error(errorMessage);
-                }
-
-            } catch (error) {
-                alert('Terjadi kesalahan: ' + error.message);
-            } finally {
-                this.isSubmitting = false;
-            }
-        }
-    }))
-});
-</script>
-
-@if ($errors->any())
-<div id="validation-errors" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md animate-slide-in-right">
-    <div class="flex items-start gap-3">
-        <div class="flex-shrink-0">
-            <svg class="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
-        </div>
-        <div class="flex-1">
-            <h4 class="font-medium mb-2">Terjadi kesalahan:</h4>
-            <ul class="text-sm space-y-1 list-disc list-inside">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-        <button onclick="document.getElementById('validation-errors').remove()"
-                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
-</div>
-@endif
-
-@if(session('success'))
-<div id="success-alert" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 animate-slide-in-right">
-    <div class="flex items-center gap-3">
-        <div class="flex-shrink-0">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-        </div>
-        <div class="flex-1">
-            <p class="font-medium">Berhasil!</p>
-            <p class="text-sm">{{ session('success') }}</p>
-        </div>
-        <button onclick="document.getElementById('success-alert').remove()"
-                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
-</div>
-@endif
-
-@if(session('error'))
-<div id="error-alert" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 animate-slide-in-right">
-    <div class="flex items-center gap-3">
-        <div class="flex-shrink-0">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
-        </div>
-        <div class="flex-1">
-            <p class="font-medium">Terjadi kesalahan!</p>
-            <p class="text-sm">{{ session('error') }}</p>
-        </div>
-        <button onclick="document.getElementById('error-alert').remove()"
-                class="flex-shrink-0 text-white hover:text-gray-200 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
-</div>
-@endif
-
-<style>
-@keyframes slide-in-right {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.animate-slide-in-right {
-    animation: slide-in-right 0.3s ease-out;
-}
-
-.max-h-40::-webkit-scrollbar {
-    width: 4px;
-}
-
-.max-h-40::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 2px;
-}
-
-.max-h-40::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 2px;
-}
-
-.max-h-40::-webkit-scrollbar-thumb:hover {
-    background: #a1a1a1;
-}
-
-.disabled\:opacity-50:disabled {
-    opacity: 0.5;
-}
-
-.disabled\:cursor-not-allowed:disabled {
-    cursor: not-allowed;
-}
-
-.focus\:ring-2:focus {
-    --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-}
-
-.focus\:ring-blue-500:focus {
-    --tw-ring-color: rgb(59 130 246);
-}
-
-.focus\:ring-offset-2:focus {
-    --tw-ring-offset-width: 2px;
-}
-
-.transition-colors {
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
-}
-</style>
-@endpush
-
-@endsection
+                                </div>
+                            </div>
+                            @endcan
+                            
+                            @push('scripts')
+                            <script>
+                            document.addEventListener('alpine:init', () => {
+                                Alpine.data('candidateDetail', (allTimelines, initialActiveApplicationId, initialActiveApplicationVacancyName) => ({
+                                    showModal: false,
+                                    showCommentModal: false,
+                                    showMovePositionModal: false,
+                                    selectedStage: null,
+                                    selectedComment: '',
+                                    isSubmitting: false,
+                                    selectedVacancyId: '',
+                            
+                                    allTimelines: allTimelines,
+                                    activeApplicationId: initialActiveApplicationId,
+                                    activeApplicationVacancyName: initialActiveApplicationVacancyName,
+                                    currentTimeline: [], // Will be populated in init()
+                                    applications: @json($candidate->applications),
+                            
+                                    activeVacancies: @json($activeVacancies ?? []),
+                            
+                                    stageData: {
+                                        stage: '',
+                                        result: '',
+                                        notes: '',
+                                        next_stage_date: '',
+                                    },
+                                    showNextStage: false,
+                                    nextStageName: '',
+                            
+                                    stageOptions: {
+                                        screening: ['LULUS', 'TIDAK LULUS'],
+                                        psikotes: ['LULUS', 'TIDAK LULUS'],
+                                        hc_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        user_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN'],
+                                        interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'PINDAH_POSISI'],
+                                        offering_letter: ['DITERIMA', 'DITOLAK'],
+                                        mcu: ['LULUS', 'TIDAK LULUS'],
+                                        hiring: ['HIRED', 'TIDAK DIHIRING']
+                                    },
+                                    
+                                    labelMap: {
+                                        'LULUS': 'Lulus',
+                                        'TIDAK LULUS': 'Tidak Lulus',
+                                        'DIPERTIMBANGKAN': 'Dipertimbangkan',
+                                        'DISARANKAN': 'Disarankan',
+                                        'TIDAK DISARANKAN': 'Tidak Disarankan',
+                                        'PINDAH_POSISI': 'Pindahkan Posisi',
+                                        'DITERIMA': 'Diterima',
+                                        'DITOLAK': 'Ditolak',
+                                        'HIRED': 'Hired',
+                                        'TIDAK DIHIRING': 'Tidak Dihiring',
+                                    },
+                                    
+                                    availableResults: [],
+                            
+                                    stageSequence: {
+                                        'psikotes': 'hc_interview',
+                                        'hc_interview': 'user_interview',
+                                        'user_interview': 'interview_bod',
+                                        'interview_bod': 'offering_letter',
+                                        'offering_letter': 'mcu',
+                                        'mcu': 'hiring'
+                                    },
+                            
+                                    stageDisplayNames: {
+                                        'psikotes': 'Psikotest',
+                                        'hc_interview': 'Interview HR',
+                                        'user_interview': 'Interview User',
+                                        'interview_bod': 'Interview BOD',
+                                        'mcu': 'MCU',
+                                        'offering_letter': 'Offering Letter',
+                                        'hiring': 'Hiring'
+                                    },
+                            
+                                    init() {
+                                        if (this.activeApplicationId && this.allTimelines[this.activeApplicationId]) {
+                                            this.currentTimeline = this.allTimelines[this.activeApplicationId];
+                                        }
+                                    },
+                            
+                                    getCurrentDate() {
+                                        const today = new Date();
+                                        return today.toISOString().split('T')[0];
+                                    },
+                            
+                                    formatDate(dateString) {
+                                        if (!dateString) return '';
+                                        const options = { day: '2-digit', month: 'short', year: 'numeric' };
+                                        return new Date(dateString).toLocaleDateString('id-ID', options);
+                                    },
+                            
+                                    getResultClass(result) {
+                                        const resultConfig = {
+                                            'LULUS': { bgColor: 'bg-green-100', textColor: 'text-green-800', icon: '&#x2713;' }, // Checkmark
+                                            'DISARANKAN': { bgColor: 'bg-green-100', textColor: 'text-green-800', icon: '&#x2713;' },
+                                            'DITERIMA': { bgColor: 'bg-green-100', textColor: 'text-green-800', icon: '&#x2713;' },
+                                            'HIRED': { bgColor: 'bg-green-100', textColor: 'text-green-800', icon: '&#x2713;' },
+                                            'PENDING': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' }, // Ellipsis
+                                            'SENT': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' },
+                                            'DIPERTIMBANGKAN': { bgColor: 'bg-yellow-100', textColor: 'text-yellow-800', icon: '&hellip;' },
+                                            'default': { bgColor: 'bg-red-100', textColor: 'text-red-800', icon: '&#x2715;' } // Cross
+                                        };
+                                        return resultConfig[result.toUpperCase()] || resultConfig['default'];
+                                    },
+                            
+                                    handleResultChange() {
+                                        if (this.stageData.result === 'PINDAH_POSISI') {
+                                            this.openMovePositionModal();
+                                            this.stageData.result = '';
+                                            return;
+                                        }
+                            
+                                        this.showNextStage = false;
+                                        this.stageData.next_stage_date = '';
+                            
+                                        if (['LULUS', 'DISARANKAN', 'DITERIMA'].includes(this.stageData.result)) {
+                                            const nextStage = this.stageSequence[this.stageData.stage];
+                                            if (nextStage) {
+                                                this.showNextStage = true;
+                                                this.nextStageName = this.stageDisplayNames[nextStage];
+                                            }
+                                        }
+                                    },
+                            
+                                    setActiveApplication(appId, vacancyName) {
+                                        this.activeApplicationId = appId;
+                                        this.activeApplicationVacancyName = vacancyName;
+                                        this.currentTimeline = this.allTimelines[appId];
+                                    },
+                            
+                                    openStageModal(stage, stageKey, result, notes) {
+                                        const activeApp = this.applications.find(app => app.id === this.activeApplicationId);
+                                        if (activeApp && activeApp.overall_status.toUpperCase() === 'CANCEL') {
+                                            alert('Lamaran yang sudah dibatalkan tidak dapat diubah.');
+                                            return;
+                                        }
+                            
+                                        if (!this.activeApplicationId) {
+                                            alert('Pilih lamaran terlebih dahulu untuk memperbarui tahapan.');
+                                            return;
+                                        }
+                                        this.selectedStage = stage;
+                                        this.availableResults = this.stageOptions[stageKey] || [];
+                                        
+                                        if (stageKey !== 'interview_bod') {
+                                            this.availableResults = this.availableResults.filter(r => r !== 'PINDAH_POSISI');
+                                        }
+                            
+                                        this.showNextStage = false;
+                                        
+                                        this.stageData = {
+                                            stage: stageKey,
+                                            result: result || '',
+                                            notes: notes || '',
+                                            next_stage_date: ''
+                                        };
+                            
+                                        if (['LULUS', 'DISARANKAN'].includes(this.stageData.result)) {
+                                            this.handleResultChange();
+                                        }
+                            
+                                        this.showModal = true;
+                                    },
+                            
+                                    closeModal() {
+                                        if (this.isSubmitting) return;
+                                        this.showModal = false;
+                                    },
+                            
+                                    openMovePositionModal() {
+                                        this.selectedVacancyId = '';
+                                        this.showMovePositionModal = true;
+                                    },
+                            
+                                    closeMovePositionModal() {
+                                        if (this.isSubmitting) return;
+                                        this.showMovePositionModal = false;
+                                    },
+                            
+                                    showComment(comment) {
+                                        this.selectedComment = comment;
+                                        this.showCommentModal = true;
+                                    },
+                            
+                                    async submitForm() {
+                                        if (this.isSubmitting) return;
+                            
+                                        if (!this.activeApplicationId) {
+                                            alert('Tidak ada lamaran yang aktif untuk diperbarui.');
+                                            return;
+                                        }
+                            
+                                        if (!this.stageData.result) {
+                                            alert('Hasil harus diisi.');
+                                            return;
+                                        }
+                            
+                                        if (this.showNextStage && !this.stageData.next_stage_date) {
+                                            alert('Tanggal stage selanjutnya harus diisi.');
+                                            return;
+                                        }
+                            
+                                        this.isSubmitting = true;
+                            
+                                        const payload = {
+                                            stage: this.stageData.stage,
+                                            result: this.stageData.result,
+                                            notes: this.stageData.notes || null,
+                                            next_stage_date: this.showNextStage ? this.stageData.next_stage_date : null,
+                                        };
+                            
+                                        try {
+                                            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                                            if (!csrfToken) {
+                                                throw new Error('CSRF token tidak ditemukan di halaman.');
+                                            }
+                            
+                                            const response = await fetch(`/applications/${this.activeApplicationId}/stage`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                                    'X-Requested-With': 'XMLHttpRequest',
+                                                    'Accept': 'application/json'
+                                                },
+                                                body: JSON.stringify(payload)
+                                            });
+                            
+                                            const data = await response.json();
+                            
+                                            if (response.ok) {
+                                                this.showModal = false;
+                                                if (data.message) {
+                                                    alert(data.message);
+                                                }
+                                                window.location.reload();
+                                            }
+                                            else {
+                                                let errorMessage = 'Gagal memperbarui data.';
+                                                if (data.errors) {
+                                                    const errors = Object.values(data.errors).flat();
+                                                    errorMessage = errors.join('\n');
+                                                } else if (data.message) {
+                                                    errorMessage = data.message;
+                                                }
+                                                throw new Error(errorMessage);
+                                            }
+                            
+                                        } catch (error) {
+                                            alert('Terjadi kesalahan: ' + error.message);
+                                        } finally {
+                                            this.isSubmitting = false;
+                                        }
+                                    },
+                                    
+                                    async submitMovePositionForm() {
+                                        if (this.isSubmitting) return;
+                            
+                                        if (!this.activeApplicationId) {
+                                            alert('Tidak ada lamaran yang aktif untuk dipindahkan.');
+                                            return;
+                                        }
+                            
+                                        if (!this.selectedVacancyId) {
+                                            alert('Pilih posisi baru terlebih dahulu.');
+                                            return;
+                                        }
+                            
+                                        this.isSubmitting = true;
+                            
+                                        const payload = {
+                                            new_vacancy_id: this.selectedVacancyId,
+                                        };
+                            
+                                        try {
+                                            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                                            if (!csrfToken) {
+                                                throw new Error('CSRF token tidak ditemukan di halaman.');
+                                            }
+                            
+                                            const response = await fetch(`/applications/${this.activeApplicationId}/move-position`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                                    'X-Requested-With': 'XMLHttpRequest',
+                                                    'Accept': 'application/json'
+                                                },
+                                                body: JSON.stringify(payload)
+                                            });
+                            
+                                            const data = await response.json();
+                            
+                                            if (response.ok) {
+                                                this.showMovePositionModal = false;
+                                                this.showModal = false;
+                                                if (data.message) {
+                                                    alert(data.message);
+                                                }
+                                                window.location.reload();
+                                            } else {
+                                                let errorMessage = 'Gagal memindahkan posisi.';
+                                                if (data.errors) {
+                                                    const errors = Object.values(data.errors).flat();
+                                                    errorMessage = data.message || errors.join('\n'); // Use data.message if available, otherwise join errors
+                                                } else if (data.message) {
+                                                    errorMessage = data.message;
+                                                }
+                                                throw new Error(errorMessage);
+                                            }
+                            
+                                        } catch (error) {
+                                            alert('Terjadi kesalahan: ' + error.message);
+                                        } finally {
+                                            this.isSubmitting = false;
+                                        }
+                                    }
+                                }))
+                            });
+                            </script>

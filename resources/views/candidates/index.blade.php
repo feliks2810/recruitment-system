@@ -44,10 +44,6 @@
                 
                 <div class="flex items-center gap-2">
                     @can('edit-candidates')
-                        <button @click="confirmAndMarkAsDuplicate" :disabled="selectedCount !== 2" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors hover:bg-blue-700" :class="{ 'opacity-50 cursor-not-allowed': selectedCount !== 2 }">
-                            <i class="fas fa-copy"></i>
-                            <span>Tandai Duplikat</span>
-                        </button>
                         <button @click="confirmBulkSwitchType" class="bg-teal-600 text-white px-3 py-2 rounded-lg hover:bg-teal-700 text-sm flex items-center gap-2">
                             <i class="fas fa-exchange-alt"></i>
                             <span>Ubah Tipe</span>
@@ -234,7 +230,7 @@
                     </h3>
                 </div>
                 
-                @if($candidates->count() > 0)
+                @if($applications->count() > 0)
                     <div class="overflow-x-auto">
                         <table class="w-full">
                             <thead class="bg-gray-50">
@@ -262,16 +258,17 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                @foreach($candidates as $candidate)
+                                @foreach($applications as $application)
                                     @php
-                                        // Ambil aplikasi yang paling baru (berdasarkan updated_at)
-                                        $application = $candidate->applications->sortByDesc('updated_at')->first();
-                                        $latestStage = $application ? $application->stages->sortByDesc('id')->first() : null;
+                                        $candidate = $application->candidate;
+                                        $latestStage = $application->stages->sortByDesc('id')->first();
+                                        $isDuplicate = $duplicateCandidateIds->contains($candidate->id);
                                     @endphp
                                     @if(Auth::user()->hasRole('department') && $candidate->department_id !== Auth::user()->department_id)
                                         @continue
                                     @endif
-                                    <tr class="hover:bg-gray-50 transition-colors {{ $candidate->is_suspected_duplicate ? 'bg-red-50 border-l-4 border-red-500' : '' }}">
+                                    {{-- Highlight for duplicate candidates --}}
+                                    <tr class="hover:bg-gray-50 transition-colors {{ $isDuplicate ? 'bg-yellow-50 border-l-4 border-yellow-400' : '' }}">
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <label for="candidate_checkbox_{{ $candidate->id }}" class="sr-only">Select {{ $candidate->nama }}</label>
                                             <input type="checkbox"
@@ -283,26 +280,26 @@
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
-                                                <div class="w-9 sm:w-10 h-9 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 {{ $candidate->is_suspected_duplicate ? 'bg-red-200' : '' }} {{ $candidate->is_inactive ? 'ring-2 ring-red-500' : '' }}">
-                                                    <span class="text-sm font-medium {{ $candidate->is_suspected_duplicate ? 'text-red-600' : 'text-blue-600' }}">{{ substr($candidate->nama, 0, 2) }}</span>
+                                                <div class="w-9 sm:w-10 h-9 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 {{ $isDuplicate ? 'bg-yellow-200' : '' }} {{ $candidate->is_inactive ? 'ring-2 ring-red-500' : '' }}">
+                                                    <span class="text-sm font-medium {{ $isDuplicate ? 'text-yellow-700' : 'text-blue-600' }}">{{ substr($candidate->nama, 0, 2) }}</span>
                                                 </div>
                                                 <div class="ml-3 sm:ml-4 min-w-0 flex-1">
-                                                    <div class="text-sm font-medium text-gray-900 truncate {{ $candidate->is_suspected_duplicate ? 'text-red-900' : '' }}">
+                                                    <div class="text-sm font-medium text-gray-900 truncate">
                                                         {{ $candidate->nama }}
-                                                        @if($candidate->is_suspected_duplicate)
-                                                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                        @if($isDuplicate)
+                                                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                                <i class="fas fa-copy mr-1"></i>
                                                                 Duplicate
                                                             </span>
                                                         @endif
                                                     </div>
-                                                    <div class="text-sm text-gray-500 truncate {{ $candidate->is_suspected_duplicate ? 'text-red-700' : '' }}">{{ $candidate->alamat_email }}</div>
+                                                    <div class="text-sm text-gray-500 truncate">{{ $candidate->alamat_email }}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">{{ $application && $application->vacancy ? $application->vacancy->name : 'N/A' }}</div>
-                                            @if($application && $application->internal_position)
+                                            <div class="text-sm text-gray-900">{{ $application->vacancy ? $application->vacancy->name : 'N/A' }}</div>
+                                            @if($application->internal_position)
                                                 <div class="text-sm text-gray-500">{{ $application->internal_position }}</div>
                                             @endif
                                         </td>
@@ -319,14 +316,12 @@
                                             {{ $candidate->source }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            @if($application && $application->overall_status == 'HIRED')
-                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Hired</span>
-                                            @elseif($application && $application->overall_status == 'DITERIMA')
-                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Diterima</span>
-                                            @elseif($application && $application->overall_status == 'LULUS')
+                                             @if($application->overall_status == 'LULUS')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Lulus</span>
-                                            @elseif($application && $application->overall_status == 'DITOLAK')
+                                            @elseif($application->overall_status == 'DITOLAK')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ditolak</span>
+                                            @elseif($application->overall_status == 'CANCEL')
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Cancel</span>
                                             @else
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Proses</span>
                                             @endif
@@ -335,28 +330,15 @@
                                             {{ $latestStage ? Str::title(str_replace('_', ' ', $latestStage->stage_name)) : 'N/A' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ $application ? $application->created_at->format('d M Y') : $candidate->created_at->format('d M Y') }}
+                                            {{ $application->created_at->format('d M Y') }}
                                         </td>
                                         @if($type === 'duplicate')
                                             <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm font-medium text-red-600">{{ $candidate->applicant_id }}</div>
-                                                <div class="text-xs text-red-500">
-                                                    {{ $candidate->applications->count() }} aplikasi
-                                                </div>
+                                                <div class="text-sm font-medium text-gray-700">{{ $candidate->applicant_id }}</div>
                                             </td>
                                         @endif
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50">
                                             <div class="flex items-center gap-1 sm:gap-2">
-                                                @if($type === 'duplicate')
-                                                    <form method="POST" action="{{ route('candidates.toggleDuplicate', $candidate) }}" class="inline" onsubmit="return confirm('Yakin ingin membatalkan status duplikat kandidat ini? Kandidat akan diberi ID Pelamar baru yang unik.')">
-                                                        @csrf
-                                                        @method('PATCH')
-                                                        <button type="submit" class="text-green-600 hover:text-green-900 p-1" title="Batalkan Duplikat (Jadikan Unik)">
-                                                            <i class="fas fa-check-circle text-sm"></i>
-                                                        </button>
-                                                    </form>
-                                                @endif
-
                                                 @can('show-candidates')
                                                     <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900 p-1" title="Lihat Detail">
                                                         <i class="fas fa-eye text-sm"></i>
@@ -426,21 +408,21 @@
                     </div>
 
                     <div class="px-4 sm:px-6 py-4 border-t border-gray-200">
-                        {{ $candidates->appends(request()->query())->links() }}
+                        {{ $applications->appends(request()->query())->links() }}
                     </div>
                 @else
                     <div class="text-center py-12">
                         @if($type === 'duplicate')
                             <i class="fas fa-copy text-5xl sm:text-6xl text-orange-300 mb-4"></i>
-                            <h3 class="text-lg font-medium text-gray-900 mb-2">Tidak ada kandidat duplicate</h3>
-                            <p class="text-gray-500 mb-6">Saat ini tidak ada kandidat yang mendaftar 2 kali dalam jangka waktu 1 tahun.</p>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">Tidak ada kandidat duplikat</h3>
+                            <p class="text-gray-500 mb-6">Saat ini tidak ada kandidat yang mendaftar lebih dari satu kali.</p>
                         @else
                             <i class="fas fa-users text-5xl sm:text-6xl text-gray-300 mb-4"></i>
                             <h3 class="text-lg font-medium text-gray-900 mb-2">
                                 @if(request('search') || request('status'))
                                     Tidak ada hasil yang ditemukan
                                 @else
-                                    Belum ada kandidat
+                                    Belum ada aplikasi kandidat
                                 @endif
                             </h3>
                             <p class="text-gray-500 mb-6">
@@ -609,286 +591,3 @@
     </div>
 @endcan
 @endsection
-
-@push('scripts')
-<script>
-    document.addEventListener('alpine:init', () => {
-        // Shared state for selected candidates
-        Alpine.store('candidates', {
-            selectedIds: [],
-        });
-    });
-
-    function candidatesPage() {
-        return {
-            // Modal visibility state
-            showImportModal: false,
-            showBulkUpdateModal: false,
-            showBulkMoveModal: false,
-            showBulkExportModal: false,
-
-            // Form data for modals
-            updateForm: { stage: '', status: '', notes: '' },
-            moveForm: { targetStage: '', notes: '' },
-            exportForm: {
-                format: 'excel',
-                columns: ['nama', 'vacancy', 'department', 'current_stage', 'overall_status', 'created_at']
-            },
-            
-            // An array of all candidate IDs visible on the current page
-            visibleCandidateIds: [],
-
-            init() {
-                // Populate the array of visible IDs when the component initializes
-                document.querySelectorAll('input[type="checkbox"][value]').forEach(el => {
-                    this.visibleCandidateIds.push(parseInt(el.value));
-                });
-                console.log('Initialized visibleCandidateIds:', this.visibleCandidateIds);
-            },
-
-            // Computed properties for convenience
-            get selectedCount() {
-                return this.$store.candidates.selectedIds.length;
-            },
-            get allVisibleSelected() {
-                return this.visibleCandidateIds.length > 0 && this.visibleCandidateIds.every(id => this.$store.candidates.selectedIds.includes(id));
-            },
-
-            // --- Selection Methods ---
-            toggleAll(checked) {
-                console.log('Toggling all. Checked:', checked);
-                console.log('Visible IDs:', this.visibleCandidateIds);
-                let selected = new Set(this.$store.candidates.selectedIds);
-                if (checked) {
-                    this.visibleCandidateIds.forEach(id => selected.add(id));
-                } else {
-                    this.visibleCandidateIds.forEach(id => selected.delete(id));
-                }
-                this.$store.candidates.selectedIds = Array.from(selected);
-                console.log('New selected IDs:', this.$store.candidates.selectedIds);
-            },
-            clearSelection() {
-                this.$store.candidates.selectedIds = [];
-            },
-
-            // --- Bulk Action Handlers ---
-            async handleBulkAction(url, payload, method = 'POST') {
-                if (this.selectedCount === 0) {
-                    alert('Pilih kandidat terlebih dahulu.');
-                    return;
-                }
-                
-                try {
-                    const response = await fetch(url, {
-                        method: method,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const result = await response.json();
-                    
-                    if (response.ok && result.success) {
-                        alert(result.message);
-                        location.reload();
-                    } else {
-                        let errorMessage = result.message || 'Terjadi kesalahan.';
-                        if (result.errors) {
-                            errorMessage += '\n' + Object.values(result.errors).flat().join('\n');
-                        }
-                        alert('Gagal: ' + errorMessage);
-                    }
-                } catch (error) {
-                    console.error('Fetch Error:', error);
-                    alert('Terjadi kesalahan jaringan atau server tidak merespons.');
-                }
-            },
-
-            // Specific submit handlers for modals
-            submitBulkUpdate() {
-                if (!this.updateForm.stage || !this.updateForm.status) {
-                    alert('Pilih stage dan status terlebih dahulu.');
-                    return;
-                }
-                const payload = { ...this.updateForm, candidate_ids: this.$store.candidates.selectedIds };
-                this.handleBulkAction('{{ route("candidates.bulkUpdateStatus") }}', payload);
-            },
-            submitBulkMove() {
-                if (!this.moveForm.targetStage) {
-                    alert('Pilih target stage terlebih dahulu.');
-                    return;
-                }
-                const payload = { target_stage: this.moveForm.targetStage, notes: this.moveForm.notes, candidate_ids: this.$store.candidates.selectedIds };
-                this.handleBulkAction('{{ route("candidates.bulkMoveStage") }}', payload);
-            },
-            confirmBulkSwitchType() {
-                if (this.selectedCount > 0 && confirm(`Anda yakin ingin mengubah tipe untuk ${this.selectedCount} kandidat yang dipilih?`)) {
-                    this.handleBulkAction('{{ route("candidates.bulkSwitchType") }}', { candidate_ids: this.$store.candidates.selectedIds });
-                }
-            },
-            confirmBulkDelete() {
-                if (this.selectedCount > 0 && confirm(`Anda yakin ingin menghapus ${this.selectedCount} kandidat yang dipilih?`)) {
-                    this.handleBulkAction('{{ route("candidates.bulkDelete") }}', { ids: this.$store.candidates.selectedIds }, 'DELETE');
-                }
-            },
-
-            // --- New method for marking duplicates ---
-            confirmAndMarkAsDuplicate() {
-                if (this.selectedCount !== 2) {
-                    alert('Silakan pilih tepat dua kandidat untuk ditandai sebagai duplikat.');
-                    return;
-                }
-
-                const id1 = this.$store.candidates.selectedIds[0];
-                const id2 = this.$store.candidates.selectedIds[1];
-
-                // Function to safely get candidate name from the table row
-                const getCandidateName = (id) => {
-                    const el = document.querySelector(`input[type="checkbox"][value="${id}"]`);
-                    if (el) {
-                        // Navigate up to the table row (tr) and then find the element with the candidate name
-                        const nameEl = el.closest('tr').querySelector('.text-sm.font-medium.text-gray-900');
-                        return nameEl ? nameEl.innerText.trim() : `ID ${id}`;
-                    }
-                    return `ID ${id}`;
-                };
-
-                const name1 = getCandidateName(id1);
-                const name2 = getCandidateName(id2);
-
-                const choice = prompt(`Anda akan menandai dua kandidat sebagai duplikat:\n\n1: ${name1}\n2: ${name2}\n\nKandidat mana yang akan dijadikan data UTAMA? (Masukkan 1 atau 2)`);
-
-                let primary_candidate_id, duplicate_candidate_id;
-
-                if (choice === '1') {
-                    primary_candidate_id = id1;
-                    duplicate_candidate_id = id2;
-                } else if (choice === '2') {
-                    primary_candidate_id = id2;
-                    duplicate_candidate_id = id1;
-                } else {
-                    alert('Pilihan tidak valid. Silakan masukkan hanya angka 1 atau 2.');
-                    return;
-                }
-
-                // Create a hidden form and submit it
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '{{ route("candidates.bulkMarkAsDuplicate") }}';
-                
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = '_token';
-                csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                form.appendChild(csrfInput);
-
-                const primaryInput = document.createElement('input');
-                primaryInput.type = 'hidden';
-                primaryInput.name = 'primary_candidate_id';
-                primaryInput.value = primary_candidate_id;
-                form.appendChild(primaryInput);
-
-                const duplicateInput = document.createElement('input');
-                duplicateInput.type = 'hidden';
-                duplicateInput.name = 'duplicate_candidate_id';
-                duplicateInput.value = duplicate_candidate_id;
-                form.appendChild(duplicateInput);
-
-                document.body.appendChild(form);
-                form.submit();
-            },
-            async submitBulkExport() {
-                 if (this.selectedCount === 0) {
-                    alert('Pilih kandidat terlebih dahulu.');
-                    return;
-                }
-                
-                try {
-                    const formData = new FormData();
-                    formData.append('format', this.exportForm.format);
-                    formData.append('columns', JSON.stringify(this.exportForm.columns));
-                    formData.append('candidate_ids', JSON.stringify(this.$store.candidates.selectedIds));
-                    formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
-
-                    const response = await fetch('{{ route("candidates.bulkExport") }}', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `candidates_export_${new Date().toISOString().slice(0,10)}.${this.exportForm.format === 'excel' ? 'xlsx' : this.exportForm.format}`;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        window.URL.revokeObjectURL(url);
-                        this.showBulkExportModal = false;
-                    } else {
-                        alert('Gagal export data.');
-                    }
-                } catch (error) {
-                    console.error('Export Error:', error);
-                    alert('Terjadi kesalahan saat export data.');
-                }
-            },
-        }
-    }
-
-    // Standalone function for handling duplicate status toggling on individual candidates
-    function promptDuplicateAction(candidateId) {
-        if (!confirm('Apakah Anda ingin mengubah status duplikat kandidat ini?')) return;
-
-        const markAsDuplicate = confirm('Apakah Anda ingin menandai kandidat ini sebagai duplikat?\n\n- Klik "OK" untuk menandai sebagai DUPLIKAT.\n- Klik "Cancel" untuk menandai sebagai BUKAN duplikat (akan diberi Applicant ID baru).');
-
-        fetch(`/candidates/${candidateId}/toggle-duplicate`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-            },
-            body: JSON.stringify({ mark_as_duplicate: markAsDuplicate })
-        })
-        .then(response => response.json())
-        .then(data => {
-            alert(data.message || 'Aksi selesai.');
-            if (data.success) location.reload();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Terjadi kesalahan saat mengubah status duplikat.');
-        });
-    }
-
-    // Function for download template (called from import modal)
-    function downloadTemplate() {
-        const candidateType = document.getElementById('candidate_type').value;
-        
-        if (!candidateType) {
-            alert('Silakan pilih tipe kandidat terlebih dahulu');
-            return;
-        }
-        
-        window.location.href = `{{ route('import.template', ['type' => '__TYPE__']) }}`.replace('__TYPE__', candidateType);
-    }
-</script>
-
-@if(session('success') || session('error'))
-    <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 5000)" x-show="show" x-transition
-         class="fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm {{ session('success') ? 'bg-green-500' : 'bg-red-500' }} text-white">
-        <div class="flex items-center gap-2">
-            <i class="fas {{ session('success') ? 'fa-check-circle' : 'fa-exclamation-circle' }} flex-shrink-0"></i>
-            <span class="flex-1">{{ session('success') ?? session('error') }}</span>
-            <button @click="show = false" class="ml-2 text-white hover:text-gray-200 flex-shrink-0">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-@endif
-
-@endpush

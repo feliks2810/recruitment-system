@@ -83,7 +83,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::middleware('can:edit-candidates')->group(function () {
             Route::get('/{candidate}/edit', [CandidateController::class, 'edit'])->name('edit');
             Route::put('/{candidate}', [CandidateController::class, 'update'])->name('update');
-            Route::patch('/{candidate}/toggle-duplicate', [CandidateController::class, 'toggleDuplicate'])->name('toggleDuplicate');
             Route::post('/{candidate}/switch-type', [CandidateController::class, 'switchType'])->name('switchType');
             Route::post('/bulk-switch-type', [CandidateController::class, 'bulkSwitchType'])->name('bulkSwitchType');
             

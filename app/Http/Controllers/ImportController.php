@@ -52,24 +52,26 @@ class ImportController extends Controller
 
         try {
             $data = Excel::toArray(new \stdClass(), $fullPath);
-            $rows = $data[0] ?? [];
+            $allRows = $data[0] ?? [];
 
-            if (count($rows) <= 1) {
+            if (count($allRows) <= 1) {
                 Storage::delete($path);
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'message' => 'File tidak memiliki data untuk diimpor.'
                 ]);
             }
 
-            $headers = array_shift($rows); // Get and remove header row
+            $headers = array_shift($allRows); // Get and remove header row
             $mappedHeaders = $this->mapHeaders($headers);
+            $totalRows = count($allRows);
 
             $errors = [];
             $previewData = [];
-            $validRowCount = 0;
+            $previewRowCount = 20; // We only validate the first N rows for preview
+            $rowsToValidate = array_slice($allRows, 0, $previewRowCount);
 
-            foreach ($rows as $index => $row) {
+            foreach ($rowsToValidate as $index => $row) {
                 // Skip empty rows
                 if (empty(array_filter($row))) {
                     continue;
@@ -81,11 +83,10 @@ class ImportController extends Controller
                 $validationErrors = $this->validateRow($rowData, $rowIndex);
                 if (!empty($validationErrors)) {
                     $errors = array_merge($errors, $validationErrors);
-                } else {
-                    $validRowCount++;
                 }
                 
-                if (count($previewData) < 5 && empty($validationErrors)) { // Limit preview to first 5 valid rows
+                // Still collect up to 5 valid rows for the visual preview
+                if (count($previewData) < 5 && empty($validationErrors)) {
                     $previewData[] = $rowData;
                 }
             }
@@ -94,31 +95,31 @@ class ImportController extends Controller
                 Storage::delete($path);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validasi gagal. Silakan perbaiki kesalahan dan coba lagi.',
-                    'errors' => array_slice($errors, 0, 10), // Limit errors shown to 10
+                    'message' => "Ditemukan error pada {$previewRowCount} baris pertama. Mohon perbaiki dan coba lagi.",
+                    'errors' => $errors,
                 ]);
             }
 
-            if ($validRowCount === 0) {
+            if (empty($previewData)) {
                 Storage::delete($path);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Tidak ada data valid yang ditemukan dalam file.'
+                    'message' => "Tidak ada data valid yang ditemukan dalam {$previewRowCount} baris pertama file."
                 ]);
             }
 
-            // If validation passes, cache the file path for final import
+            // If validation of the first rows passes, cache the file path for final import
             Cache::put($fileId, [
                 'path' => $path,
                 'filename' => $file->getClientOriginalName(),
-                'row_count' => $validRowCount
+                'row_count' => $totalRows // IMPORTANT: Cache the total row count
             ], now()->addHour());
 
             return response()->json([
                 'success' => true,
-                'message' => 'File lolos validasi dan siap untuk diimpor.',
+                'message' => "Validasi awal pada {$previewRowCount} baris pertama berhasil. {$totalRows} total baris akan diimpor.",
                 'file_id' => $fileId,
-                'total_rows' => $validRowCount,
+                'total_rows' => $totalRows, // Show total rows to the user
                 'preview' => $previewData,
                 'headers' => $mappedHeaders,
             ]);
@@ -166,11 +167,8 @@ class ImportController extends Controller
                 'status' => 'processing',
             ]);
 
-            // Increase execution time for import process
-            set_time_limit(600); // 10 menit
-            
-            // Dispatch the job synchronously (langsung jalankan)
-            ProcessCandidateImport::dispatchSync($path, auth()->id(), $importHistory->id);
+            // Dispatch the job asynchronously
+            ProcessCandidateImport::dispatch($path, auth()->id(), $importHistory->id);
 
             // Forget the cache key, the job will handle file deletion
             Cache::forget($fileId);
@@ -183,7 +181,7 @@ class ImportController extends Controller
 
             return response()->json([
                 'success' => true, 
-                'message' => 'Proses import telah selesai. Cek data kandidat untuk hasil import.'
+                'message' => 'Proses import telah dimulai. Data akan diproses di latar belakang.'
             ]);
         } catch (\Throwable $e) {
             Log::error('Error during import confirmation: ' . $e->getMessage(), [
