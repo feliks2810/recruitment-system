@@ -144,6 +144,15 @@ class Candidate extends Model
             return 'ON_PROCESS';
         }
 
+        // Check for any "cancel" status
+        $cancelledStage = $stages->first(function ($stage) {
+            return in_array(strtoupper($stage->status), ['CANCEL']);
+        });
+
+        if ($cancelledStage) {
+            return 'CANCELLED';
+        }
+
         // Check for any failure status
         $failedStage = $stages->first(function ($stage) {
             return in_array(strtoupper($stage->status), ['GAGAL', 'TIDAK LULUS', 'DITOLAK']);
@@ -277,6 +286,9 @@ class Candidate extends Model
         $existingStages = $application->stages->keyBy('stage_name');
         $timeline = [];
         $previousStagePassed = true; // Start with the assumption that the first stage is unlocked.
+        
+        // Get stage keys in order
+        $stageKeys = array_keys($stageConfig);
 
         foreach ($stageConfig as $key => $displayName) {
             $stage = $existingStages->get($key);
@@ -301,14 +313,40 @@ class Candidate extends Model
                 }
             }
             
+            // Check if next stage exists
+            $currentIndex = array_search($key, $stageKeys);
+            $nextStageKey = ($currentIndex !== false && isset($stageKeys[$currentIndex + 1])) ? $stageKeys[$currentIndex + 1] : null;
+            $nextStage = $nextStageKey ? $existingStages->get($nextStageKey) : null;
+            $nextStageExists = $nextStage !== null;
+            $nextStageScheduledDate = $nextStage && $nextStage->scheduled_date ? $nextStage->scheduled_date->format('Y-m-d') : null;
+            
+            // Check previous stage for min date validation
+            $previousStageKey = ($currentIndex !== false && $currentIndex > 0) ? $stageKeys[$currentIndex - 1] : null;
+            $previousStage = $previousStageKey ? $existingStages->get($previousStageKey) : null;
+            $previousStageDate = $previousStage && $previousStage->scheduled_date ? $previousStage->scheduled_date->format('Y-m-d') : null;
+            
+            // Check if this stage was edited (date is earlier than next stage scheduled date)
+            $isEdited = false;
+            if ($stage && $stage->scheduled_date && $nextStageScheduledDate) {
+                $isEdited = $stage->scheduled_date->format('Y-m-d') < $nextStageScheduledDate;
+            }
+            
+            // Can edit result only if next stage doesn't exist yet
+            $canEditResult = !$nextStageExists;
+            
             $timeline[] = [
                 'stage_key' => $key,
                 'display_name' => $displayName,
                 'status' => $currentStageStatus,
                 'result' => $stageStatus,
-                'date' => $stage->scheduled_date ?? null,
-                'notes' => $stage->notes ?? null,
-                'evaluator' => $stage->conductedByUser->name ?? null,
+                'date' => $stage?->scheduled_date ? $stage->scheduled_date->format('Y-m-d') : null,
+                'notes' => $stage?->notes ?? null,
+                'evaluator' => $stage?->conductedByUser->name ?? null,
+                'next_stage_exists' => $nextStageExists,
+                'next_stage_scheduled_date' => $nextStageScheduledDate,
+                'can_edit_result' => $canEditResult,
+                'previous_stage_date' => $previousStageDate,
+                'is_edited' => $isEdited,
             ];
 
             // The next stage is only unlocked if the current stage has been passed.
@@ -346,6 +384,7 @@ class Candidate extends Model
             'FAILED' => 'red',
             'HIRED' => 'green',
             'WAITING_HC_INTERVIEW' => 'yellow',
+            'CANCELLED' => 'gray',
             default => 'blue',
         };
     }

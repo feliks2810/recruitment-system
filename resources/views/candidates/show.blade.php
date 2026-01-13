@@ -2,82 +2,60 @@
 
 @section('title', 'Detail Kandidat - ' . $candidate->nama)
 
-@push('styles')
-<style>
-    /* Fix untuk halaman show kandidat */
-    #main-content {
-        width: 100%;
-        max-width: 100%;
-    }
-    
-    main {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-    
-    .header-filters-container {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-</style>
-@endpush
-
 @section('page-title', 'Detail Kandidat')
-@section('page-subtitle', 'Informasi dan timeline rekrutmen')
-
-@push('header-filters')
-<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-2 border-t border-gray-100">
-    <div class="flex items-center gap-3 flex-1 min-w-0">
-        <a href="{{ route('candidates.index') }}" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
-        </a>
-        <div class="min-w-0">
-            <h2 class="text-base sm:text-lg font-bold text-gray-900 truncate">{{ $candidate->nama }}</h2>
-            <p class="text-xs text-gray-500 truncate">{{ $candidate->applicant_id }} • {{ $candidate->alamat_email }}</p>
-        </div>
-    </div>
-
-    <div class="flex items-center gap-2 flex-shrink-0">
-        @can('edit-candidates')
-         <a href="{{ route('candidates.edit', $candidate) }}"
-             class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
-            <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
-            </svg>
-            <span class="hidden sm:inline">Edit</span>
-        </a>
-        @endcan
-
-        @can('delete-candidates')
-        <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline"
-              onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
-            @csrf
-            @method('DELETE')
-            <button type="submit"
-                    class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors duration-200">
-                <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span class="hidden sm:inline">Hapus</span>
-            </button>
-        </form>
-        @endcan
-    </div>
-</div>
-@endpush
 
 @section('content')
+
+<!-- Header Detail Kandidat -->
+<div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+            <a href="{{ route('candidates.index') }}" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+            <div class="min-w-0">
+                <h2 class="text-base sm:text-lg font-bold text-gray-900 truncate">{{ $candidate->nama }}</h2>
+                <p class="text-xs text-gray-500 truncate">{{ $candidate->applicant_id }} • {{ $candidate->alamat_email }}</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-shrink-0">
+            @can('edit-candidates')
+             <a href="{{ route('candidates.edit', $candidate) }}"
+                 class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors duration-200">
+                <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                </svg>
+                <span class="hidden sm:inline">Edit</span>
+            </a>
+            @endcan
+
+            @can('delete-candidates')
+            <form method="POST" action="{{ route('candidates.destroy', $candidate) }}" class="inline"
+                  onsubmit="return confirm('Yakin ingin menghapus kandidat ini?')">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors duration-200">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span class="hidden sm:inline">Hapus</span>
+                </button>
+            </form>
+            @endcan
+        </div>
+    </div>
+</div>
 
 @php
     // The primary application is passed from the controller, or null if no applications
     // This will be the default active application for the timeline view.
-    $primaryApplicationId = $primaryApplication->id ?? null;
-    $primaryApplicationVacancyName = $primaryApplication->vacancy->name ?? 'N/A';
+    $primaryApplicationId = isset($primaryApplication) && $primaryApplication ? $primaryApplication->id : null;
+    $primaryApplicationVacancyName = (isset($primaryApplication) && $primaryApplication && $primaryApplication->vacancy) ? $primaryApplication->vacancy->name : 'N/A';
 @endphp
 
 @can('show-candidates')
@@ -122,13 +100,28 @@
                             <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900" x-text="'Update ' + selectedStage"></h3>
                                 <div class="mt-4 space-y-4">
+                                    <template x-if="!canEditResult && nextStageScheduledDate">
+                                        <div class="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                                            <p class="text-xs text-amber-800">
+                                                <strong>Info:</strong> Stage selanjutnya sudah ada dengan tanggal <span x-text="formatDate(nextStageScheduledDate)"></span>. 
+                                                Anda hanya dapat mengubah tanggal stage ini, tidak dapat mengubah hasil.
+                                            </p>
+                                        </div>
+                                    </template>
+                                    
                                     <div>
-                                        <label for="stage_result" class="block text-sm font-medium text-gray-700">Hasil <span class="text-red-500">*</span></label>
+                                        <label for="stage_result" class="block text-sm font-medium text-gray-700">
+                                            Hasil <span class="text-red-500">*</span>
+                                            <template x-if="!canEditResult">
+                                                <span class="text-xs text-gray-500 ml-2">(Tidak dapat diubah - stage selanjutnya sudah ada)</span>
+                                            </template>
+                                        </label>
                                         <select name="result"
                                                 id="stage_result"
                                                 x-model="stageData.result"
                                                 @change="handleResultChange"
-                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                                :disabled="!canEditResult"
+                                                :class="!canEditResult ? 'mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed sm:text-sm' : 'mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'">
                                             <option value="">Pilih Hasil</option>
                                             <template x-for="opt in availableResults" :key="opt">
                                                 <option :value="opt" x-text="labelMap[opt] || opt"></option>
@@ -141,6 +134,19 @@
                                         <div class="mt-1 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                                             <span x-text="nextStageName"></span>
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <label for="stage_date" class="block text-sm font-medium text-gray-700">Tanggal Stage <span class="text-red-500">*</span></label>
+                                        <input type="date"
+                                               id="stage_date"
+                                               name="stage_date" 
+                                               x-model="stageData.stage_date"
+                                               :min="previousStageDate || getCurrentDate()"
+                                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        <template x-if="previousStageDate">
+                                            <p class="mt-1 text-xs text-gray-500">Minimal tanggal: <span x-text="formatDate(previousStageDate)"></span> (tanggal stage sebelumnya)</p>
+                                        </template>
                                     </div>
 
                                     <div x-show="showNextStage">
@@ -635,6 +641,11 @@
                                                                                     <h4 class="text-sm font-medium" 
                                                                                         :class="{ 'text-gray-500': stage.status === 'locked', 'text-gray-900': stage.status !== 'locked' }"
                                                                                         x-text="stage.display_name"></h4>
+                                                                                    <template x-if="stage.stage_key !== 'psikotes' && stage.is_edited">
+                                                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700" title="Stage ini telah di-edit">
+                                                                                            edited
+                                                                                        </span>
+                                                                                    </template>
                                                                                     <template x-if="stage.status === 'locked'">
                                                                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="Tahap ini terkunci sampai tahap sebelumnya lulus.">
                                                                                             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -647,7 +658,12 @@
                             
                                                                                 <div class="flex items-center space-x-2">
                                                                                     <template x-if="stage.date && stage.result">
-                                                                                        <span class="text-xs text-gray-500" x-text="formatDate(stage.date)"></span>
+                                                                                        <div class="flex flex-col">
+                                                                                            <span class="text-xs text-gray-500" x-text="formatDate(stage.date)"></span>
+                                                                                            <template x-if="stage.stage_key !== 'psikotes' && stage.next_stage_exists && stage.next_stage_scheduled_date && stage.is_edited">
+                                                                                                <span class="text-xs text-amber-600 mt-0.5" x-text="formatDate(stage.next_stage_scheduled_date)"></span>
+                                                                                            </template>
+                                                                                        </div>
                                                                                     </template>
                             
                                                                                     <template x-if="stage.notes">
@@ -666,7 +682,11 @@
                                                                                                 stage.display_name,
                                                                                                 stage.stage_key,
                                                                                                 stage.result || '',
-                                                                                                stage.notes || ''
+                                                                                                stage.notes || '',
+                                                                                                stage.can_edit_result !== false,
+                                                                                                stage.next_stage_scheduled_date || null,
+                                                                                                stage.previous_stage_date || null,
+                                                                                                stage.date || null
                                                                                             )"
                                                                                             class="text-blue-600 hover:text-blue-800 transition-colors"
                                                                                             :title="'Update status ' + stage.display_name">
@@ -748,10 +768,14 @@
                                         stage: '',
                                         result: '',
                                         notes: '',
+                                        stage_date: '',
                                         next_stage_date: '',
                                     },
                                     showNextStage: false,
                                     nextStageName: '',
+                                    canEditResult: true,
+                                    nextStageScheduledDate: null,
+                                    previousStageDate: null,
                             
                                     stageOptions: {
                                         screening: ['LULUS', 'TIDAK LULUS'],
@@ -854,7 +878,7 @@
                                         this.currentTimeline = this.allTimelines[appId];
                                     },
                             
-                                    openStageModal(stage, stageKey, result, notes) {
+                                    openStageModal(stage, stageKey, result, notes, canEditResult = true, nextStageScheduledDate = null, previousStageDate = null, currentStageDate = null) {
                                         const activeApp = this.applications.find(app => app.id === this.activeApplicationId);
                                         if (activeApp && activeApp.overall_status.toUpperCase() === 'CANCEL') {
                                             alert('Lamaran yang sudah dibatalkan tidak dapat diubah.');
@@ -866,6 +890,9 @@
                                             return;
                                         }
                                         this.selectedStage = stage;
+                                        this.canEditResult = canEditResult;
+                                        this.nextStageScheduledDate = nextStageScheduledDate;
+                                        this.previousStageDate = previousStageDate;
                                         this.availableResults = this.stageOptions[stageKey] || [];
                                         
                                         if (stageKey !== 'interview_bod') {
@@ -878,6 +905,7 @@
                                             stage: stageKey,
                                             result: result || '',
                                             notes: notes || '',
+                                            stage_date: currentStageDate || '',
                                             next_stage_date: ''
                                         };
                             
@@ -916,8 +944,27 @@
                                             return;
                                         }
                             
-                                        if (!this.stageData.result) {
+                                        // Only validate result if it can be edited
+                                        if (this.canEditResult && !this.stageData.result) {
                                             alert('Hasil harus diisi.');
+                                            return;
+                                        }
+                            
+                                        // If can't edit result, ensure result is still present (from existing data)
+                                        if (!this.canEditResult && !this.stageData.result) {
+                                            alert('Tidak dapat mengubah stage ini karena stage selanjutnya sudah ada.');
+                                            return;
+                                        }
+                            
+                                        // Validate stage date
+                                        if (!this.stageData.stage_date) {
+                                            alert('Tanggal stage harus diisi.');
+                                            return;
+                                        }
+                            
+                                        // Validate stage date is not before previous stage date
+                                        if (this.previousStageDate && new Date(this.stageData.stage_date) < new Date(this.previousStageDate)) {
+                                            alert('Tanggal stage tidak boleh lebih awal dari tanggal stage sebelumnya: ' + this.formatDate(this.previousStageDate));
                                             return;
                                         }
                             
@@ -932,7 +979,9 @@
                                             stage: this.stageData.stage,
                                             result: this.stageData.result,
                                             notes: this.stageData.notes || null,
+                                            stage_date: this.stageData.stage_date,
                                             next_stage_date: this.showNextStage ? this.stageData.next_stage_date : null,
+                                            update_date_only: !this.canEditResult, // Flag to indicate only date should be updated
                                         };
                             
                                         try {
@@ -1044,3 +1093,6 @@
                                 }))
                             });
                             </script>
+                            @endpush
+
+@endsection

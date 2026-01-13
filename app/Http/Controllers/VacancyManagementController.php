@@ -25,13 +25,11 @@ class VacancyManagementController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:vacancies,name',
             'department_id' => 'required|exists:departments,id',
-            'is_active' => 'boolean',
         ]);
 
         Vacancy::create([
             'name' => $request->name,
             'department_id' => $request->department_id,
-            'needed_count' => 0,
             'is_active' => $request->has('is_active'),
         ]);
 
@@ -49,7 +47,6 @@ class VacancyManagementController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:vacancies,name,' . $vacancy->id,
             'department_id' => 'required|exists:departments,id',
-            'is_active' => 'boolean',
         ]);
 
         $vacancy->update([

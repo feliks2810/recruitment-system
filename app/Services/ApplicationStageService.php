@@ -29,15 +29,58 @@ class ApplicationStageService
     {
         $now = now();
         $stageKey = $validatedData['stage'];
+        $updateDateOnly = isset($validatedData['update_date_only']) && $validatedData['update_date_only'] === true;
+        
+        // Use provided stage_date or default to now
+        $stageDate = isset($validatedData['stage_date']) && $validatedData['stage_date'] 
+            ? \Carbon\Carbon::parse($validatedData['stage_date']) 
+            : $now;
+
+        // If updating date only, skip validation and only update scheduled_date
+        if ($updateDateOnly) {
+            $existingStage = $application->stages()->where('stage_name', $stageKey)->first();
+            if (!$existingStage) {
+                throw ValidationException::withMessages(['stage' => 'Stage tidak ditemukan.']);
+            }
+            
+            // Validate date is not before previous stage
+            $previousStageKey = $this->getPreviousStageKey($stageKey);
+            if ($previousStageKey) {
+                $previousStage = $application->stages()->where('stage_name', $previousStageKey)->first();
+                if ($previousStage && $previousStage->scheduled_date && $stageDate < $previousStage->scheduled_date) {
+                    throw ValidationException::withMessages([
+                        'stage_date' => 'Tanggal stage tidak boleh lebih awal dari tanggal stage sebelumnya: ' . $previousStage->scheduled_date->format('d M Y')
+                    ]);
+                }
+            }
+            
+            // Only update scheduled_date, keep existing result and other data
+            $existingStage->update([
+                'scheduled_date' => $stageDate,
+            ]);
+            
+            return $application;
+        }
 
         $this->validateStageTransition($application, $stageKey);
+        
+        // Validate date is not before previous stage
+        $previousStageKey = $this->getPreviousStageKey($stageKey);
+        if ($previousStageKey) {
+            $previousStage = $application->stages()->where('stage_name', $previousStageKey)->first();
+            if ($previousStage && $previousStage->scheduled_date && $stageDate < $previousStage->scheduled_date) {
+                throw ValidationException::withMessages([
+                    'stage_date' => 'Tanggal stage tidak boleh lebih awal dari tanggal stage sebelumnya: ' . $previousStage->scheduled_date->format('d M Y')
+                ]);
+            }
+        }
 
         // Update current stage
         $result = strtoupper($validatedData['result']);
         $stageData = [
             'stage_name' => $stageKey,
             'status' => $result,
-            'scheduled_date' => $now,
+            'scheduled_date' => $stageDate,
             'notes' => $validatedData['notes'] ?? null,
             'conducted_by_user_id' => Auth::id(),
         ];
@@ -67,6 +110,26 @@ class ApplicationStageService
         return $application;
     }
 
+    private function getPreviousStageKey(string $currentStageKey): ?string
+    {
+        if (!isset($this->stageConfig[$currentStageKey])) {
+            return null;
+        }
+
+        $currentStageOrder = $this->stageConfig[$currentStageKey]['order'];
+
+        // Get previous stage key
+        if ($currentStageOrder > 0) {
+            foreach ($this->stageConfig as $key => $config) {
+                if ($config['order'] === $currentStageOrder - 1) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function validateStageTransition(Application $application, string $currentStageKey): void
     {
         if (!isset($this->stageConfig[$currentStageKey])) {
@@ -77,13 +140,7 @@ class ApplicationStageService
 
         // Check if previous stage was passed
         if ($currentStageOrder > 0) {
-            $previousStageKey = null;
-            foreach ($this->stageConfig as $key => $config) {
-                if ($config['order'] === $currentStageOrder - 1) {
-                    $previousStageKey = $key;
-                    break;
-                }
-            }
+            $previousStageKey = $this->getPreviousStageKey($currentStageKey);
             
             if ($previousStageKey) {
                 $previousStage = $application->stages()->where('stage_name', $previousStageKey)->first();

@@ -25,12 +25,24 @@ class CandidateController extends Controller
      */
     public function updateStage(Request $request, Application $application, ApplicationStageService $stageService): JsonResponse
     {
-        $validated = $request->validate([
+        $updateDateOnly = $request->input('update_date_only', false);
+        
+        $rules = [
             'stage' => 'required|string',
-            'result' => 'required|string',
             'notes' => 'nullable|string',
+            'stage_date' => 'nullable|date',
             'next_stage_date' => 'nullable|date',
-        ]);
+            'update_date_only' => 'nullable|boolean',
+        ];
+        
+        // Result is only required if not updating date only
+        if (!$updateDateOnly) {
+            $rules['result'] = 'required|string';
+        } else {
+            $rules['result'] = 'nullable|string';
+        }
+        
+        $validated = $request->validate($rules);
 
         try {
             $stageService->processStageUpdate($application, $validated);
@@ -127,6 +139,7 @@ class CandidateController extends Controller
             'candidate.latestPsikotest',
             'candidate.latestHCInterview',
             'vacancy',
+            'stages', // Add stages for latest stage display
         ]);
 
         // --- DUPLICATE LOGIC ---
@@ -141,10 +154,9 @@ class CandidateController extends Controller
             // New logic: filter applications whose candidate_id is in the duplicate list
             $query->whereIn('candidate_id', $duplicateCandidateIds);
         } else {
-            // For organic/non-organic, we need to filter based on the candidate's `airsys_internal` status
-            // and ensure they are not in the duplicate list to avoid showing them in the wrong tab.
-            $query->whereNotIn('candidate_id', $duplicateCandidateIds)
-                  ->whereHas('candidate', function ($q) use ($type) {
+            // For organic/non-organic, filter based on the candidate's `airsys_internal` status
+            // Kandidat duplikat tetap muncul di halaman organik jika dia organik
+            $query->whereHas('candidate', function ($q) use ($type) {
                       $q->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
                   });
         }
@@ -176,16 +188,20 @@ class CandidateController extends Controller
             $query->where('vacancy_id', $request->vacancy_id);
         }
 
-        // Order by overall_status (PROSES dulu, DITOLAK terakhir), then by created_at desc
+        // Order by candidate name A-Z, then by overall_status, then by created_at desc
+        // Use subquery to avoid GROUP BY issues with pagination
         $applications = $query
+            ->addSelect([
+                'candidate_name' => \App\Models\Candidate::select('nama')
+                    ->whereColumn('candidates.id', 'applications.candidate_id')
+                    ->limit(1)
+            ])
+            ->orderBy('candidate_name', 'asc')
             ->orderByRaw("CASE 
-                WHEN overall_status = 'PROSES' THEN 1
-                WHEN overall_status = 'LULUS' THEN 2
-                WHEN overall_status = 'CANCEL' THEN 3
-                WHEN overall_status = 'DITOLAK' THEN 4
-                ELSE 5
+                WHEN applications.overall_status = 'PROSES' THEN 1
+                ELSE 2
             END")
-            ->orderByDesc('created_at')
+            ->orderByDesc('applications.created_at')
             ->paginate(15);
 
         $statuses = [
