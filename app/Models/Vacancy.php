@@ -25,6 +25,8 @@ class Vacancy extends Model
         'proposed_needed_count',
         'proposed_by_user_id',
         'rejection_reason',
+        'vacancy_status',
+        'mpp_submission_id',
     ];
 
     protected $casts = [
@@ -74,5 +76,34 @@ class Vacancy extends Model
     public function proposalHistories(): HasMany
     {
         return $this->hasMany(VacancyProposalHistory::class);
+    }
+
+    public function mppSubmission(): BelongsTo
+    {
+        return $this->belongsTo(MPPSubmission::class, 'mpp_submission_id', 'id');
+    }
+
+    public function vacancyDocuments(): HasMany
+    {
+        return $this->hasMany(VacancyDocument::class);
+    }
+
+    /**
+     * Get the latest document of a specific type
+     */
+    public function getDocument(string $type): ?VacancyDocument
+    {
+        return $this->vacancyDocuments()
+            ->where('document_type', $type)
+            ->latest()
+            ->first();
+    }
+
+    /**
+     * Check if vacancy has required status for MPP
+     */
+    public function hasValidMPPStatus(): bool
+    {
+        return $this->vacancy_status === 'OSPKWT' || $this->vacancy_status === 'OS';
     }
 }

@@ -15,6 +15,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionApplicantController;
 use App\Http\Controllers\VacancyManagementController;
 use App\Http\Controllers\VacancyProposalController;
+use App\Http\Controllers\MPPSubmissionController;
+use App\Http\Controllers\VacancyDocumentController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -167,18 +169,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return 'This is a test route';
     });
 
-    // Vacancy Proposal Routes
-    Route::prefix('proposals')->name('proposals.')->middleware('auth')->group(function () {
-        Route::get('/', [VacancyProposalController::class, 'index'])->name('index');
-        Route::get('/create', [VacancyProposalController::class, 'create'])->name('create');
-        Route::post('/', [VacancyProposalController::class, 'store'])->name('store');
-        Route::get('/{vacancy}', [VacancyProposalController::class, 'show'])->name('show');
-        Route::patch('/{vacancy}/approve', [VacancyProposalController::class, 'approve'])->name('approve');
-        Route::patch('/{vacancy}/reject', [VacancyProposalController::class, 'reject'])->name('reject');
-        Route::post('/{vacancy}/hc1-upload', [VacancyProposalController::class, 'hc1Upload'])->name('hc1-upload');
-        Route::post('/{vacancy}/hc2-upload', [VacancyProposalController::class, 'hc2Upload'])->name('hc2-upload');
-        Route::get('/download/{manpowerRequestFile}', [VacancyProposalController::class, 'downloadFile'])->name('download');
-        Route::post('/upload-document', [VacancyProposalController::class, 'uploadDocument'])->name('uploadDocument');
+    // MPP Submission Routes
+    Route::prefix('mpp-submissions')->name('mpp-submissions.')->middleware('auth')->group(function () {
+        Route::get('/', [MPPSubmissionController::class, 'index'])->name('index');
+        Route::get('/create', [MPPSubmissionController::class, 'create'])->name('create');
+        Route::post('/', [MPPSubmissionController::class, 'store'])->name('store');
+        Route::get('/{mppSubmission}', [MPPSubmissionController::class, 'show'])->name('show');
+        Route::delete('/{mppSubmission}', [MPPSubmissionController::class, 'destroy'])->name('destroy');
+
+        // Per-vacancy approval actions
+        Route::post('/vacancy/{vacancy}/approve', [MPPSubmissionController::class, 'approveVacancy'])->name('approve-vacancy');
+        Route::post('/vacancy/{vacancy}/reject', [MPPSubmissionController::class, 'rejectVacancy'])->name('reject-vacancy');
+    });
+
+    // Vacancy Document Routes
+    Route::prefix('vacancies/{vacancy}/documents')->name('vacancy-documents.')->middleware('auth')->group(function () {
+        Route::get('/', [VacancyDocumentController::class, 'showUploadForm'])->name('upload');
+        Route::post('/', [VacancyDocumentController::class, 'upload'])->name('store');
+        Route::get('/{document}/preview', [VacancyDocumentController::class, 'preview'])->name('preview');
+        Route::get('/{document}/download', [VacancyDocumentController::class, 'download'])->name('download');
+        Route::post('/{document}/approve', [VacancyDocumentController::class, 'approve'])->name('approve');
+        Route::post('/{document}/reject', [VacancyDocumentController::class, 'reject'])->name('reject');
+        Route::delete('/{document}', [VacancyDocumentController::class, 'destroy'])->name('destroy');
     });
 
     // Document Routes

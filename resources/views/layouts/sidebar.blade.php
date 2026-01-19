@@ -22,22 +22,10 @@
             </a>
             @endcanany
 
-            @canany(['review-vacancy-proposals-step-1', 'review-vacancy-proposals-step-2'])
-            <a href="{{ route('proposals.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('proposals.index') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
-                <i class="fas fa-file-alt text-sm w-4 {{ request()->routeIs('proposals.index') ? 'text-white' : 'group-hover:text-blue-600' }}"></i>
-                <span class="font-medium sidebar-text">Vacancy Proposals</span>
-                @if($pendingProposalsCount > 0)
-                <span class="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
-                    {{ $pendingProposalsCount }}
-                </span>
-                @endif
-            </a>
-            @endcan
-
-            @can('propose-vacancy')
-            <a href="{{ route('proposals.create') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('proposals.create') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
-                <i class="fas fa-plus-circle text-sm w-4 {{ request()->routeIs('proposals.create') ? 'text-white' : 'group-hover:text-blue-600' }}"></i>
-                <span class="font-medium sidebar-text">Propose Vacancy</span>
+            @can('view-mpp-submissions')
+            <a href="{{ route('mpp-submissions.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group {{ request()->routeIs('mpp-submissions.*') ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} active:scale-95">
+                <i class="fas fa-envelope text-sm w-4 {{ request()->routeIs('mpp-submissions.*') ? 'text-white' : 'group-hover:text-red-600' }}"></i>
+                <span class="font-medium sidebar-text">Pengajuan MPP</span>
             </a>
             @endcan
 
