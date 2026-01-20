@@ -4,14 +4,18 @@
 @section('page-title', 'Manajemen User')
 @section('page-subtitle', 'Kelola akun pengguna sistem')
 
-@push('header-filters')
-@can('create-users')
-<a href="{{ route('users.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-    <i class="fas fa-plus text-sm"></i>
-    <span>Tambah User</span>
-</a>
-@endcan
-@endpush
+@section('header-filters')
+<div class="flex items-center gap-2">
+    @can('create-users')
+    <a href="{{ route('users.create') }}" class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <i class="fas fa-plus text-sm"></i>
+        <span class="text-sm font-medium">Tambah User</span>
+    </a>
+    @else
+    <!-- Debug: Permission not available -->
+    @endcan
+</div>
+@endsection
 
 @section('content')
 <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">

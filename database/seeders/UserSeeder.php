@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Department;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -10,10 +11,18 @@ class UserSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     * 
+     * Seed users dengan 4 role:
+     * 1. admin - Administrator system
+     * 2. team_hc - Tim HC utama
+     * 3. team_hc_2 - Tim HC kedua
+     * 4. department_head - Kepala departemen per departemen
      */
     public function run(): void
     {
-        // Create admin user
+        // ============================================
+        // 1. ADMIN USER
+        // ============================================
         $admin = User::firstOrCreate([
             'email' => 'admin@airsys.com',
         ], [
@@ -21,47 +30,62 @@ class UserSeeder extends Seeder
             'password' => Hash::make('password'),
             'status' => true,
             'email_verified_at' => now(),
-            'role' => 'admin', // Added role
         ]);
         $admin->assignRole('admin');
+        $this->command->info('✅ Created: admin@airsys.com (admin)');
 
-        // Create team HC user
+        // ============================================
+        // 2. TEAM HC - Utama
+        // ============================================
         $teamHc = User::firstOrCreate([
-            'email' => 'hc@airsys.com',
+            'email' => 'hc1@airsys.com',
         ], [
             'name' => 'Team HC',
             'password' => Hash::make('password'),
             'status' => true,
             'email_verified_at' => now(),
-            'role' => 'team_hc', // Added role
         ]);
         $teamHc->assignRole('team_hc');
+        $this->command->info('✅ Created: hc1@airsys.com (team_hc)');
 
-        // Create departemen user
-        $department = User::firstOrCreate([
-            'email' => 'dept@airsys.com',
+        // ============================================
+        // 3. TEAM HC 2 - Secondary
+        // ============================================
+        $teamHc2 = User::firstOrCreate([
+            'email' => 'hc2@airsys.com',
         ], [
-            'name' => 'Departemen User',
+            'name' => 'Team HC 2',
             'password' => Hash::make('password'),
-            'department' => 'Engineering',
             'status' => true,
             'email_verified_at' => now(),
-            'role' => 'department', // Added role
         ]);
-        $department->assignRole('department');
+        $teamHc2->assignRole('team_hc_2');
+        $this->command->info('✅ Created: hc2@airsys.com (team_hc_2)');
 
-        
+        // ============================================
+        // 4. DEPARTMENT HEADS - Per departemen
+        // ============================================
+        $departments = Department::all();
+        foreach ($departments as $department) {
+            $emailSlug = strtolower(str_replace([' & ', ' ', '/'], ['-', '-', '-'], $department->name));
+            $email = 'head-' . $emailSlug . '@airsys.com';
 
-        $sarah = User::firstOrCreate([
-            'email' => 'sarah@airsys.com',
-        ], [
-            'name' => 'Sarah Johnson',
-            'password' => Hash::make('password'),
-            'department' => 'Finance & Accounting',
-            'status' => true,
-            'email_verified_at' => now(),
-            'role' => 'department', // Added role
-        ]);
-        $sarah->assignRole('department');
+            $user = User::firstOrCreate([
+                'email' => $email,
+            ], [
+                'name' => 'Head - ' . $department->name,
+                'password' => Hash::make('password'),
+                'status' => true,
+                'email_verified_at' => now(),
+                'department_id' => $department->id,
+            ]);
+            
+            if (!$user->hasRole('department_head')) {
+                $user->assignRole('department_head');
+            }
+            $this->command->info('✅ Created: ' . $email . ' (department_head) - ' . $department->name);
+        }
+
+        $this->command->info('✅ All users seeded successfully');
     }
 }

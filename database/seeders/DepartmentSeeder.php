@@ -24,6 +24,7 @@ class DepartmentSeeder extends Seeder
             ['name' => 'Production Control'],
             ['name' => 'PE & Facility'],
             ['name' => 'Warehouse & Inventory'],
+            ['name' => 'Marketing, Business Development & Sales Ship Building'],
         ];
 
         foreach ($departments as $department) {

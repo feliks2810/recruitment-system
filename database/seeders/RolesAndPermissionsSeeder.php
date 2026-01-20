@@ -5,19 +5,22 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Support\Facades\DB;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     * 
+     * 4 Roles:
+     * 1. admin - Admin sistem recruitment
+     * 2. team_hc - Tim HC utama (full access)
+     * 3. team_hc_2 - Tim HC kedua (limited access)
+     * 4. department_head - Kepala departemen (own department only)
      */
     public function run(): void
     {
         // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-
-        
 
         // Create comprehensive permissions list
         $permissions = [
@@ -33,7 +36,7 @@ class RolesAndPermissionsSeeder extends Seeder
             
             // Candidate management
             'view-candidates',
-            'view-own-department-candidates', // For department role
+            'view-own-department-candidates',
             'create-candidates',
             'edit-candidates',
             'show-candidates',
@@ -82,6 +85,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'propose-vacancy',
             'review-vacancy-proposals-step-1',
             'review-vacancy-proposals-step-2',
+
+            // MPP Submission Permissions
+            'view-mpp-submissions',
+            'create-mpp-submission',
+            'submit-mpp-submission',
+            'view-mpp-submission-details',
+            'approve-mpp-submission',
+            'reject-mpp-submission',
+            'delete-mpp-submission',
+
+            // Vacancy Document Permissions
+            'upload-vacancy-document',
+            'download-vacancy-document',
+            'approve-vacancy-document',
+            'reject-vacancy-document',
+            'delete-vacancy-document',
         ];
 
         // Create all permissions
@@ -89,13 +108,16 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission]);
         }
 
-        // Create roles
+        // Create 4 roles
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $teamHCRole = Role::firstOrCreate(['name' => 'team_hc']);
-        $departmentRole = Role::firstOrCreate(['name' => 'department']);
+        $teamHC2Role = Role::firstOrCreate(['name' => 'team_hc_2']);
+        $departmentHeadRole = Role::firstOrCreate(['name' => 'department_head']);
 
-        // Admin role - Only user management + dashboard
-        $adminRole->syncPermissions([]); // Revoke all existing permissions
+        // ============================================
+        // 1. ADMIN - Manajemen sistem & user saja
+        // ============================================
+        $adminRole->syncPermissions([]);
         $adminRole->givePermissionTo([
             'view-dashboard',
             'manage-users',
@@ -104,65 +126,106 @@ class RolesAndPermissionsSeeder extends Seeder
             'edit-users',
             'delete-users',
             'manage-departments',
-            // 'view-posisi-pelamar', // Removed for Admin
             'manage-vacancies',
+            'view-reports',
         ]);
 
-        // Team HC role - Everything except user management
-        $teamHCRole->revokePermissionTo('manage-departments'); // Explicitly revoke if previously granted
+        // ============================================
+        // 2. TEAM HC - Tim HC utama (full candidate access)
+        // ============================================
+        $teamHCRole->syncPermissions([]);
         $teamHCRole->givePermissionTo([
             'view-dashboard',
-            // Candidate management
             'view-candidates',
             'create-candidates',
             'edit-candidates',
             'show-candidates',
             'delete-candidates',
-            // Import/Export
             'import-excel',
             'export-candidates',
             'download-template',
-            // Bulk operations
             'bulk-update-candidates',
             'bulk-delete-candidates',
             'bulk-export-candidates',
             'bulk-move-stage',
             'bulk-switch-type',
-            // Stage management
             'update-stage',
             'move-stage',
-            // Statistics and reports
+            'edit-timeline',
             'view-statistics',
             'view-reports',
-            // Events/Calendar
             'view-events',
             'create-events',
             'edit-events',
             'delete-events',
             'manage-calendar',
-            // Duplicates
             'manage-duplicates',
             'mark-duplicate',
             'resolve-duplicate',
             'manage-documents',
             'view-posisi-pelamar',
             'review-vacancy-proposals-step-1',
+            'manage-vacancies',
+            'propose-vacancy',
+            // MPP permissions
+            'view-mpp-submissions',
+            'create-mpp-submission',
+            'submit-mpp-submission',
+            'view-mpp-submission-details',
+            'approve-mpp-submission',
+            'reject-mpp-submission',
+            'delete-mpp-submission',
+            'approve-vacancy-document',
+            'reject-vacancy-document',
+            'download-vacancy-document',
         ]);
 
-        // Department role - Limited access: dashboard, own department candidates, statistics
-        $departmentRole->givePermissionTo([
+        // ============================================
+        // 3. TEAM HC 2 - Tim HC kedua (limited access)
+        // ============================================
+        $teamHC2Role->syncPermissions([]);
+        $teamHC2Role->givePermissionTo([
+            'view-dashboard',
+            'view-candidates',
+            'create-candidates',
+            'edit-candidates',
+            'show-candidates',
+            'import-excel',
+            'export-candidates',
+            'download-template',
+            'bulk-export-candidates',
+            'update-stage',
+            'move-stage',
+            'view-statistics',
+            'view-reports',
+            'view-events',
+        ]);
+
+        // ============================================
+        // 4. DEPARTMENT HEAD - Kepala departemen
+        // ============================================
+        $departmentHeadRole->syncPermissions([]);
+        $departmentHeadRole->givePermissionTo([
             'view-dashboard',
             'view-own-department-candidates',
-            'show-candidates', // Can view details of candidates in their department
+            'show-candidates',
             'view-statistics',
             'propose-vacancy',
+            'view-events',
+            // MPP permissions for document upload
+            'view-mpp-submissions',
+            'view-mpp-submission-details',
+            'upload-vacancy-document',
+            'download-vacancy-document',
+            'delete-vacancy-document',
         ]);
 
         // Output seeding information
-        $this->command->info('Roles and permissions seeded successfully:');
-        $this->command->info('- Admin role: ' . $adminRole->permissions->count() . ' permissions (Dashboard + User Management)');
-        $this->command->info('- Team HC role: ' . $teamHCRole->permissions->count() . ' permissions (Everything except User Management)');
-        $this->command->info('- Department role: ' . $departmentRole->permissions->count() . ' permissions (Dashboard + Own Department Candidates + Statistics)');
-        $this->command->info('Total permissions created: ' . Permission::count());
+        $this->command->info('✅ Roles and permissions seeded successfully:');
+        $this->command->info('   1. admin - Admin sistem recruitment');
+        $this->command->info('   2. team_hc - Tim HC utama (full access)');
+        $this->command->info('   3. team_hc_2 - Tim HC kedua (limited access)');
+        $this->command->info('   4. department_head - Kepala departemen (own dept only)');
+        $this->command->info('   Total permissions: ' . Permission::count());
     }
 }
