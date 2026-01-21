@@ -69,11 +69,11 @@
             <form method="GET" x-ref="filterForm" class="flex items-center gap-3 sm:gap-4 flex-wrap">
                 <div class="flex-1 min-w-64">
                     <label for="search" class="sr-only">Cari Kandidat</label>
-                    <input type="text" 
+                    <input type="text"
                            id="search"
-                           name="search" 
-                           value="{{ request('search') }}" 
-                           placeholder="Cari nama, email, atau posisi..." 
+                           name="search"
+                           value="{{ request('search') }}"
+                           placeholder="Cari nama, email, atau posisi..."
                            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                            @keydown.enter.prevent="$refs.filterForm.submit()">
                 </div>
@@ -87,10 +87,45 @@
                         @endforeach
                     </select>
                 </div>
-                {{-- Preserve type filter on form submission --}}
-                @if(request('type'))
-                    <input type="hidden" name="type" value="{{ request('type') }}">
-                @endif
+                <div class="min-w-[150px]">
+                    <label for="department_id" class="sr-only">Filter by Department</label>
+                    <select name="department_id" id="department_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            @change="$refs.filterForm.submit()">
+                        <option value="" {{ !request('department_id') ? 'selected' : '' }}>Semua Department</option>
+                        @foreach($departments as $department)
+                            <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="min-w-[150px]">
+                    <label for="source" class="sr-only">Filter by Source</label>
+                    <select name="source" id="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            @change="$refs.filterForm.submit()">
+                        <option value="" {{ !request('source') ? 'selected' : '' }}>Semua Source</option>
+                        @foreach($sources as $source)
+                            <option value="{{ $source }}" {{ request('source') == $source ? 'selected' : '' }}>{{ $source }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="min-w-[150px]">
+                    <label for="stage" class="sr-only">Filter by Stage</label>
+                    <select name="stage" id="stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            @change="$refs.filterForm.submit()">
+                        <option value="" {{ !request('stage') ? 'selected' : '' }}>Semua Tahapan</option>
+                        @foreach($stages as $stage)
+                            <option value="{{ $stage->value }}" {{ request('stage') == $stage->value ? 'selected' : '' }}>{{ Str::title(str_replace('_', ' ', $stage->name)) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="min-w-[150px]">
+                    <label for="type" class="sr-only">Filter by Type</label>
+                    <select name="type" id="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            @change="$refs.filterForm.submit()">
+                        <option value="" {{ !request('type') ? 'selected' : '' }}>Semua Tipe</option>
+                        <option value="organic" {{ request('type') == 'organic' ? 'selected' : '' }}>Organik</option>
+                        <option value="non-organic" {{ request('type') == 'non-organic' ? 'selected' : '' }}>Non-Organik</option>
+                    </select>
+                </div>
             </form>
         </div>
 
@@ -183,23 +218,7 @@
             </div>
 
             <div class="mb-6">
-                <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex flex-wrap gap-2 sm:space-x-8 sm:gap-0" aria-label="Tabs">
-                        <a href="{{ route('candidates.index', array_merge(request()->all(), ['type' => 'organic'])) }}" 
-                           class="{{ $type === 'organic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors">
-                           Kandidat Organik
-                        </a>
-                        <a href="{{ route('candidates.index', array_merge(request()->all(), ['type' => 'non-organic'])) }}" 
-                           class="{{ $type === 'non-organic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors">
-                           Kandidat Non-Organik
-                        </a>
-                        <a href="{{ route('candidates.index', array_merge(request()->all(), ['type' => 'duplicate'])) }}" 
-                           class="{{ $type === 'duplicate' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors">
-                            <i class="fas fa-exclamation-triangle mr-1"></i>
-                            Kandidat Duplicate ({{ $stats['duplicate'] ?? 0 }})
-                        </a>
-                    </nav>
-                </div>
+                
             </div>
 
 
@@ -362,6 +381,7 @@
     </a>
                                                 @endcan
 
+                                                @canany(['import-excel', 'delete-candidates'])
                                                 <!-- Dropdown for other actions -->
                                                 <div x-data="{ open: false }" class="relative" @click.away="open = false">
                                                     <button @click="open = !open" class="text-gray-500 hover:text-gray-700 p-1 rounded-full focus:outline-none">
@@ -399,6 +419,7 @@
                                                         </div>
                                                     </div>
                                                 </div>
+                                                @endcanany
                                             </div>
                                         </td>
                                     </tr>

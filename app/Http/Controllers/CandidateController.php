@@ -131,7 +131,7 @@ class CandidateController extends Controller
      */
     public function index(Request $request)
     {
-        $type = $request->input('type', 'organic');
+        $type = $request->input('type');
 
         $user = auth()->user();
         $query = Application::with([
@@ -154,24 +154,25 @@ class CandidateController extends Controller
             });
         }
 
-
         // --- DUPLICATE LOGIC ---
-        // Find candidate_ids that have more than one application
         $duplicateCandidateIds = Application::select('candidate_id')
             ->groupBy('candidate_id')
             ->havingRaw('COUNT(*) > 1')
             ->pluck('candidate_id');
 
         // Handle candidate type filter
-        if ($type === 'duplicate') {
-            // New logic: filter applications whose candidate_id is in the duplicate list
-            $query->whereIn('candidate_id', $duplicateCandidateIds);
-        } else {
-            // For organic/non-organic, filter based on the candidate's `airsys_internal` status
-            // Kandidat duplikat tetap muncul di halaman organik jika dia organik
-            $query->whereHas('candidate', function ($q) use ($type) {
-                      $q->where('airsys_internal', $type === 'organic' ? 'Yes' : 'No');
-                  });
+        if ($request->filled('type')) {
+            if ($request->type === 'duplicate') {
+                $query->whereIn('candidate_id', $duplicateCandidateIds);
+            } elseif ($request->type === 'organic') {
+                $query->whereHas('candidate', function ($q) {
+                    $q->where('airsys_internal', 'Yes');
+                });
+            } elseif ($request->type === 'non-organic') {
+                $query->whereHas('candidate', function ($q) {
+                    $q->where('airsys_internal', 'No');
+                });
+            }
         }
 
         // Filter by status
@@ -201,6 +202,24 @@ class CandidateController extends Controller
             $query->where('vacancy_id', $request->vacancy_id);
         }
 
+        if ($request->filled('department_id')) {
+            $query->whereHas('candidate', function ($q) use ($request) {
+                $q->where('department_id', $request->department_id);
+            });
+        }
+
+        if ($request->filled('source')) {
+            $query->whereHas('candidate', function ($q) use ($request) {
+                $q->where('source', $request->source);
+            });
+        }
+
+        if ($request->filled('stage')) {
+            $query->whereHas('stages', function ($q) use ($request) {
+                $q->where('stage_name', $request->stage);
+            });
+        }
+
         // Order by candidate name A-Z, then by overall_status, then by created_at desc
         // Use subquery to avoid GROUP BY issues with pagination
         $applications = $query
@@ -219,7 +238,7 @@ class CandidateController extends Controller
 
         $statuses = [
             'ON_PROCESS' => 'On Process',
-            'WAITING_HC_INTERVIEW' => 'Waiting HC Interview', // This might need more complex logic if kept
+            'WAITING_HC_INTERVIEW' => 'Waiting HC Interview',
             'HIRED' => 'Hired',
             'FAILED' => 'Failed',
         ];
@@ -235,14 +254,21 @@ class CandidateController extends Controller
         ];
 
         $activeVacancies = \App\Models\Vacancy::where('proposal_status', 'approved')->get();
+        $departments = \App\Models\Department::orderBy('name')->get();
+        $sources = \App\Models\Candidate::distinct()->pluck('source');
+        $stages = \App\Enums\RecruitmentStage::cases();
+
 
         return view('candidates.index', compact(
-            'applications', // <-- Renamed from 'candidates'
+            'applications', 
             'statuses', 
             'stats',
             'activeVacancies',
             'type',
-            'duplicateCandidateIds' // <-- Pass the list of duplicate IDs
+            'duplicateCandidateIds',
+            'departments',
+            'sources',
+            'stages'
         ));
     }
 

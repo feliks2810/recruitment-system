@@ -222,6 +222,17 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 $overallStatus = 'PROSES';
             }
 
+            // Determine airsys_internal based on vacancy's MPP status
+            $airsysInternal = null; // Default to null
+            if ($vacancy && $vacancy->vacancy_status) {
+                // Assuming 'OSPKWT' means internal and 'OS' means external/non-organic
+                if (in_array($vacancy->vacancy_status, ['OSPKWT', 'INTERNAL'])) { // Add 'INTERNAL' for clarity if needed
+                    $airsysInternal = 'Yes';
+                } elseif (in_array($vacancy->vacancy_status, ['OS', 'EXTERNAL'])) { // Add 'EXTERNAL' for clarity if needed
+                    $airsysInternal = 'No';
+                }
+            }
+
             // ================= UPSERT CANDIDATE =================
             $candidate = Candidate::updateOrCreate(
                 ['applicant_id' => $applicantId],
@@ -239,7 +250,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                     'flk' => $row['flk'] ?? null,
                     'raw_department_name' => $rawDept,
                     'department_id' => $departmentId,
-                    'airsys_internal' => 'Yes',
+                    'airsys_internal' => $airsysInternal, // Set dynamically
                     'status' => $candidateStatus,
                 ]
             );

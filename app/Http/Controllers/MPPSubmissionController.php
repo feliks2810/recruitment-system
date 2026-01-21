@@ -178,6 +178,21 @@ class MPPSubmissionController extends Controller
             'proposal_status' => Vacancy::STATUS_APPROVED,
         ]);
 
+        // New logic to update candidate types
+        $newType = null;
+        if ($vacancy->vacancy_status === 'OSPKWT') {
+            $newType = 'Yes'; // Organic
+        } elseif ($vacancy->vacancy_status === 'OS') {
+            $newType = 'No'; // Non-Organic
+        }
+
+        if ($newType) {
+            $candidateIds = $vacancy->applications()->pluck('candidate_id');
+            if ($candidateIds->isNotEmpty()) {
+                DB::table('candidates')->whereIn('id', $candidateIds)->update(['airsys_internal' => $newType]);
+            }
+        }
+
         $this->updateMPPStatus($vacancy->mppSubmission);
 
         return back()->with('success', 'Posisi berhasil disetujui.');

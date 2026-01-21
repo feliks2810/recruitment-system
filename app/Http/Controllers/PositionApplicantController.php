@@ -14,13 +14,9 @@ class PositionApplicantController extends Controller
     {
         // Get departments with Vacancies that are part of an APPROVED MPP
         $departments = Department::with(['vacancies' => function($query) {
-            $query->whereHas('mppSubmission', function($q) {
-                $q->where('status', MPPSubmission::STATUS_APPROVED);
-            })->with(['applications']);
+            $query->where('proposal_status', Vacancy::STATUS_APPROVED)->with(['applications']);
         }])->whereHas('vacancies', function($query) {
-            $query->whereHas('mppSubmission', function($q) {
-                $q->where('status', MPPSubmission::STATUS_APPROVED);
-            });
+            $query->where('proposal_status', Vacancy::STATUS_APPROVED);
         })->get();
 
         $data = $departments->map(function ($department) {
