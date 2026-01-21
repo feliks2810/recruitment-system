@@ -113,6 +113,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $teamHCRole = Role::firstOrCreate(['name' => 'team_hc']);
         $teamHC2Role = Role::firstOrCreate(['name' => 'team_hc_2']);
         $departmentHeadRole = Role::firstOrCreate(['name' => 'department_head']);
+        $departmentRole = Role::firstOrCreate(['name' => 'department']);
+        $kepalaDepartemenRole = Role::firstOrCreate(['name' => 'kepala departemen']);
 
         // ============================================
         // 1. ADMIN - Manajemen sistem & user saja
@@ -231,8 +233,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // ============================================
         // 4. DEPARTMENT HEAD - Kepala departemen
         // ============================================
-        $departmentHeadRole->syncPermissions([]);
-        $departmentHeadRole->givePermissionTo([
+        $departmentHeadPermissions = [
             'view-dashboard',
             'view-own-department-candidates',
             'show-candidates',
@@ -245,7 +246,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'upload-vacancy-document',
             'download-vacancy-document',
             'delete-vacancy-document',
-        ]);
+        ];
+
+        $departmentHeadRole->syncPermissions($departmentHeadPermissions);
+        $departmentRole->syncPermissions($departmentHeadPermissions);
+        $kepalaDepartemenRole->syncPermissions($departmentHeadPermissions);
 
         // Output seeding information
         $this->command->info('✅ Roles and permissions seeded successfully:');

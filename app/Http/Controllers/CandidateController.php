@@ -133,14 +133,27 @@ class CandidateController extends Controller
     {
         $type = $request->input('type', 'organic');
 
-        // Start with Application query
+        $user = auth()->user();
         $query = Application::with([
             'candidate.department',
             'candidate.latestPsikotest',
             'candidate.latestHCInterview',
             'vacancy',
-            'stages', // Add stages for latest stage display
+            'stages',
         ]);
+
+        $statsQuery = Application::query();
+
+        if ($user->hasRole('department_head') && $user->department_id) {
+            $query->whereHas('candidate', function ($q) use ($user) {
+                $q->where('department_id', $user->department_id);
+            });
+
+            $statsQuery->whereHas('candidate', function ($q) use ($user) {
+                $q->where('department_id', $user->department_id);
+            });
+        }
+
 
         // --- DUPLICATE LOGIC ---
         // Find candidate_ids that have more than one application
@@ -213,12 +226,11 @@ class CandidateController extends Controller
 
         // Get real statistics from Application overall_status
         $stats = [
-            'total_candidates' => Application::count(),
-            'candidates_in_process' => Application::where('overall_status', 'PROSES')->count(),
-            'candidates_passed' => Application::where('overall_status', 'LULUS')->count(),
-            'candidates_failed' => Application::where('overall_status', 'DITOLAK')->count(),
-            'candidates_cancelled' => Application::where('overall_status', 'CANCEL')->count(),
-            // The count of duplicate candidates, not applications
+            'total_candidates' => (clone $statsQuery)->count(),
+            'candidates_in_process' => (clone $statsQuery)->where('overall_status', 'PROSES')->count(),
+            'candidates_passed' => (clone $statsQuery)->where('overall_status', 'LULUS')->count(),
+            'candidates_failed' => (clone $statsQuery)->where('overall_status', 'DITOLAK')->count(),
+            'candidates_cancelled' => (clone $statsQuery)->where('overall_status', 'CANCEL')->count(),
             'duplicate' => $duplicateCandidateIds->count(),
         ];
 

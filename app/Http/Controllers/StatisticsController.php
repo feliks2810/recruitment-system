@@ -17,7 +17,14 @@ class StatisticsController extends Controller
         $endDate = $request->get('end_date');
         $source = $request->get('source');
 
+        $user = auth()->user();
         $baseQuery = Application::query();
+
+        if ($user->hasRole('department_head') && $user->department_id) {
+            $baseQuery->whereHas('candidate', function ($q) use ($user) {
+                $q->where('department_id', $user->department_id);
+            });
+        }
 
         if ($startDate && $endDate) {
             $baseQuery->whereBetween('created_at', [$startDate, $endDate]);
@@ -105,8 +112,13 @@ class StatisticsController extends Controller
 
     private function getSourceEffectivenessData($startDate, $endDate, $source)
     {
+        $user = auth()->user();
         $query = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
+
+        if ($user->hasRole('department_head') && $user->department_id) {
+            $query->where('candidates.department_id', $user->department_id);
+        }
 
         if ($startDate && $endDate) {
             $query->whereBetween('applications.created_at', [$startDate, $endDate]);
@@ -176,9 +188,14 @@ class StatisticsController extends Controller
 
     private function getMonthlyApplicationData($startDate, $endDate, $source)
     {
+        $user = auth()->user();
         $query = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'));
+
+        if ($user->hasRole('department_head') && $user->department_id) {
+            $query->where('candidates.department_id', $user->department_id);
+        }
 
         $actualStartDate = $startDate ? Carbon::parse($startDate) : Carbon::now()->subMonths(11)->startOfMonth();
         $actualEndDate = $endDate ? Carbon::parse($endDate) : Carbon::now();
