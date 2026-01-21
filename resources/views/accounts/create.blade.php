@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedRole = roleSelect.value;
         
         // Hanya tampilkan field departemen untuk role 'department'
-        if (selectedRole === 'department') {
+        if (selectedRole === 'department' || selectedRole === 'department_head') {
             departmentField.style.display = 'block';
             departmentSelect.setAttribute('required', 'required');
         } else {

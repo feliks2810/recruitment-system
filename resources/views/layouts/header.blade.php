@@ -30,10 +30,8 @@
         </div>
 
         <!-- Baris Kedua: Header Filters (jika ada) -->
-        @hasSection('header-filters')
         <div class="w-full">
-            @yield('header-filters')
+            @stack('header-filters')
         </div>
-        @endif
     </div>
 </header>

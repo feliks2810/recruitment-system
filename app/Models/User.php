@@ -128,6 +128,9 @@ class User extends Authenticatable
         if ($this->hasRole('team_hc')) {
             return 'Team HC';
         }
+        if ($this->hasRole('team_hc_2')) {
+            return 'Team HC 2';
+        }
         if ($this->hasRole('admin')) {
             return 'Administrator';
         }

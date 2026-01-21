@@ -24,7 +24,8 @@ class AccountController extends Controller
             'total' => User::count(),
             'admin' => User::role('admin')->count(),
             'team_hc' => User::role('team_hc')->count(),
-            'department' => User::role('department')->count(),
+            'team_hc_2' => User::role('team_hc_2')->count(),
+            'department_head' => User::role('department_head')->count(),
             'active' => User::where('status', true)->count(),
         ];
         
@@ -33,7 +34,7 @@ class AccountController extends Controller
 
     public function create()
     {
-        $roles = Role::where('name', '!=', 'admin')->get();
+        $roles = Role::whereNotIn('name', ['admin', 'department', 'kepala departemen'])->get();
         $departments = Department::all();
         return view('accounts.create', [
             'departments' => $departments,

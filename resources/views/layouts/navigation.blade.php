@@ -21,7 +21,7 @@
                         {{ __('Kandidat') }}
                     </x-nav-link>
 
-                    @if(auth()->user()->hasRole('team_hc'))
+                    @if(auth()->user()->hasRole(['team_hc', 'team_hc_2']))
                         <x-nav-link :href="route('proposals.index')" :active="request()->routeIs('proposals.index')">
                             {{ __('Vacancy Proposals') }}
                             @if(session('pending_proposals_count') > 0)
@@ -46,7 +46,7 @@
                         </x-nav-link>
                     @endif
 
-                    @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('team_hc'))
+                    @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole(['team_hc', 'team_hc_2']))
                         <x-nav-link :href="route('statistics.index')" :active="request()->routeIs('statistics.*')">
                             {{ __('Statistik') }}
                         </x-nav-link>
@@ -133,7 +133,7 @@
                 </x-responsive-nav-link>
             @endif
 
-            @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('team_hc'))
+            @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole(['team_hc', 'team_hc_2']))
                 <x-responsive-nav-link :href="route('statistics.index')" :active="request()->routeIs('statistics.*')">
                     {{ __('Statistik') }}
                 </x-responsive-nav-link>

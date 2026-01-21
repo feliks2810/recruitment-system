@@ -30,8 +30,8 @@ class MPPSubmissionController extends Controller
         // Filter by department if user is department head or department staff
         if (($user->hasRole('department_head') || $user->hasRole('department')) && $user->department_id) {
             $query->where('department_id', $user->department_id);
-        } elseif (!$user->hasRole('team_hc')) {
-            // Only allow team_hc to see all submissions, others must be filtered by department
+        } elseif (!$user->hasRole(['team_hc', 'team_hc_2'])) {
+            // Only allow team_hc and team_hc_2 to see all submissions, others must be filtered by department
             abort(403);
         }
 

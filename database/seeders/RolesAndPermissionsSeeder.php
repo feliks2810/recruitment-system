@@ -14,7 +14,7 @@ class RolesAndPermissionsSeeder extends Seeder
      * 4 Roles:
      * 1. admin - Admin sistem recruitment
      * 2. team_hc - Tim HC utama (full access)
-     * 3. team_hc_2 - Tim HC kedua (limited access)
+     * 3. team_hc_2 - Tim HC kedua (same as team_hc, approval workflow step 2)
      * 4. department_head - Kepala departemen (own department only)
      */
     public function run(): void
@@ -165,7 +165,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-documents',
             'view-posisi-pelamar',
             'review-vacancy-proposals-step-1',
-            'manage-vacancies',
             'propose-vacancy',
             // MPP permissions
             'view-mpp-submissions',
@@ -181,7 +180,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // ============================================
-        // 3. TEAM HC 2 - Tim HC kedua (limited access)
+        // 3. TEAM HC 2 - Tim HC kedua (same as Team HC 1)
         // ============================================
         $teamHC2Role->syncPermissions([]);
         $teamHC2Role->givePermissionTo([
@@ -190,15 +189,43 @@ class RolesAndPermissionsSeeder extends Seeder
             'create-candidates',
             'edit-candidates',
             'show-candidates',
+            'delete-candidates',
             'import-excel',
             'export-candidates',
             'download-template',
+            'bulk-update-candidates',
+            'bulk-delete-candidates',
             'bulk-export-candidates',
+            'bulk-move-stage',
+            'bulk-switch-type',
             'update-stage',
             'move-stage',
+            'edit-timeline',
             'view-statistics',
             'view-reports',
             'view-events',
+            'create-events',
+            'edit-events',
+            'delete-events',
+            'manage-calendar',
+            'manage-duplicates',
+            'mark-duplicate',
+            'resolve-duplicate',
+            'manage-documents',
+            'view-posisi-pelamar',
+            'review-vacancy-proposals-step-1',
+            'propose-vacancy',
+            // MPP permissions
+            'view-mpp-submissions',
+            'create-mpp-submission',
+            'submit-mpp-submission',
+            'view-mpp-submission-details',
+            'approve-mpp-submission',
+            'reject-mpp-submission',
+            'delete-mpp-submission',
+            'approve-vacancy-document',
+            'reject-vacancy-document',
+            'download-vacancy-document',
         ]);
 
         // ============================================
@@ -224,7 +251,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $this->command->info('✅ Roles and permissions seeded successfully:');
         $this->command->info('   1. admin - Admin sistem recruitment');
         $this->command->info('   2. team_hc - Tim HC utama (full access)');
-        $this->command->info('   3. team_hc_2 - Tim HC kedua (limited access)');
+        $this->command->info('   3. team_hc_2 - Tim HC kedua (same as team_hc, approval step 2)');
         $this->command->info('   4. department_head - Kepala departemen (own dept only)');
         $this->command->info('   Total permissions: ' . Permission::count());
     }

@@ -4,19 +4,6 @@
 @section('page-title', 'Manajemen Akun')
 @section('page-subtitle', 'Kelola akun pengguna sistem')
 
-@push('header-filters')
-@can('manage-users')
-<a href="{{ route('accounts.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-    <i class="fas fa-plus text-sm"></i>
-    <span>Tambah Akun</span>
-</a>
-<a href="{{ route('accounts.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-    <i class="fas fa-download text-sm"></i>
-    <span>Export Akun</span>
-</a>
-@endcan
-@endpush
-
 @section('content')
 
         <div class="flex-1 p-6">
@@ -52,8 +39,14 @@
 
             <!-- Users Table -->
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Daftar Akun Pengguna</h3>
+                    @can('manage-users')
+                    <a href="{{ route('accounts.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                        <i class="fas fa-plus mr-2"></i>
+                        Tambah Akun
+                    </a>
+                    @endcan
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full">
