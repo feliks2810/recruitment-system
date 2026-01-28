@@ -56,7 +56,7 @@
                                     Administrator
                                 @elseif($role->name === 'team_hc')
                                     Team HC
-                                @elseif($role->name === 'department')
+                                @elseif($role->name === 'kepala departemen')
                                     Kepala Departemen
                                 @else
                                     {{ ucfirst(str_replace('_', ' ', $role->name)) }}
@@ -65,7 +65,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div id="department-field" style="display: {{ $account->hasRole('department') ? 'block' : 'none' }};">
+                    <div id="department-field" style="display: {{ $account->hasRole('kepala departemen') ? 'block' : 'none' }};">
                         <label for="department_id" class="block text-sm font-medium text-gray-700">Department</label>
                         <select name="department_id" id="department_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             @foreach($departments as $dept)
@@ -75,7 +75,7 @@
                     </div>
                     <div>
                         <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                        <select name="status" id="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <select name="status" id="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:focus:border-blue-500">
                             <option value="1" {{ $account->status ? 'selected' : '' }}>Aktif</option>
                             <option value="0" {{ !$account->status ? 'selected' : '' }}>Non-Aktif</option>
                         </select>
@@ -95,7 +95,7 @@
     <script>
         function toggleDepartment(role) {
             const departmentField = document.getElementById('department-field');
-            if (role === 'department') {
+            if (role === 'kepala departemen') {
                 departmentField.style.display = 'block';
             } else {
                 departmentField.style.display = 'none';

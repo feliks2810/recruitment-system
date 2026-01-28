@@ -144,7 +144,14 @@ class CandidateController extends Controller
 
         $statsQuery = Application::query();
 
-        if ($user->hasRole('department_head') && $user->department_id) {
+        // Get selected year or default to current year
+        $selectedYear = $request->input('year', date('Y'));
+
+        // Apply year filter
+        $query->whereYear('created_at', $selectedYear);
+        $statsQuery->whereYear('created_at', $selectedYear);
+
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->whereHas('candidate', function ($q) use ($user) {
                 $q->where('department_id', $user->department_id);
             });
@@ -258,6 +265,11 @@ class CandidateController extends Controller
         $sources = \App\Models\Candidate::distinct()->pluck('source');
         $stages = \App\Enums\RecruitmentStage::cases();
 
+        // Prepare years for filter dropdown
+        $currentYear = date('Y');
+        $startYear = $currentYear - 3; // 3 years before current
+        $endYear = $currentYear + 1; // 1 year after current
+        $years = range($endYear, $startYear); // From endYear down to startYear
 
         return view('candidates.index', compact(
             'applications', 
@@ -268,7 +280,9 @@ class CandidateController extends Controller
             'duplicateCandidateIds',
             'departments',
             'sources',
-            'stages'
+            'stages',
+            'selectedYear', // Pass selected year to view
+            'years' // Pass available years to view
         ));
     }
 

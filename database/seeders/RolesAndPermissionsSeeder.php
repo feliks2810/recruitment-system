@@ -112,8 +112,6 @@ class RolesAndPermissionsSeeder extends Seeder
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $teamHCRole = Role::firstOrCreate(['name' => 'team_hc']);
         $teamHC2Role = Role::firstOrCreate(['name' => 'team_hc_2']);
-        $departmentHeadRole = Role::firstOrCreate(['name' => 'department_head']);
-        $departmentRole = Role::firstOrCreate(['name' => 'department']);
         $kepalaDepartemenRole = Role::firstOrCreate(['name' => 'kepala departemen']);
 
         // ============================================
@@ -231,7 +229,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // ============================================
-        // 4. DEPARTMENT HEAD - Kepala departemen
+        // 4. KEPALA DEPARTEMEN - Kepala departemen
         // ============================================
         $departmentHeadPermissions = [
             'view-dashboard',
@@ -248,8 +246,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'delete-vacancy-document',
         ];
 
-        $departmentHeadRole->syncPermissions($departmentHeadPermissions);
-        $departmentRole->syncPermissions($departmentHeadPermissions);
         $kepalaDepartemenRole->syncPermissions($departmentHeadPermissions);
 
         // Output seeding information
@@ -257,7 +253,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $this->command->info('   1. admin - Admin sistem recruitment');
         $this->command->info('   2. team_hc - Tim HC utama (full access)');
         $this->command->info('   3. team_hc_2 - Tim HC kedua (same as team_hc, approval step 2)');
-        $this->command->info('   4. department_head - Kepala departemen (own dept only)');
+        $this->command->info('   4. kepala departemen - Kepala departemen (own dept only)');
         $this->command->info('   Total permissions: ' . Permission::count());
     }
 }

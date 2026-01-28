@@ -26,7 +26,7 @@ Sistem sudah dibersihkan dan dioptimasi untuk production.
 ### Department Heads
 - **Email Format**: `head-{department-slug}@airsys.com`
 - **Password**: `password` (all)
-- **Role**: department_head
+- **Role**: kepala departemen
 - **Examples**:
   - `head-batam-production@airsys.com`
   - `head-engineering@airsys.com`
@@ -40,7 +40,7 @@ Sistem sudah dibersihkan dan dioptimasi untuk production.
 - `admin` - System administrator
 - `team_hc` - Main HC team (full access)
 - `team_hc_2` - Secondary HC team (limited access)
-- `department_head` - Department head (own dept only)
+- `kepala departemen` - Department head (own dept only)
 
 ### 11 Departments
 1. Batam Production

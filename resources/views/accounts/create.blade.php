@@ -100,10 +100,6 @@
                                     Administrator
                                 @elseif($role->name === 'team_hc')
                                     Team HC
-                                @elseif($role->name === 'department')
-                                    Kepala Departemen
-                                @elseif($role->name === 'user')
-                                    Staf Departemen
                                 @else
                                     {{ ucfirst(str_replace('_', ' ', $role->name)) }}
                                 @endif
@@ -190,8 +186,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function toggleDepartmentField() {
         const selectedRole = roleSelect.value;
         
-        // Hanya tampilkan field departemen untuk role 'department'
-        if (selectedRole === 'department' || selectedRole === 'department_head') {
+        // Hanya tampilkan field departemen untuk role 'kepala departemen'
+        if (selectedRole === 'kepala departemen') {
             departmentField.style.display = 'block';
             departmentSelect.setAttribute('required', 'required');
         } else {

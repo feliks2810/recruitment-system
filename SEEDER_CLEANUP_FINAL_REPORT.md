@@ -12,7 +12,7 @@ Seeder system telah berhasil dibersihkan dan diorganisir dengan struktur yang ra
 - `admin` - Administrator system
 - `team_hc` - Tim HC utama (full access)
 - `team_hc_2` - Tim HC kedua (limited access)
-- `department_head` - Kepala departemen
+- `kepala departemen` - Kepala departemen
 
 ### ✅ Departments (11 Total)
 ```
@@ -117,7 +117,7 @@ Email: head-finance-accounting@airsys.com
 ...dan seterusnya untuk setiap departemen
 
 Password: password (sama untuk semua)
-Role: department_head
+Role: kepala departemen
 ```
 
 ---

@@ -65,10 +65,10 @@
             </div>
         </div>
 
-        <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 shadow-sm">
-            <form method="GET" x-ref="filterForm" class="flex items-center gap-3 sm:gap-4 flex-wrap">
-                <div class="flex-1 min-w-64">
-                    <label for="search" class="sr-only">Cari Kandidat</label>
+        <div class="bg-white rounded-xl shadow p-4 mb-6">
+            <form method="GET" x-ref="filterForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="lg:col-span-2">
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Cari Kandidat</label>
                     <input type="text"
                            id="search"
                            name="search"
@@ -77,54 +77,67 @@
                            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                            @keydown.enter.prevent="$refs.filterForm.submit()">
                 </div>
-                <div class="min-w-[150px]">
-                    <label for="status" class="sr-only">Filter by Status</label>
+                <div>
+                    <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+                    <select name="year" id="year" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            onchange="this.form.submit()">
+                        @foreach($years as $year)
+                            <option value="{{ $year }}" {{ $selectedYear == $year ? 'selected' : '' }}>{{ $year }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <select name="status" id="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            @change="$refs.filterForm.submit()">
+                            onchange="this.form.submit()">
                         <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
                         @foreach($statuses as $value => $display)
                             <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>{{ $display }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="min-w-[150px]">
-                    <label for="department_id" class="sr-only">Filter by Department</label>
+                <div>
+                    <label for="department_id" class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
                     <select name="department_id" id="department_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            @change="$refs.filterForm.submit()">
+                            onchange="this.form.submit()">
                         <option value="" {{ !request('department_id') ? 'selected' : '' }}>Semua Department</option>
                         @foreach($departments as $department)
                             <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="min-w-[150px]">
-                    <label for="source" class="sr-only">Filter by Source</label>
+                <div>
+                    <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
                     <select name="source" id="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            @change="$refs.filterForm.submit()">
+                            onchange="this.form.submit()">
                         <option value="" {{ !request('source') ? 'selected' : '' }}>Semua Source</option>
                         @foreach($sources as $source)
                             <option value="{{ $source }}" {{ request('source') == $source ? 'selected' : '' }}>{{ $source }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="min-w-[150px]">
-                    <label for="stage" class="sr-only">Filter by Stage</label>
+                <div>
+                    <label for="stage" class="block text-sm font-medium text-gray-700 mb-1">Tahapan</label>
                     <select name="stage" id="stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            @change="$refs.filterForm.submit()">
+                            onchange="this.form.submit()">
                         <option value="" {{ !request('stage') ? 'selected' : '' }}>Semua Tahapan</option>
                         @foreach($stages as $stage)
                             <option value="{{ $stage->value }}" {{ request('stage') == $stage->value ? 'selected' : '' }}>{{ Str::title(str_replace('_', ' ', $stage->name)) }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="min-w-[150px]">
-                    <label for="type" class="sr-only">Filter by Type</label>
+                <div>
+                    <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
                     <select name="type" id="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            @change="$refs.filterForm.submit()">
+                            onchange="this.form.submit()">
                         <option value="" {{ !request('type') ? 'selected' : '' }}>Semua Tipe</option>
+                        <option value="duplicate" {{ request('type') == 'duplicate' ? 'selected' : '' }}>Duplicate</option>
                         <option value="organic" {{ request('type') == 'organic' ? 'selected' : '' }}>Organik</option>
                         <option value="non-organic" {{ request('type') == 'non-organic' ? 'selected' : '' }}>Non-Organik</option>
                     </select>
+                </div>
+                <div class="flex items-end justify-end mt-4 md:mt-0">
+                    <a href="{{ route('candidates.index', ['year' => date('Y')]) }}" class="w-full md:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm text-center">Reset Filter</a>
                 </div>
             </form>
         </div>

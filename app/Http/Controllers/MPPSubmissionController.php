@@ -28,7 +28,7 @@ class MPPSubmissionController extends Controller
         $query = MPPSubmission::with(['department', 'createdByUser', 'vacancies']);
 
         // Filter by department if user is department head or department staff
-        if (($user->hasRole('department_head') || $user->hasRole('department')) && $user->department_id) {
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->where('department_id', $user->department_id);
         } elseif (!$user->hasRole(['team_hc', 'team_hc_2'])) {
             // Only allow team_hc and team_hc_2 to see all submissions, others must be filtered by department
@@ -174,28 +174,48 @@ class MPPSubmissionController extends Controller
             abort(403);
         }
 
-        $vacancy->update([
-            'proposal_status' => Vacancy::STATUS_APPROVED,
-        ]);
+        $message = 'Posisi berhasil disetujui.';
 
-        // New logic to update candidate types
-        $newType = null;
-        if ($vacancy->vacancy_status === 'OSPKWT') {
-            $newType = 'Yes'; // Organic
-        } elseif ($vacancy->vacancy_status === 'OS') {
-            $newType = 'No'; // Non-Organic
-        }
-
-        if ($newType) {
-            $candidateIds = $vacancy->applications()->pluck('candidate_id');
-            if ($candidateIds->isNotEmpty()) {
-                DB::table('candidates')->whereIn('id', $candidateIds)->update(['airsys_internal' => $newType]);
+        // Two-step approval logic
+        if ($user->hasRole('team_hc')) {
+            // HC1 approves, moves to pending for HC2
+            if ($vacancy->proposal_status === Vacancy::STATUS_PENDING) {
+                $vacancy->update(['proposal_status' => Vacancy::STATUS_PENDING_HC2_APPROVAL]);
+                $message = 'Posisi disetujui oleh Team HC 1 dan menunggu approval dari Team HC 2.';
+            } else {
+                return back()->with('error', 'Status approval tidak valid untuk aksi ini.');
             }
+        } elseif ($user->hasRole('team_hc_2')) {
+            // HC2 gives final approval
+            if ($vacancy->proposal_status === Vacancy::STATUS_PENDING_HC2_APPROVAL) {
+                $vacancy->update(['proposal_status' => Vacancy::STATUS_APPROVED]);
+                $message = 'Posisi berhasil disetujui sepenuhnya.';
+
+                // New logic to update candidate types
+                $newType = null;
+                if ($vacancy->vacancy_status === 'OSPKWT') {
+                    $newType = 'Yes'; // Organic
+                } elseif ($vacancy->vacancy_status === 'OS') {
+                    $newType = 'No'; // Non-Organic
+                }
+
+                if ($newType) {
+                    $candidateIds = $vacancy->applications()->pluck('candidate_id');
+                    if ($candidateIds->isNotEmpty()) {
+                        DB::table('candidates')->whereIn('id', $candidateIds)->update(['airsys_internal' => $newType]);
+                    }
+                }
+            } else {
+                return back()->with('error', 'Posisi ini belum disetujui oleh Team HC 1.');
+            }
+        } else {
+            // Fallback for other roles with permission (e.g., admin) - direct approval
+            $vacancy->update(['proposal_status' => Vacancy::STATUS_APPROVED]);
         }
 
         $this->updateMPPStatus($vacancy->mppSubmission);
 
-        return back()->with('success', 'Posisi berhasil disetujui.');
+        return back()->with('success', $message);
     }
 
     /**
@@ -233,7 +253,7 @@ class MPPSubmissionController extends Controller
         $vacancies = $mppSubmission->vacancies;
 
         $pendingCount = $vacancies->filter(function ($v) {
-            return $v->proposal_status === 'pending' || is_null($v->proposal_status);
+            return in_array($v->proposal_status, [Vacancy::STATUS_PENDING, Vacancy::STATUS_PENDING_HC2_APPROVAL, null]);
         })->count();
 
         if ($pendingCount === 0) {

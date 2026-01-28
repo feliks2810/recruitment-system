@@ -25,7 +25,7 @@ class AccountController extends Controller
             'admin' => User::role('admin')->count(),
             'team_hc' => User::role('team_hc')->count(),
             'team_hc_2' => User::role('team_hc_2')->count(),
-            'department_head' => User::role('department_head')->count(),
+            'kepala departemen' => User::role('kepala departemen')->count(),
             'active' => User::where('status', true)->count(),
         ];
         
@@ -34,7 +34,7 @@ class AccountController extends Controller
 
     public function create()
     {
-        $roles = Role::whereNotIn('name', ['admin', 'department', 'kepala departemen'])->get();
+        $roles = Role::whereNotIn('name', ['admin', 'department_head', 'department', 'user'])->get();
         $departments = Department::all();
         return view('accounts.create', [
             'departments' => $departments,
@@ -52,8 +52,8 @@ class AccountController extends Controller
             'status' => 'required|boolean',
         ];
 
-        // Hanya tambahkan validasi department jika role adalah department
-        if ($request->role === 'department') {
+        // Hanya tambahkan validasi department jika role adalah kepala departemen
+        if ($request->role === 'kepala departemen') {
             $validationRules['department_id'] = 'required|exists:departments,id';
         }
 
@@ -64,7 +64,7 @@ class AccountController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'department_id' => $request->role === 'department' ? $request->department_id : null,
+            'department_id' => $request->role === 'kepala departemen' ? $request->department_id : null,
             'status' => (bool) $request->status,
             'email_verified_at' => now(),
         ]);
@@ -99,8 +99,8 @@ class AccountController extends Controller
             'status' => 'required|boolean',
         ];
 
-        // Hanya tambahkan validasi department jika role adalah department
-        if ($request->role === 'department') {
+        // Hanya tambahkan validasi department jika role adalah kepala departemen
+        if ($request->role === 'kepala departemen') {
             $validationRules['department_id'] = 'required|exists:departments,id';
         }
 
@@ -109,7 +109,7 @@ class AccountController extends Controller
         $updateData = [
             'name' => $request->name,
             'email' => $request->email,
-            'department_id' => $request->role === 'department' ? $request->department_id : null,
+            'department_id' => $request->role === 'kepala departemen' ? $request->department_id : null,
             'status' => (bool) $request->status,
         ];
 

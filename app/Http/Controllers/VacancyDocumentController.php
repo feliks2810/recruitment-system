@@ -37,12 +37,15 @@ class VacancyDocumentController extends Controller
             abort(403);
         }
 
-        // Check if user is from the same department as the vacancy
-        if ((!$user->hasRole('department_head') && !$user->hasRole('department')) || $user->department_id !== $vacancy->department_id) {
-            if ($request->wantsJson()) {
-                return response()->json(['error' => 'You can only upload documents for your department vacancies'], 403);
+        // Allow team_hc, team_hc_2 to upload for any department.
+        // For 'kepala departemen', they must be from the same department as the vacancy.
+        if (!$user->hasAnyRole(['team_hc', 'team_hc_2'])) {
+            if (!$user->hasRole('kepala departemen') || $user->department_id !== $vacancy->department_id) {
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => 'You are not authorized to upload documents for this vacancy.'], 403);
+                }
+                abort(403);
             }
-            abort(403);
         }
 
         $validated = $request->validate([
@@ -112,7 +115,7 @@ class VacancyDocumentController extends Controller
         }
 
         // Allow department head to download their own documents or team HC to download any
-        if ($user->hasRole('department_head')) {
+        if ($user->hasRole('kepala departemen')) {
             if ($document->uploaded_by_user_id !== $user->id && $document->vacancy->department_id !== $user->department_id) {
                 abort(403);
             }
@@ -138,9 +141,10 @@ class VacancyDocumentController extends Controller
             abort(403);
         }
 
-        // Allow department or team HC to view
-        if ($user->hasRole('department') || $user->hasRole('department_head')) {
-            if ($document->vacancy->department_id !== $user->department_id) {
+        // Allow team_hc, team_hc_2 to view any document.
+        // For 'kepala departemen', they can only view documents for their department.
+        if (!$user->hasAnyRole(['team_hc', 'team_hc_2'])) {
+            if ($user->hasRole('kepala departemen') && $document->vacancy->department_id !== $user->department_id) {
                 abort(403);
             }
         }

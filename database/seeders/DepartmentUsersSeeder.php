@@ -17,7 +17,7 @@ class DepartmentUsersSeeder extends Seeder
      */
     public function run(): void
     {
-        // This seeder is now optional since department_head users 
+        // This seeder is now optional since kepala departemen users 
         // are already created in UserSeeder
         
         // Uncomment below if you need additional department staff users:
@@ -39,12 +39,12 @@ class DepartmentUsersSeeder extends Seeder
                 ]
             );
 
-            if (!$user->hasRole('department_head')) {
-                $user->assignRole('department_head');
+            if (!$user->hasRole('kepala departemen')) {
+                $user->assignRole('kepala departemen');
             }
         }
         */
 
-        $this->command->info('✅ DepartmentUsersSeeder completed (department_head users already in UserSeeder)');
+        $this->command->info('✅ DepartmentUsersSeeder completed (kepala departemen users already in UserSeeder)');
     }
 }

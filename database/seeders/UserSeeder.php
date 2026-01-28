@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
      * 1. admin - Administrator system
      * 2. team_hc - Tim HC utama
      * 3. team_hc_2 - Tim HC kedua
-     * 4. department_head - Kepala departemen per departemen
+     * 4. kepala departemen - Kepala departemen per departemen
      */
     public function run(): void
     {
@@ -80,10 +80,10 @@ class UserSeeder extends Seeder
                 'department_id' => $department->id,
             ]);
             
-            if (!$user->hasRole('department_head')) {
-                $user->assignRole('department_head');
+            if (!$user->hasRole('kepala departemen')) {
+                $user->assignRole('kepala departemen');
             }
-            $this->command->info('✅ Created: ' . $email . ' (department_head) - ' . $department->name);
+            $this->command->info('✅ Created: ' . $email . ' (kepala departemen) - ' . $department->name);
         }
 
         $this->command->info('✅ All users seeded successfully');

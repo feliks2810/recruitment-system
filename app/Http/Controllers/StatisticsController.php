@@ -18,9 +18,7 @@ class StatisticsController extends Controller
         $source = $request->get('source');
 
         $user = auth()->user();
-        $baseQuery = Application::query();
-
-        if ($user->hasRole('department_head') && $user->department_id) {
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $baseQuery->whereHas('candidate', function ($q) use ($user) {
                 $q->where('department_id', $user->department_id);
             });
@@ -114,9 +112,7 @@ class StatisticsController extends Controller
     {
         $user = auth()->user();
         $query = DB::table('applications')
-            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
-
-        if ($user->hasRole('department_head') && $user->department_id) {
+if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->where('candidates.department_id', $user->department_id);
         }
 
@@ -193,7 +189,7 @@ class StatisticsController extends Controller
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'));
 
-        if ($user->hasRole('department_head') && $user->department_id) {
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->where('candidates.department_id', $user->department_id);
         }
 

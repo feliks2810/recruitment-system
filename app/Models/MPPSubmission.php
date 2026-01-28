@@ -145,7 +145,7 @@ class MPPSubmission extends Model
         // Get department heads for this department
         $departmentHeads = User::where('department_id', $this->department_id)
             ->whereHas('roles', function ($query) {
-                $query->where('name', 'department_head');
+                $query->where('name', 'kepala departemen');
             })
             ->get();
 
