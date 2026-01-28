@@ -18,6 +18,8 @@ class StatisticsController extends Controller
         $source = $request->get('source');
 
         $user = auth()->user();
+        $baseQuery = Application::query(); // Initialize $baseQuery here
+
         if ($user->hasRole('kepala departemen') && $user->department_id) {
             $baseQuery->whereHas('candidate', function ($q) use ($user) {
                 $q->where('department_id', $user->department_id);
@@ -112,7 +114,9 @@ class StatisticsController extends Controller
     {
         $user = auth()->user();
         $query = DB::table('applications')
-if ($user->hasRole('kepala departemen') && $user->department_id) {
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
+
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->where('candidates.department_id', $user->department_id);
         }
 
@@ -226,8 +230,6 @@ if ($user->hasRole('kepala departemen') && $user->department_id) {
     private function getPassRateAnalysisData($baseQuery)
     {
         $stages = [
-            ['name' => 'Aplikasi Diterima', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
-            ['name' => 'CV Review', 'stage_name' => 'cv_review', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
             ['name' => 'Psikotes', 'stage_name' => 'psikotes', 'pass_values' => ['LULUS', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK LULUS', 'FAIL']],
             ['name' => 'Interview HC', 'stage_name' => 'hc_interview', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DISARANKAN', 'FAIL']],
             ['name' => 'Interview User', 'stage_name' => 'user_interview', 'pass_values' => ['LULUS', 'DISARANKAN', 'PASS', 'OK', 'DONE'], 'fail_values' => ['TIDAK DISARANKAN', 'FAIL']],
