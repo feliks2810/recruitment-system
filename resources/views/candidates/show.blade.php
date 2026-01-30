@@ -155,7 +155,7 @@
                                                id="next_stage_date"
                                                name="next_stage_date" 
                                                x-model="stageData.next_stage_date"
-                                               :min="getCurrentDate()"
+                                               {{-- :min="getCurrentDate()" --}}
                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                     </div>
 
@@ -443,6 +443,7 @@
             </div>
             @endif
 
+            @can('view-candidate-documents', $candidate)
             @if($candidate->cv || $candidate->flk)
                 <div class="overflow-hidden rounded-lg bg-white shadow">
                     <div class="px-6 py-4 border-b border-gray-200">
@@ -463,7 +464,7 @@
                                             <p class="text-xs text-gray-500">PDF Document</p>
                                         </div>
                                     </div>
-                                    <a href="{{ Storage::url($candidate->cv) }}"
+                                    <a href="{{ route('files.serve', ['filePath' => $candidate->cv]) }}"
                                        target="_blank"
                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors">
                                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -487,7 +488,7 @@
                                             <p class="text-xs text-gray-500">PDF Document</p>
                                         </div>
                                     </div>
-                                    <a href="{{ Storage::url($candidate->flk) }}"
+                                    <a href="{{ route('files.serve', ['filePath' => $candidate->flk]) }}"
                                        target="_blank"
                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors">
                                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -501,6 +502,7 @@
                     </div>
                 </div>
             @endif
+            @endcan
         </div>
 
         <!-- Konten Utama - Riwayat dan Timeline -->

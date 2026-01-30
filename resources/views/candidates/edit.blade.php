@@ -78,32 +78,13 @@
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="vacancy" class="block text-sm font-medium text-gray-700">Vacancy *</label>
-                            <input type="text" name="vacancy" id="vacancy" value="{{ old('vacancy', $candidate->vacancy) }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-                        </div>
-                        <div>
-                            <label for="department_id" class="block text-sm font-medium text-gray-700">Departemen *</label>
-                            <select name="department_id" id="department_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-                                <option value="">Pilih Departemen</option>
-                                @foreach($departments as $department)
-                                    <option value="{{ $department->id }}" {{ old('department_id', $candidate->department_id) == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
+                            <label for="vacancy_id" class="block text-sm font-medium text-gray-700">Nama Lowongan *</label>
+                            <select name="vacancy_id" id="vacancy_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                                <option value="">Pilih Lowongan</option>
+                                @foreach($vacancies as $vacancy)
+                                    <option value="{{ $vacancy->id }}" {{ old('vacancy_id', $candidate->applications->first()->vacancy_id ?? null) == $vacancy->id ? 'selected' : '' }}>{{ $vacancy->name }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label for="airsys_internal" class="block text-sm font-medium text-gray-700">Tipe Kandidat *</label>
-                            <select name="airsys_internal" id="airsys_internal" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-                                <option value="Yes" {{ old('airsys_internal', $candidate->airsys_internal) == 'Yes' ? 'selected' : '' }}>Organik</option>
-                                <option value="No" {{ old('airsys_internal', $candidate->airsys_internal) == 'No' ? 'selected' : '' }}>Non-Organik</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="internal_position" class="block text-sm font-medium text-gray-700">Posisi Internal</label>
-                            <input type="text" name="internal_position" id="internal_position" value="{{ old('internal_position', $candidate->internal_position) }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                        </div>
-                        <div>
-                            <label for="source" class="block text-sm font-medium text-gray-700">Sumber</label>
-                            <input type="text" name="source" id="source" value="{{ old('source', $candidate->source) }}" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         </div>
                     </div>
                 </div>

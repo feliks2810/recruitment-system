@@ -43,16 +43,6 @@ class ApplicationStageService
                 throw ValidationException::withMessages(['stage' => 'Stage tidak ditemukan.']);
             }
             
-            // Validate date is not before previous stage
-            $previousStageKey = $this->getPreviousStageKey($stageKey);
-            if ($previousStageKey) {
-                $previousStage = $application->stages()->where('stage_name', $previousStageKey)->first();
-                if ($previousStage && $previousStage->scheduled_date && $stageDate < $previousStage->scheduled_date) {
-                    throw ValidationException::withMessages([
-                        'stage_date' => 'Tanggal stage tidak boleh lebih awal dari tanggal stage sebelumnya: ' . $previousStage->scheduled_date->format('d M Y')
-                    ]);
-                }
-            }
             
             // Only update scheduled_date, keep existing result and other data
             $existingStage->update([
@@ -64,17 +54,6 @@ class ApplicationStageService
 
         $this->validateStageTransition($application, $stageKey);
         
-        // Validate date is not before previous stage
-        $previousStageKey = $this->getPreviousStageKey($stageKey);
-        if ($previousStageKey) {
-            $previousStage = $application->stages()->where('stage_name', $previousStageKey)->first();
-            if ($previousStage && $previousStage->scheduled_date && $stageDate < $previousStage->scheduled_date) {
-                throw ValidationException::withMessages([
-                    'stage_date' => 'Tanggal stage tidak boleh lebih awal dari tanggal stage sebelumnya: ' . $previousStage->scheduled_date->format('d M Y')
-                ]);
-            }
-        }
-
         // Update current stage
         $result = strtoupper($validatedData['result']);
         $stageData = [

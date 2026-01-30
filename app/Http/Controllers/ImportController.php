@@ -80,7 +80,7 @@ class ImportController extends Controller
                 $rowData = array_combine($mappedHeaders, array_pad(array_slice($row, 0, count($mappedHeaders)), count($mappedHeaders), null));
                 $rowIndex = $index + 2; // Excel rows are 1-based, and we shifted headers
 
-                $validationErrors = $this->validateRow($rowData, $rowIndex);
+                $validationErrors = $this->validateRow($rowData, $rowIndex); // Pass year to validateRow
                 if (!empty($validationErrors)) {
                     $errors = array_merge($errors, $validationErrors);
                 }
@@ -91,37 +91,27 @@ class ImportController extends Controller
                 }
             }
 
-            if (!empty($errors)) {
-                Storage::delete($path);
-                return response()->json([
-                    'success' => false,
-                    'message' => "Ditemukan error pada {$previewRowCount} baris pertama. Mohon perbaiki dan coba lagi.",
-                    'errors' => $errors,
-                ]);
-            }
-
-            if (empty($previewData)) {
-                Storage::delete($path);
-                return response()->json([
-                    'success' => false,
-                    'message' => "Tidak ada data valid yang ditemukan dalam {$previewRowCount} baris pertama file."
-                ]);
-            }
-
             // If validation of the first rows passes, cache the file path for final import
             Cache::put($fileId, [
                 'path' => $path,
                 'filename' => $file->getClientOriginalName(),
-                'row_count' => $totalRows // IMPORTANT: Cache the total row count
+                'row_count' => $totalRows,
             ], now()->addHour());
+
+            // Even if there are errors, we return success: true, but provide the errors for display
+            $message = "Validasi awal pada {$previewRowCount} baris pertama berhasil. {$totalRows} total baris akan diimpor.";
+            if (!empty($errors)) {
+                $message = "Validasi awal selesai. Ditemukan beberapa masalah, baris tersebut akan dilewati saat import final. {$totalRows} total baris akan diimpor.";
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => "Validasi awal pada {$previewRowCount} baris pertama berhasil. {$totalRows} total baris akan diimpor.",
+                'message' => $message,
                 'file_id' => $fileId,
                 'total_rows' => $totalRows, // Show total rows to the user
                 'preview' => $previewData,
                 'headers' => $mappedHeaders,
+                'errors' => $errors, // Always return errors, even if empty
             ]);
 
         } catch (\Throwable $e) {
@@ -165,10 +155,11 @@ class ImportController extends Controller
                 'success_rows' => 0,
                 'failed_rows' => 0,
                 'status' => 'processing',
+                'year' => null, // Year is now per-row, so this is null
             ]);
 
             // Dispatch the job asynchronously
-            ProcessCandidateImport::dispatch($path, auth()->id(), $importHistory->id);
+            ProcessCandidateImport::dispatch($path, auth()->id(), $importHistory->id)->delay(now()->addSeconds(2));
 
             // Forget the cache key, the job will handle file deletion
             Cache::forget($fileId);
@@ -225,13 +216,20 @@ class ImportController extends Controller
     private function validateRow(array $row, int $rowIndex): array
     {
         $errors = [];
+        
+        $mppYear = trim($row['tahun_mpp'] ?? '');
 
         // 1. Required fields check
-        $requiredFields = ['nama', 'alamat_email'];
+        $requiredFields = ['nama', 'alamat_email', 'jabatan_dilamar'];
         foreach ($requiredFields as $field) {
             if (empty($row[$field]) || trim($row[$field]) === '') {
                 $errors[] = "Baris {$rowIndex}: Kolom '{$field}' tidak boleh kosong.";
             }
+        }
+        
+        // If a vacancy is present, a year must also be present
+        if (!empty($row['jabatan_dilamar']) && empty($mppYear)) {
+            $errors[] = "Baris {$rowIndex}: Kolom 'Tahun MPP' wajib diisi jika 'Jabatan Dilamar' diisi.";
         }
 
         // 2. Email format check
@@ -244,15 +242,19 @@ class ImportController extends Controller
             $errors[] = "Baris {$rowIndex}: Format tanggal lahir tidak valid. Gunakan format YYYY-MM-DD atau DD-MM-YYYY.";
         }
         
-        // 4. Vacancy check - DIUBAH: TIDAK WAJIB ADA DI DATABASE (AKAN DI-CREATE OTOMATIS DI IMPORT)
-        // if (!empty($row['jabatan_dilamar'])) {
-        //     $vacancyId = $this->getVacancyId($row['jabatan_dilamar']);
-        //     if (!$vacancyId) {
-        //         $errors[] = "Baris {$rowIndex}: Jabatan/Posisi '{$row['jabatan_dilamar']}' tidak ditemukan di database.";
-        //     }
-        // }
+        // 4. Vacancy check - Must exist in an approved MPP for the selected year
+        if (!empty($row['jabatan_dilamar']) && !empty($mppYear)) {
+            if (!is_numeric($mppYear) || strlen($mppYear) != 4) {
+                 $errors[] = "Baris {$rowIndex}: Format 'Tahun MPP' ('{$mppYear}') tidak valid. Gunakan 4 digit angka (contoh: 2024).";
+            } else {
+                $vacancyId = $this->getVacancyId($row['jabatan_dilamar'], (int)$mppYear);
+                if (!$vacancyId) {
+                    $errors[] = "Baris {$rowIndex}: Jabatan/Posisi '{$row['jabatan_dilamar']}' tidak ditemukan di MPP yang disetujui untuk tahun {$mppYear}.";
+                }
+            }
+        }
 
-        // 5. Duplicate check (only if all required fields are valid)
+        // 5. Duplicate check (only if all required fields are valid and no vacancy error)
         if (empty($errors)) {
             $duplicateCheckData = [
                 'email' => $row['alamat_email'],
@@ -285,7 +287,10 @@ class ImportController extends Controller
             'vacancy' => 'jabatan_dilamar',
             'vacancy title' => 'jabatan_dilamar',
             'position' => 'jabatan_dilamar',
+            'tahun mpp' => 'tahun_mpp',
+            'mpp year' => 'tahun_mpp',
             'jenis kelamin' => 'jenis_kelamin',
+            'JK' => 'jenis_kelamin',
             'gender' => 'jenis_kelamin',
             'tanggal lahir' => 'tanggal_lahir',
             'date of birth' => 'tanggal_lahir',
@@ -343,10 +348,36 @@ class ImportController extends Controller
         }
     }
     
-    private function getVacancyId(string $vacancyName): ?int
+    private function getVacancyId(string $vacancyName, int $year): ?int
     {
-        $vacancy = Vacancy::whereRaw('LOWER(name) = ?', [strtolower(trim($vacancyName))])->first();
-        return $vacancy->id ?? null;
+        Log::debug('getVacancyId: Attempting to find vacancy', [
+            'vacancy_name' => $vacancyName,
+            'year' => $year
+        ]);
+
+        $normalizedVacancyName = strtolower(trim($vacancyName));
+
+        $vacancy = Vacancy::whereRaw('LOWER(name) = ?', [$normalizedVacancyName])
+            ->where('proposal_status', Vacancy::STATUS_APPROVED) // Ensure vacancy proposal status is approved
+            ->whereHas('mppSubmission', function ($q) use ($year) {
+                $q->where('year', $year)
+                  ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED); // Ensure linked MPP is approved for the year
+            });
+        
+        Log::debug('getVacancyId: Vacancy query build', ['sql' => $vacancy->toSql(), 'bindings' => $vacancy->getBindings()]);
+
+        $foundVacancy = $vacancy->first();
+
+        if ($foundVacancy) {
+            Log::debug('getVacancyId: Vacancy found', ['id' => $foundVacancy->id, 'name' => $foundVacancy->name]);
+            return $foundVacancy->id;
+        }
+
+        Log::debug('getVacancyId: Vacancy NOT found for given criteria', [
+            'vacancy_name' => $vacancyName,
+            'year' => $year
+        ]);
+        return null;
     }
 
     public function downloadTemplate($type = 'candidates')

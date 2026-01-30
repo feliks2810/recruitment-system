@@ -22,6 +22,7 @@ class MPPSubmission extends Model
     protected $fillable = [
         'created_by_user_id',
         'department_id',
+        'year', // Added year to fillable
         'status',
         'submitted_at',
         'approved_at',

@@ -22,10 +22,11 @@ class DashboardController extends Controller
         $user = Auth::user();
 
         $baseQuery = Application::query();
-        if ($user->hasRole('department')) {
-            $baseQuery->where('department_id', $user->department_id);
-        }
-
+            if ($user->hasRole('kepala departemen')) {
+                $baseQuery->whereHas('candidate', function ($query) use ($user) {
+                    $query->where('department_id', $user->department_id);
+                });
+            }
         // Filter by year if provided
         if ($year) {
             $baseQuery->whereYear('created_at', $year);
@@ -47,18 +48,19 @@ class DashboardController extends Controller
         $recentCandidatesQuery = Candidate::with('department', 'applications')
             ->orderBy('created_at', 'desc')
             ->limit(5);
-        if ($user->hasRole('department')) {
+        if ($user->hasRole('kepala departemen')) {
             $recentCandidatesQuery->where('department_id', $user->department_id);
         }
         $recent_candidates = $recentCandidatesQuery->get();
 
         $distributionQuery = ApplicationStage::whereHas('application', function($q) use ($year, $user) {
-            $q->whereYear('created_at', $year);
-            if ($user->hasRole('department')) {
-                $q->where('department_id', $user->department_id);
-            }
-        });
-
+                    $q->whereYear('created_at', $year);
+                    if ($user->hasRole('kepala departemen')) {
+                        $q->whereHas('candidate', function ($cq) use ($user) {
+                            $cq->where('department_id', $user->department_id);
+                        });
+                    }
+                });
         $stageOrder = [
             'psikotes',
             'hc_interview',
@@ -109,7 +111,7 @@ class DashboardController extends Controller
 
         // Gender Distribution
         $genderDistributionQuery = Candidate::query();
-        if ($user->hasRole('department')) {
+        if ($user->hasRole('kepala departemen')) {
             $genderDistributionQuery->where('department_id', $user->department_id);
         }
         if ($year) {
@@ -124,7 +126,7 @@ class DashboardController extends Controller
 
         // University Distribution
         $universityDistributionQuery = Candidate::query();
-        if ($user->hasRole('department')) {
+        if ($user->hasRole('kepala departemen')) {
             $universityDistributionQuery->where('department_id', $user->department_id);
         }
         if ($year) {
@@ -207,7 +209,7 @@ class DashboardController extends Controller
         //     ->whereDate('scheduled_date', '>=', now()->startOfYear())
         //     ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
 
-        // if ($user->hasRole('department')) {
+        // if ($user->hasRole('kepala departemen')) {
         //     $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
         //         $q->where('department_id', $user->department_id);
         //     });
@@ -234,7 +236,7 @@ class DashboardController extends Controller
             ->whereDate('date', '>=', now()->startOfYear())
             ->whereDate('date', '<=', now()->addYear()->endOfYear());
         
-        if ($user->hasRole('department')) {
+        if ($user->hasRole('kepala departemen')) {
             $customEventsQuery->where('department_id', $user->department_id);
         }
 
@@ -260,11 +262,11 @@ class DashboardController extends Controller
         $year = $request->get('year', date('Y'));
         $user = Auth::user();
 
-        $query = Application::whereYear('created_at', $year);
-        
-        if ($user->hasRole('department')) {
-            $query->where('department_id', $user->department_id);
-        }
+    if ($user->hasRole('kepala departemen')) {
+        $query->whereHas('candidate', function ($cq) use ($user) {
+            $cq->where('department_id', $user->department_id);
+        });
+    }
 
         $stats = $query
             ->selectRaw('MONTH(created_at) as month,
@@ -298,10 +300,11 @@ class DashboardController extends Controller
         
         $query = Application::query();
         
-        if ($user->hasRole('department')) {
-            $query->where('department_id', $user->department_id);
-        }
-        
+            if ($user->hasRole('kepala departemen')) {
+                $query->whereHas('candidate', function ($cq) use ($user) {
+                    $cq->where('department_id', $user->department_id);
+                });
+            }        
         $years = $query
             ->selectRaw('YEAR(created_at) as year')
             ->distinct()

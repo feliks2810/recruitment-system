@@ -54,14 +54,21 @@ class ProcessCandidateImport implements ShouldQueue
             // Support both relative (Storage path) and absolute paths
             if (!str_starts_with($path, '/') && !preg_match('/^[a-z]:/i', $path)) {
                 // Relative path - use Storage
-                $path = Storage::path($path);
+                $absolutePath = Storage::path($path);
+            } else {
+                $absolutePath = $path;
             }
 
-            if (!file_exists($path)) {
+            Log::info('ProcessCandidateImport: Checking for file', [
+                'history_id' => $this->importHistoryId,
+                'path_to_check' => $absolutePath,
+            ]);
+
+            if (!file_exists($absolutePath)) {
                 throw new \Exception('Import file not found: ' . $this->path);
             }
 
-            $import = new CandidatesImport($this->authUserId);
+            $import = new CandidatesImport($this->authUserId); // Pass year to CandidatesImport
 
             Excel::import($import, $path);
 
@@ -84,6 +91,9 @@ class ProcessCandidateImport implements ShouldQueue
                 'error_count' => count($errors),
             ]);
 
+            // Hapus file setelah impor sukses
+            $this->deleteFile();
+
         } catch (Throwable $e) {
 
             Log::error('ProcessCandidateImport: Import failed', [
@@ -97,23 +107,6 @@ class ProcessCandidateImport implements ShouldQueue
             ]);
 
             throw $e; // penting supaya queue retry
-
-        } finally {
-
-            // DELETE FILE HANYA JIKA JOB SUKSES ATAU FINAL FAIL
-            $path = $this->path;
-            
-            // Support both relative and absolute paths
-            if (!str_starts_with($path, '/') && !preg_match('/^[a-z]:/i', $path)) {
-                $path = Storage::path($path);
-            }
-            
-            if (file_exists($path)) {
-                unlink($path);
-                Log::info('ProcessCandidateImport: File deleted', [
-                    'history_id' => $this->importHistoryId,
-                ]);
-            }
         }
     }
 
@@ -129,6 +122,26 @@ class ProcessCandidateImport implements ShouldQueue
             $importHistory->update([
                 'status' => 'failed',
                 'error_message' => 'Job failed permanently: ' . $exception->getMessage(),
+            ]);
+        }
+
+        // Hapus file setelah semua percobaan gagal
+        $this->deleteFile();
+    }
+
+    private function deleteFile()
+    {
+        $path = $this->path;
+
+        // Support both relative and absolute paths
+        if (!str_starts_with($path, '/') && !preg_match('/^[a-z]:/i', $path)) {
+            $path = Storage::path($path);
+        }
+
+        if (file_exists($path)) {
+            unlink($path);
+            Log::info('ProcessCandidateImport: File deleted', [
+                'history_id' => $this->importHistoryId,
             ]);
         }
     }

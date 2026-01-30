@@ -38,6 +38,34 @@
                     @enderror
                 </div>
 
+                <!-- Year Selection -->
+                <div class="mb-6">
+                    <label for="year" class="block text-sm font-medium text-gray-700 mb-2">
+                        Tahun <span class="text-red-500">*</span>
+                    </label>
+                    <select
+                        id="year"
+                        name="year"
+                        class="w-full px-3 py-2 border @error('year') border-red-500 @else border-gray-300 @enderror rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        required
+                    >
+                        @php
+                            $currentYear = date('Y');
+                            $startYear = $currentYear - 3; // 3 years before current
+                            $endYear = $currentYear + 1; // 1 year after current
+                            $years = range($endYear, $startYear); // From endYear down to startYear
+                        @endphp
+                        @foreach ($years as $yr)
+                        <option value="{{ $yr }}" @selected(old('year', $currentYear) == $yr)>
+                            {{ $yr }}
+                        </option>
+                        @endforeach
+                    </select>
+                    @error('year')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 <!-- Positions Section -->
                 <div class="mb-6">
                     <div class="flex justify-between items-center mb-4">

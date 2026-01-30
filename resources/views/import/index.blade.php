@@ -142,7 +142,7 @@
                 <button @click="cancelImport" class="text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                     Batal
                 </button>
-                <button @click="confirmImport" x-show="errors.length === 0" :disabled="isConfirming"
+                <button @click="confirmImport" :disabled="isConfirming"
                     class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                     <span x-show="!isConfirming">
                         <i class="fas fa-check"></i> Konfirmasi & Import
@@ -353,6 +353,7 @@
                 const formData = new FormData();
                 formData.append('file', this.file);
 
+
                 try {
                     const response = await fetch('{{ route("import.preview") }}', {
                         method: 'POST',
@@ -368,13 +369,16 @@
                     
                     const data = await response.json();
                     
-                    if (!data.success) {
-                        this.errors = data.errors || [data.message];
-                    } else {
+                    this.errors = data.errors || []; // Always assign errors, even if empty
+                    if (data.success) {
                         this.fileId = data.file_id;
                         this.previewData = data.preview;
                         this.previewHeaders = data.headers;
                         this.totalRows = data.total_rows;
+                    } else {
+                        // This else block should ideally not be hit if backend always returns success: true
+                        // But good for defensive programming
+                        this.errors = data.errors || [data.message];
                     }
                     this.showModal = true;
 

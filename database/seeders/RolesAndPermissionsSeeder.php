@@ -77,6 +77,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Document management
             'manage-documents',
+            'view-candidate-documents',
             'manage-departments',
             'view-posisi-pelamar',
             'manage-vacancies',
@@ -128,6 +129,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-departments',
             'manage-vacancies',
             'view-reports',
+            'view-candidate-documents',
         ]);
 
         // ============================================
@@ -163,6 +165,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'mark-duplicate',
             'resolve-duplicate',
             'manage-documents',
+            'view-candidate-documents',
             'view-posisi-pelamar',
             'review-vacancy-proposals-step-1',
             'propose-vacancy',
@@ -212,6 +215,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'mark-duplicate',
             'resolve-duplicate',
             'manage-documents',
+            'view-candidate-documents',
             'view-posisi-pelamar',
             'review-vacancy-proposals-step-1',
             'propose-vacancy',
@@ -235,6 +239,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'view-dashboard',
             'view-own-department-candidates',
             'show-candidates',
+            'view-candidate-documents',
             'view-statistics',
             'propose-vacancy',
             'view-events',

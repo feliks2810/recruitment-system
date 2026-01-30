@@ -27,7 +27,7 @@
 </div>
 @canany(['view-candidates', 'view-own-department-candidates'])
     {{-- This scope initializes and contains all Alpine.js logic for this page --}}
-    <div x-data="candidatesPage()" x-init="init()" id="candidates-scope">
+    <div x-data="candidatesPage()" x-init="init(); $store.candidates.selectedIds = [];" id="candidates-scope" x-cloak>
 
         
 
@@ -43,12 +43,7 @@
                 </div>
                 
                 <div class="flex items-center gap-2">
-                    @can('edit-candidates')
-                        <button @click="confirmBulkSwitchType" class="bg-teal-600 text-white px-3 py-2 rounded-lg hover:bg-teal-700 text-sm flex items-center gap-2">
-                            <i class="fas fa-exchange-alt"></i>
-                            <span>Ubah Tipe</span>
-                        </button>
-                    @endcan
+                    
                     
                     <button @click="showBulkExportModal = true" class="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2">
                         <i class="fas fa-download"></i>
@@ -96,6 +91,7 @@
                         @endforeach
                     </select>
                 </div>
+                @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin'))
                 <div>
                     <label for="department_id" class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
                     <select name="department_id" id="department_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -106,6 +102,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
                 <div>
                     <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
                     <select name="source" id="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -236,7 +233,7 @@
 
 
 
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-semibold text-gray-900">
                         @if($type === 'duplicate')
@@ -300,7 +297,7 @@
                                         @continue
                                     @endif
                                     {{-- Highlight for duplicate candidates --}}
-                                    <tr class="hover:bg-gray-50 transition-colors {{ $isDuplicate ? 'bg-yellow-50 border-l-4 border-yellow-400' : '' }}">
+                                    <tr x-data="{ open: false }" @click.away="open = false" :class="{ 'relative z-10': open }" class="hover:bg-gray-50 transition-colors {{ $isDuplicate ? 'bg-yellow-50 border-l-4 border-yellow-400' : '' }}">
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <label for="candidate_checkbox_{{ $candidate->id }}" class="sr-only">Select {{ $candidate->nama }}</label>
                                             <input type="checkbox"
@@ -369,7 +366,7 @@
                                                 <div class="text-sm font-medium text-gray-700">{{ $candidate->applicant_id }}</div>
                                             </td>
                                         @endif
-                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50">
+                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50 relative">
                                             <div class="flex items-center gap-1 sm:gap-2">
                                                 @can('show-candidates')
                                                     <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900 p-1" title="Lihat Detail">
@@ -396,7 +393,7 @@
 
                                                 @canany(['import-excel', 'delete-candidates'])
                                                 <!-- Dropdown for other actions -->
-                                                <div x-data="{ open: false }" class="relative" @click.away="open = false">
+                                                <div class="relative">
                                                     <button @click="open = !open" class="text-gray-500 hover:text-gray-700 p-1 rounded-full focus:outline-none">
                                                         <i class="fas fa-ellipsis-v"></i>
                                                     </button>
@@ -407,7 +404,7 @@
                                                          x-transition:leave="transition ease-in duration-75"
                                                          x-transition:leave-start="transform opacity-100 scale-100"
                                                          x-transition:leave-end="transform opacity-0 scale-95"
-                                                         class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-30 border"
+                                                         class="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-lg z-50 border"
                                                          style="display: none;">
                                                         <div class="py-1">
                                                             @can('import-excel')
@@ -625,3 +622,81 @@
     </div>
 @endcan
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.store('candidates', {
+            selectedIds: [],
+        });
+    });
+
+    function candidatesPage() {
+        return {
+            selectedCount: 0,
+            allVisibleSelected: false,
+            showBulkUpdateModal: false,
+            showBulkMoveModal: false,
+            showBulkExportModal: false,
+            updateForm: {
+                stage: '',
+                status: '',
+                notes: '',
+            },
+            moveForm: {
+                targetStage: '',
+                notes: '',
+            },
+            exportForm: {
+                format: 'excel',
+                columns: ['nama', 'vacancy', 'department', 'current_stage', 'overall_status', 'created_at'],
+            },
+            init() {
+                this.$watch('$store.candidates.selectedIds', (newValue) => {
+                    this.selectedCount = newValue.length;
+                    this.updateSelectAllCheckbox();
+                });
+            },
+            updateSelectAllCheckbox() {
+                const visibleIds = this.getVisibleCandidateIds();
+                const selectedVisible = visibleIds.filter(id => this.$store.candidates.selectedIds.includes(id));
+                this.allVisibleSelected = visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
+            },
+            toggleAll(checked) {
+                const visibleIds = this.getVisibleCandidateIds();
+                if (checked) {
+                    this.$store.candidates.selectedIds = [...new Set([...this.$store.candidates.selectedIds, ...visibleIds])];
+                } else {
+                    this.$store.candidates.selectedIds = this.$store.candidates.selectedIds.filter(id => !visibleIds.includes(id));
+                }
+            },
+            getVisibleCandidateIds() {
+                return Array.from(document.querySelectorAll('input[name="candidate_ids[]"]')).map(el => parseInt(el.value));
+            },
+            clearSelection() {
+                this.$store.candidates.selectedIds = [];
+            },
+            confirmBulkSwitchType() {
+                // Implement confirmation logic
+                console.log('Switching type for:', this.$store.candidates.selectedIds);
+            },
+            confirmBulkDelete() {
+                // Implement confirmation logic
+                console.log('Deleting:', this.$store.candidates.selectedIds);
+            },
+            submitBulkUpdate() {
+                // Implement bulk update logic
+                console.log('Updating:', this.$store.candidates.selectedIds, this.updateForm);
+            },
+            submitBulkMove() {
+                // Implement bulk move logic
+                console.log('Moving:', this.$store.candidates.selectedIds, this.moveForm);
+            },
+            submitBulkExport() {
+                // Implement bulk export logic
+                console.log('Exporting:', this.$store.candidates.selectedIds, this.exportForm);
+            },
+        };
+    }
+</script>
+@endpush

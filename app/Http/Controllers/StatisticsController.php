@@ -147,11 +147,10 @@ class StatisticsController extends Controller
     {
         $data = (clone $query)
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
-            ->join('profiles', 'candidates.id', '=', 'profiles.candidate_id')
-            ->select('profiles.jk', DB::raw('count(*) as count'))
-            ->whereNotNull('profiles.jk')
-            ->where('profiles.jk', '!=', '')
-            ->groupBy('profiles.jk')
+            ->select('candidates.jk', DB::raw('count(*) as count'))
+            ->whereNotNull('candidates.jk')
+            ->where('candidates.jk', '!=', '')
+            ->groupBy('candidates.jk')
             ->orderByDesc('count')
             ->get();
 

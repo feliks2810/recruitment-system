@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Candidate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use App\Models\User;
@@ -24,6 +25,13 @@ class AuthServiceProvider extends ServiceProvider
     {
         Gate::define('view-candidates', function (User $user) {
             return $user->hasPermissionTo('view-candidates');
+        });
+
+        Gate::define('view-candidate-documents', function (User $user, Candidate $candidate) {
+            if ($user->hasRole('kepala departemen')) {
+                return $user->hasPermissionTo('view-candidate-documents') && $user->department_id === $candidate->department_id;
+            }
+            return $user->hasPermissionTo('view-candidate-documents');
         });
     }
 }

@@ -102,6 +102,7 @@ class MPPSubmissionController extends Controller
 
         $validated = $request->validate([
             'department_id' => 'required|exists:departments,id',
+            'year' => 'required|integer|min:2000|max:2100', // Added year validation
             'positions' => 'required|array|min:1',
             'positions.*.vacancy_id' => 'required|exists:vacancies,id',
             'positions.*.vacancy_status' => 'required|in:OSPKWT,OS',
@@ -113,6 +114,7 @@ class MPPSubmissionController extends Controller
             $mppSubmission = MPPSubmission::create([
                 'created_by_user_id' => $user->id,
                 'department_id' => $validated['department_id'],
+                'year' => $validated['year'], // Store the year
                 'status' => MPPSubmission::STATUS_SUBMITTED, // Auto-submit
                 'submitted_at' => now(),
             ]);

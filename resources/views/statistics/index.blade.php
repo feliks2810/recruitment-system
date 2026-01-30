@@ -382,18 +382,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // 4. Gender Distribution Chart
-    const totalGender = Object.values(genderData).reduce((sum, value) => sum + value, 0);
+    const rawGenderData = @json($genderData);
+    const genderMapping = {
+        'Laki-laki': { count: 0, color: 'rgba(59, 130, 246, 0.8)' },
+        'Perempuan': { count: 0, color: 'rgba(236, 72, 153, 0.8)' },
+        'Tidak Diketahui': { count: 0, color: 'rgba(156, 163, 175, 0.8)' }
+    };
+
+    for (const key in rawGenderData) {
+        const count = rawGenderData[key];
+        if (key === 'L' || key === 'Laki-laki') {
+            genderMapping['Laki-laki'].count += count;
+        } else if (key === 'P' || key === 'Perempuan') {
+            genderMapping['Perempuan'].count += count;
+        } else {
+            genderMapping['Tidak Diketahui'].count += count;
+        }
+    }
+
+    const finalGenderData = Object.values(genderMapping).map(d => d.count).filter(count => count > 0);
+    const finalGenderLabels = Object.keys(genderMapping).filter((key, index) => Object.values(genderMapping).map(d => d.count)[index] > 0);
+    const finalGenderColors = Object.values(genderMapping).map(d => d.color).filter((color, index) => Object.values(genderMapping).map(d => d.count)[index] > 0);
+    const totalGender = finalGenderData.reduce((sum, value) => sum + value, 0);
+
     new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
         data: {
-            labels: Object.keys(genderData).map(key => {
-                if (key === 'L') return 'Laki-laki';
-                if (key === 'P') return 'Perempuan';
-                return 'Tidak Diketahui';
-            }),
+            labels: finalGenderLabels,
             datasets: [{
-                data: Object.values(genderData),
-                backgroundColor: ['rgba(59, 130, 246, 0.8)', 'rgba(236, 72, 153, 0.8)', 'rgba(156, 163, 175, 0.8)'],
+                data: finalGenderData,
+                backgroundColor: finalGenderColors,
                 borderWidth: 0
             }]
         },
@@ -412,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (context.raw !== null) {
                                 label += context.raw;
                             }
-                            const percentage = (context.raw / totalGender * 100).toFixed(2);
+                            const percentage = totalGender > 0 ? (context.raw / totalGender * 100).toFixed(2) : 0;
                             return `${label} (${percentage}%)`;
                         }
                     }

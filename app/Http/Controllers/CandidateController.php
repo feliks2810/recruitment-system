@@ -9,6 +9,8 @@ use App\Models\Vacancy;
 use App\Services\ApplicationStageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CandidateController extends Controller
@@ -62,7 +64,14 @@ class CandidateController extends Controller
     {
         $vacancies = Vacancy::where('proposal_status', 'approved')->orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        return view('candidates.create', compact('vacancies', 'departments'));
+        
+        // Generate Applicant ID
+        $today = now()->format('ymd');
+        $todayCount = Candidate::whereDate('created_at', today())->count();
+        $nextId = str_pad($todayCount + 1, 3, '0', STR_PAD_LEFT);
+        $applicantId = "{$today}-{$nextId}";
+
+        return view('candidates.create', compact('vacancies', 'departments', 'applicantId'));
     }
 
     /**
@@ -72,16 +81,68 @@ class CandidateController extends Controller
     {
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
-            'alamat_email' => 'required|email|unique:candidates,email',
-            'phone' => 'nullable|string',
-            'jenis_kelamin' => 'nullable|string',
+            'alamat_email' => 'required|email|unique:candidates,alamat_email',
+            'applicant_id' => 'required|string|unique:candidates,applicant_id',
+            'jk' => 'nullable|string',
             'tanggal_lahir' => 'nullable|date',
-            'alamat' => 'nullable|string',
+            'vacancy_id' => 'required|exists:vacancies,id',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
 
-        $candidate = Candidate::create($validated);
+        \Log::info('Candidate store validation passed.', $validated);
 
-        return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate created successfully.');
+        try {
+            DB::beginTransaction();
+
+            $vacancy = Vacancy::findOrFail($validated['vacancy_id']);
+
+            // Determine candidate type from vacancy status
+            $airsysInternal = null;
+            if ($vacancy->vacancy_status === 'OSPKWT') {
+                $airsysInternal = 'Yes'; // Organic
+            } elseif ($vacancy->vacancy_status === 'OS') {
+                $airsysInternal = 'No'; // Non-Organic
+            }
+            
+            $data = [
+                'nama' => $validated['nama'],
+                'alamat_email' => $validated['alamat_email'],
+                'applicant_id' => $validated['applicant_id'],
+                'jk' => $validated['jk'] ?? null,
+                'tanggal_lahir' => $validated['tanggal_lahir'],
+                'department_id' => $vacancy->department_id, // Get department from vacancy
+                'airsys_internal' => $airsysInternal,
+            ];
+
+            if ($request->hasFile('cv')) {
+                $data['cv'] = $request->file('cv')->store('candidate-files', 'public');
+            }
+
+            if ($request->hasFile('flk')) {
+                $data['flk'] = $request->file('flk')->store('candidate-files', 'public');
+            }
+
+            // Create the candidate
+            $candidate = Candidate::create($data);
+
+            // Create the application for the candidate
+            Application::create([
+                'candidate_id' => $candidate->id,
+                'vacancy_id' => $vacancy->id,
+                'overall_status' => 'PROSES', // Default status
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate created successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error creating candidate: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withInput()->with('error', 'There was an error creating the candidate. Please try again.');
+        }
     }
 
     /**
@@ -89,8 +150,9 @@ class CandidateController extends Controller
      */
     public function edit(Candidate $candidate)
     {
+        $vacancies = Vacancy::where('proposal_status', 'approved')->orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        return view('candidates.edit', compact('candidate', 'departments'));
+        return view('candidates.edit', compact('candidate', 'departments', 'vacancies'));
     }
 
     /**
@@ -100,16 +162,74 @@ class CandidateController extends Controller
     {
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
-            'alamat_email' => 'required|email|unique:candidates,email,' . $candidate->id,
-            'phone' => 'nullable|string',
-            'jenis_kelamin' => 'nullable|string',
+            'alamat_email' => 'required|email|unique:candidates,alamat_email,' . $candidate->id,
+            'applicant_id' => 'required|string',
+            'jk' => 'nullable|string',
             'tanggal_lahir' => 'nullable|date',
-            'alamat' => 'nullable|string',
+            'vacancy_id' => 'required|exists:vacancies,id',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
 
-        $candidate->update($validated);
+        try {
+            DB::beginTransaction();
 
-        return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate updated successfully.');
+            $vacancy = Vacancy::findOrFail($validated['vacancy_id']);
+
+            // Determine candidate type from vacancy status
+            $airsysInternal = null;
+            if ($vacancy->vacancy_status === 'OSPKWT') {
+                $airsysInternal = 'Yes'; // Organic
+            } elseif ($vacancy->vacancy_status === 'OS') {
+                $airsysInternal = 'No'; // Non-Organic
+            }
+
+            $data = [
+                'nama' => $validated['nama'],
+                'alamat_email' => $validated['alamat_email'],
+                'jk' => $validated['jk'] ?? null,
+                'tanggal_lahir' => $validated['tanggal_lahir'],
+                'department_id' => $vacancy->department_id,
+                'airsys_internal' => $airsysInternal,
+            ];
+
+            if ($request->hasFile('cv')) {
+                // Delete old file if it exists
+                if ($candidate->cv) {
+                    Storage::disk('public')->delete($candidate->cv);
+                }
+                $data['cv'] = $request->file('cv')->store('candidate-files', 'public');
+            }
+
+            if ($request->hasFile('flk')) {
+                // Delete old file if it exists
+                if ($candidate->flk) {
+                    Storage::disk('public')->delete($candidate->flk);
+                }
+                $data['flk'] = $request->file('flk')->store('candidate-files', 'public');
+            }
+
+            // Update the candidate
+            $candidate->update($data);
+
+            // Update the application for the candidate
+            $application = $candidate->applications()->latest()->first();
+            if ($application) {
+                $application->update([
+                    'vacancy_id' => $vacancy->id,
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('candidates.show', $candidate)->with('success', 'Candidate updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error updating candidate: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withInput()->with('error', 'There was an error updating the candidate. Please try again.');
+        }
     }
 
     /**
@@ -222,7 +342,7 @@ class CandidateController extends Controller
         }
 
         if ($request->filled('stage')) {
-            $query->whereHas('stages', function ($q) use ($request) {
+            $query->whereHas('latestStage', function ($q) use ($request) {
                 $q->where('stage_name', $request->stage);
             });
         }

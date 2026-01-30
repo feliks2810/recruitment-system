@@ -17,6 +17,7 @@ use App\Http\Controllers\VacancyManagementController;
 use App\Http\Controllers\VacancyProposalController;
 use App\Http\Controllers\MPPSubmissionController;
 use App\Http\Controllers\VacancyDocumentController;
+use App\Http\Controllers\FileController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -220,4 +221,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_manage_vacancies' => $user->can('manage-vacancies'),
         ]);
     });
+
+    // Secure File Serving
+    Route::get('/private-files/{filePath}', [FileController::class, 'serveFile'])
+        ->where('filePath', '.*')
+        ->name('files.serve');
 });

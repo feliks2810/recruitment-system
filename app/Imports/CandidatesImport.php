@@ -21,6 +21,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
     public function __construct(int $userId)
     {
         $this->userId = $userId;
+        Log::debug('CandidatesImport: Constructor called', ['userId' => $userId]);
     }
 
     /**
@@ -30,46 +31,24 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
      * 
      * FITUR BARU:
      * Sistem import sekarang mendukung penentuan departemen otomatis dari vacancy.
+     * Tahun MPP sekarang dibaca per baris dari file Excel.
      * 
      * ALUR LOGIKA:
-     * 1. Jika vacancy disediakan di file:
-     *    - Cari vacancy di database
+     * 1. Jika 'vacancy' & 'tahun_mpp' disediakan di file:
+     *    - Cari vacancy di database berdasarkan nama DAN tahun MPP
      *    - JIKA TIDAK DITEMUKAN → IMPORT GAGAL (SKIP ROW) ❌
      *    - JIKA DITEMUKAN → Ambil department dari vacancy ✅
      * 
-     * 2. Jika vacancy kosong/tidak ada:
+     * 2. Jika 'vacancy' kosong/tidak ada:
      *    - Gunakan kolom 'department' dari file (fallback)
      *    - Buat department baru jika belum ada
-     * 
-     * 3. Jika keduanya kosong:
-     *    - Candidate dibuat tanpa department
      * 
      * KOLOM YANG DIGUNAKAN:
      * - applicant_id      (wajib): ID pelamar unik
      * - nama              (wajib): Nama lengkap kandidat
-     * - email             (opsional): Email
-     * - vacancy           (opsional): Nama vacancy → MUST EXIST IN DB jika ada!
-     * - department        (opsional): Nama departemen (fallback jika vacancy kosong)
-     * - psikotest_result  (opsional): Status hasil psikotes (LULUS/GAGAL/RETEST)
-     * 
-     * CONTOH 1 - DENGAN VACANCY YANG VALID:
-     * applicant_id | nama | email | vacancy | department
-     * 001          | John | ... | IT Officer | [kosong]
-     * → Sistem cari vacancy "IT Officer", ambil department-nya
-     * → BERHASIL ✅
-     * 
-     * CONTOH 2 - DENGAN VACANCY YANG TIDAK ADA:
-     * applicant_id | nama | email | vacancy | department
-     * 002          | Jane | ... | INVALID | [kosong]
-     * → Sistem cari vacancy "INVALID", TIDAK DITEMUKAN
-     * → IMPORT GAGAL untuk row ini ❌
-     * → Pesan error di log: "Vacancy tidak ditemukan di database"
-     * 
-     * CONTOH 3 - TANPA VACANCY (fallback ke department):
-     * applicant_id | nama | email | vacancy | department
-     * 003          | Bob  | ... | [kosong] | HCGAESRIT
-     * → Gunakan department "HCGAESRIT" (fallback)
-     * → BERHASIL ✅
+     * - vacancy           (wajib jika ada tahun_mpp): Nama vacancy → MUST EXIST IN DB!
+     * - tahun_mpp         (wajib jika ada vacancy): Tahun Manpower Plan
+     * - department        (opsional): Nama departemen (fallback)
      * 
      * ========================================================================
      */
@@ -82,66 +61,96 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
     public function collection(Collection $rows)
     {
         foreach ($rows as $index => $row) {
+            $rowIndex = $index + 2; // Excel row number
 
             // ================= SAFETY NORMALIZATION =================
             $name = trim($row['nama'] ?? '');
-
-            if ($name === '') {
+            if (empty($name)) {
                 $this->skipped++;
-                Log::info('CandidatesImport: Skip empty name', ['row' => $index + 2]);
+                Log::info('CandidatesImport: Skip empty name', ['row' => $rowIndex]);
                 continue;
             }
 
             $applicantId = trim($row['applicant_id'] ?? '');
-            if ($applicantId === '') {
+            if (empty($applicantId)) {
                 $this->skipped++;
-                Log::info('CandidatesImport: Skip empty applicant_id', ['row' => $index + 2]);
+                Log::info('CandidatesImport: Skip empty applicant_id', ['row' => $rowIndex]);
                 continue;
             }
 
             // ================= VACANCY & DEPARTMENT RESOLVE =================
-            // First, try to find vacancy by name to determine department
             $vacancyName = trim($row['vacancy'] ?? null);
+            $mppYear = trim($row['tahun_mpp'] ?? null);
             $vacancy = null;
             $departmentId = null;
             $rawDept = trim($row['department'] ?? $row['raw_department_name'] ?? '');
 
-            // VALIDATION: If vacancy is provided, it MUST exist in database
-            if ($vacancyName) {
-                $vacancy = \App\Models\Vacancy::where('name', $vacancyName)->first();
+            if ($vacancyName && !$mppYear) {
+                $this->skipped++;
+                $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Kolom "Tahun MPP" wajib diisi jika "Vacancy" diisi.'];
+                Log::error('CandidatesImport: Missing Tahun MPP', ['row' => $rowIndex, 'applicant_id' => $applicantId, 'vacancy_name' => $vacancyName]);
+                continue;
+            }
+
+            if ($vacancyName && $mppYear) {
+                Log::debug('CandidatesImport: Attempting to find vacancy for row', [
+                    'row' => $rowIndex,
+                    'applicant_id' => $applicantId,
+                    'vacancy_name_from_file' => $vacancyName,
+                    'mpp_year_from_file' => $mppYear
+                ]);
+
+                $vacancyQuery = \App\Models\Vacancy::where('name', $vacancyName)
+                    ->where('proposal_status', \App\Models\Vacancy::STATUS_APPROVED) // Must be an approved vacancy
+                    ->whereHas('mppSubmission', function ($q) use ($mppYear) {
+                        $q->where('year', $mppYear)
+                          ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED); // Ensure linked MPP is approved for the year
+                    });
                 
-                // If vacancy is provided but not found in database -> FAIL THIS ROW
+                Log::debug('CandidatesImport: Vacancy query details', [
+                    'row' => $rowIndex,
+                    'sql' => $vacancyQuery->toSql(),
+                    'bindings' => $vacancyQuery->getBindings()
+                ]);
+
+                $vacancy = $vacancyQuery->first();
+                
                 if (!$vacancy) {
                     $this->skipped++;
-                    $errorMessage = 'Vacancy "' . $vacancyName . '" tidak ditemukan di database. Silakan cek nama vacancy.';
+                    $errorMessage = 'Invalid Vacancy: "' . $vacancyName . '" for MPP year ' . $mppYear . ' was not found or not approved. Row skipped.';
                     
-                    // Collect error details
+                    // Add a warning to the import history for the user
                     $this->errors[] = [
-                        'row' => $index + 2,
+                        'row' => $rowIndex,
                         'applicant_id' => $applicantId,
                         'nama' => $name,
                         'vacancy_name_provided' => $vacancyName,
                         'error' => $errorMessage,
                     ];
                     
-                    Log::error('CandidatesImport: Vacancy not found in database - IMPORT FAILED', [
-                        'row' => $index + 2,
+                    // Log a warning instead of an error, as we are still processing the candidate
+                    Log::warning('CandidatesImport: Vacancy not found or not approved. Skipping row.', [
+                        'row' => $rowIndex,
                         'applicant_id' => $applicantId,
-                        'nama' => $name,
                         'vacancy_name_provided' => $vacancyName,
-                        'error' => $errorMessage,
+                        'year_used' => $mppYear,
                     ]);
-                    continue; // Skip this candidate
-                }
-                
-                // Vacancy found, get department from it
-                if ($vacancy->department_id) {
-                    $departmentId = $vacancy->department_id;
-                    Log::info('CandidatesImport: Department resolved from vacancy', [
-                        'row' => $index + 2,
-                        'vacancy_name' => $vacancyName,
-                        'department_id' => $departmentId,
+
+                    continue; // Skip this row
+                } else {
+                    Log::debug('CandidatesImport: Vacancy found for row', [
+                        'row' => $rowIndex,
+                        'id' => $vacancy->id,
+                        'mpp_year' => $vacancy->mppSubmission->year ?? 'N/A',
                     ]);
+
+                    if ($vacancy->department_id) {
+                        $departmentId = $vacancy->department_id;
+                        Log::info('CandidatesImport: Department resolved from vacancy', [
+                            'row' => $rowIndex,
+                            'department_id' => $departmentId,
+                        ]);
+                    }
                 }
             }
 
@@ -152,8 +161,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                     ['created_at' => now()]
                 )->id;
                 Log::info('CandidatesImport: Department resolved from raw department name', [
-                    'row' => $index + 2,
-                    'raw_department' => $rawDept,
+                    'row' => $rowIndex,
                     'department_id' => $departmentId,
                 ]);
             }
