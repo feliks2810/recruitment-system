@@ -73,16 +73,35 @@
                 </div>
 
                 <!-- Position Information -->
-                <div class="bg-gray-50 rounded-lg p-4">
+<div class="bg-gray-50 rounded-lg p-4" x-data="{
+    vacancies: {{ json_encode($vacancies->keyBy('id')) }},
+    selectedVacancyId: '{{ old('vacancy_id') }}',
+    selectedVacancy: null,
+    init() {
+        if (this.selectedVacancyId && this.vacancies[this.selectedVacancyId]) {
+            this.selectedVacancy = this.vacancies[this.selectedVacancyId];
+        }
+    }
+}" x-init="init()">
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label for="vacancy_id" class="block text-sm font-medium text-gray-700">Nama Lowongan *</label>
-                            <select name="vacancy_id" id="vacancy_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
+                            <select name="vacancy_id" id="vacancy_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required x-model="selectedVacancyId" @change="selectedVacancy = vacancies[$event.target.value]">
                                 <option value="">Pilih Lowongan</option>
                                 @foreach($vacancies as $vacancy)
                                     <option value="{{ $vacancy->id }}" {{ old('vacancy_id') == $vacancy->id ? 'selected' : '' }}>{{ $vacancy->name }}</option>
                                 @endforeach
+                            </select>
+                        </div>
+
+                        <div x-show="selectedVacancy && selectedVacancy.mpp_submissions && selectedVacancy.mpp_submissions.length > 1">
+                            <label for="mpp_year" class="block text-sm font-medium text-gray-700">Tahun MPP *</label>
+                            <select name="mpp_year" id="mpp_year" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Pilih Tahun</option>
+                                <template x-for="submission in selectedVacancy.mpp_submissions" :key="submission.id">
+                                    <option :value="submission.year" x-text="submission.year"></option>
+                                </template>
                             </select>
                         </div>
                     </div>

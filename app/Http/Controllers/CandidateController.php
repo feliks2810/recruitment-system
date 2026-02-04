@@ -11,6 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\CandidateEditHistory;
+use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CandidateController extends Controller
@@ -62,7 +64,11 @@ class CandidateController extends Controller
      */
     public function create()
     {
-        $vacancies = Vacancy::where('proposal_status', 'approved')->orderBy('name')->get();
+        $vacancies = \App\Models\Vacancy::with(['mppSubmissions' => function ($q) {
+            $q->where('proposal_status', 'approved');
+        }])->whereHas('mppSubmissions', function ($q) {
+            $q->where('proposal_status', 'approved');
+        })->orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
         
         // Generate Applicant ID
@@ -86,6 +92,7 @@ class CandidateController extends Controller
             'jk' => 'nullable|string',
             'tanggal_lahir' => 'nullable|date',
             'vacancy_id' => 'required|exists:vacancies,id',
+            'mpp_year' => 'nullable|integer',
             'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
@@ -126,10 +133,18 @@ class CandidateController extends Controller
             // Create the candidate
             $candidate = Candidate::create($data);
 
+            // Set mpp_year for the candidate from the validated request
+            // This assumes mpp_year from the request is the intended mpp_year for the candidate
+            if (isset($validated['mpp_year'])) {
+                $candidate->mpp_year = $validated['mpp_year'];
+                $candidate->save();
+            }
+
             // Create the application for the candidate
             Application::create([
                 'candidate_id' => $candidate->id,
                 'vacancy_id' => $vacancy->id,
+                'mpp_year' => $validated['mpp_year'] ?? null,
                 'overall_status' => 'PROSES', // Default status
             ]);
 
@@ -150,9 +165,13 @@ class CandidateController extends Controller
      */
     public function edit(Candidate $candidate)
     {
-        $vacancies = Vacancy::where('proposal_status', 'approved')->orderBy('name')->get();
+        $vacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) {
+            $q->where('proposal_status', 'approved');
+        })->orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        return view('candidates.edit', compact('candidate', 'departments', 'vacancies'));
+        $editHistories = $candidate->editHistories()->with('user')->orderBy('created_at', 'desc')->get();
+
+        return view('candidates.edit', compact('candidate', 'departments', 'vacancies', 'editHistories'));
     }
 
     /**
@@ -209,8 +228,35 @@ class CandidateController extends Controller
                 $data['flk'] = $request->file('flk')->store('candidate-files', 'public');
             }
 
+            // Get original data for history
+            $originalData = $candidate->fresh()->getAttributes();
+
             // Update the candidate
             $candidate->update($data);
+
+            // Get changed data
+            $changes = $candidate->getChanges();
+            $historyChanges = [];
+
+            if (!empty($changes)) {
+                foreach ($changes as $key => $value) {
+                    if ($key !== 'updated_at') {
+                        $historyChanges[$key] = [
+                            'old' => $originalData[$key],
+                            'new' => $value,
+                        ];
+                    }
+                }
+            }
+
+            // Record history if there are changes
+            if (!empty($historyChanges)) {
+                CandidateEditHistory::create([
+                    'candidate_id' => $candidate->id,
+                    'user_id' => Auth::id(),
+                    'changes' => $historyChanges,
+                ]);
+            }
 
             // Update the application for the candidate
             $application = $candidate->applications()->latest()->first();
@@ -252,158 +298,124 @@ class CandidateController extends Controller
     public function index(Request $request)
     {
         $type = $request->input('type');
-
         $user = auth()->user();
-        $query = Application::with([
-            'candidate.department',
-            'candidate.latestPsikotest',
-            'candidate.latestHCInterview',
-            'vacancy',
-            'stages',
-        ]);
+
+        // --- Year & Filter Preparation ---
+
+        // Prepare years for filter dropdown by combining years from MPP submissions and applications
+        $mppYears = \App\Models\MPPSubmission::select('year')->distinct()->pluck('year');
+        $applicationYears = \App\Models\Application::select('mpp_year')->distinct()->pluck('mpp_year');
+        
+        $years = $mppYears->merge($applicationYears)
+                         ->unique()
+                         ->filter() // Ensure no null values
+                         ->sortDesc()
+                         ->values();
+
+        // Ensure current year is always an option
+        $currentYear = date('Y');
+        if (!$years->contains($currentYear)) {
+            $years->prepend($currentYear);
+            $years = $years->sortDesc()->values();
+        }
+        
+        // Default to the latest year with data, or the current year (but allow empty for 'all years')
+        $selectedYear = $request->input('year'); // Let it be null if 'year' is not in request or is empty string
+
+        // --- Main Query Initialization with JOIN ---
+        $query = Application::query()
+            ->select('applications.*') // IMPORTANT: Select from applications table to avoid conflicts
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->with([
+                'candidate.department',
+                'candidate.latestPsikotest',
+                'candidate.latestHCInterview',
+                'vacancy',
+                'stages',
+            ]);
 
         $statsQuery = Application::query();
 
-        // Get selected year or default to current year
-        $selectedYear = $request->input('year', date('Y'));
+        // --- Applying Filters ---
 
-        // Apply year filter
-        $query->whereYear('created_at', $selectedYear);
-        $statsQuery->whereYear('created_at', $selectedYear);
+        // Apply the year filter ONLY if a year is provided in the request
+        if ($selectedYear) {
+            $query->where('applications.mpp_year', $selectedYear);
+            $statsQuery->where('applications.mpp_year', $selectedYear);
+        }
 
         if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $query->whereHas('candidate', function ($q) use ($user) {
-                $q->where('department_id', $user->department_id);
-            });
-
+            $query->where('candidates.department_id', $user->department_id);
             $statsQuery->whereHas('candidate', function ($q) use ($user) {
                 $q->where('department_id', $user->department_id);
             });
         }
 
         // --- DUPLICATE LOGIC ---
-        $duplicateCandidateIds = Application::select('candidate_id')
-            ->groupBy('candidate_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('candidate_id');
+        $duplicateCandidateIds = Application::select('candidate_id')->groupBy('candidate_id')->havingRaw('COUNT(*) > 1')->pluck('candidate_id');
 
-        // Handle candidate type filter
         if ($request->filled('type')) {
             if ($request->type === 'duplicate') {
-                $query->whereIn('candidate_id', $duplicateCandidateIds);
+                $query->whereIn('applications.candidate_id', $duplicateCandidateIds);
             } elseif ($request->type === 'organic') {
-                $query->whereHas('candidate', function ($q) {
-                    $q->where('airsys_internal', 'Yes');
-                });
+                $query->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'Yes'); });
             } elseif ($request->type === 'non-organic') {
-                $query->whereHas('candidate', function ($q) {
-                    $q->where('airsys_internal', 'No');
-                });
+                $query->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'No'); });
             }
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $status = strtoupper($request->status);
-            if ($status === 'FAILED') {
-                $query->where('overall_status', 'DITOLAK');
-            } elseif ($status === 'HIRED') {
-                $query->where('overall_status', 'LULUS');
-            } elseif ($status === 'ON_PROCESS') {
-                $query->where('overall_status', 'PROSES');
-            }
+            if ($status === 'FAILED') { $query->where('applications.overall_status', 'DITOLAK'); } 
+            elseif ($status === 'HIRED') { $query->where('applications.overall_status', 'LULUS'); } 
+            elseif ($status === 'ON_PROCESS') { $query->where('applications.overall_status', 'PROSES'); }
         }
 
-        // Search by name, applicant_id, or email (on the related candidate)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('candidate', function ($q) use ($search) {
-                $q->where('nama', 'like', "%{$search}%")
-                  ->orWhere('applicant_id', 'like', "%{$search}%")
-                  ->orWhere('alamat_email', 'like', "%{$search}%");
+            $query->where(function($q) use ($search) {
+                $q->where('candidates.nama', 'like', "%{$search}%")
+                  ->orWhere('candidates.applicant_id', 'like', "%{$search}%")
+                  ->orWhere('candidates.alamat_email', 'like', "%{$search}%");
             });
         }
         
-        // Filter by vacancy
-        if ($request->filled('vacancy_id')) {
-            $query->where('vacancy_id', $request->vacancy_id);
-        }
-
-        if ($request->filled('department_id')) {
-            $query->whereHas('candidate', function ($q) use ($request) {
-                $q->where('department_id', $request->department_id);
-            });
-        }
-
-        if ($request->filled('source')) {
-            $query->whereHas('candidate', function ($q) use ($request) {
-                $q->where('source', $request->source);
-            });
-        }
-
+        if ($request->filled('vacancy_id')) { $query->where('applications.vacancy_id', $request->vacancy_id); }
+        if ($request->filled('department_id')) { $query->where('candidates.department_id', $request->department_id); }
+        if ($request->filled('source')) { $query->where('candidates.source', $request->source); }
         if ($request->filled('stage')) {
             $query->whereHas('latestStage', function ($q) use ($request) {
                 $q->where('stage_name', $request->stage);
             });
         }
 
-        // Order by candidate name A-Z, then by overall_status, then by created_at desc
-        // Use subquery to avoid GROUP BY issues with pagination
+        // --- Finalizing Query & Pagination ---
         $applications = $query
-            ->addSelect([
-                'candidate_name' => \App\Models\Candidate::select('nama')
-                    ->whereColumn('candidates.id', 'applications.candidate_id')
-                    ->limit(1)
-            ])
-            ->orderBy('candidate_name', 'asc')
-            ->orderByRaw("CASE 
-                WHEN applications.overall_status = 'PROSES' THEN 1
-                ELSE 2
-            END")
+            ->orderBy('candidates.nama', 'asc')
+            ->orderByRaw("CASE WHEN applications.overall_status = 'PROSES' THEN 1 ELSE 2 END")
             ->orderByDesc('applications.created_at')
             ->paginate(15);
 
-        $statuses = [
-            'ON_PROCESS' => 'On Process',
-            'WAITING_HC_INTERVIEW' => 'Waiting HC Interview',
-            'HIRED' => 'Hired',
-            'FAILED' => 'Failed',
-        ];
-
-        // Get real statistics from Application overall_status
+        // --- Data for View ---
+        $statuses = [ 'ON_PROCESS' => 'On Process', 'WAITING_HC_INTERVIEW' => 'Waiting HC Interview', 'HIRED' => 'Hired', 'FAILED' => 'Failed' ];
         $stats = [
-            'total_candidates' => (clone $statsQuery)->count(),
+            'total_candidates' => (clone $statsQuery)->distinct('candidate_id')->count('candidate_id'),
             'candidates_in_process' => (clone $statsQuery)->where('overall_status', 'PROSES')->count(),
             'candidates_passed' => (clone $statsQuery)->where('overall_status', 'LULUS')->count(),
             'candidates_failed' => (clone $statsQuery)->where('overall_status', 'DITOLAK')->count(),
             'candidates_cancelled' => (clone $statsQuery)->where('overall_status', 'CANCEL')->count(),
             'duplicate' => $duplicateCandidateIds->count(),
         ];
-
-        $activeVacancies = \App\Models\Vacancy::where('proposal_status', 'approved')->get();
+        $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) use ($selectedYear) {
+            $q->where('proposal_status', 'approved')->where('year', $selectedYear);
+        })->with(['mppSubmissions' => function ($q) use ($selectedYear) {
+            $q->where('proposal_status', 'approved')->where('year', $selectedYear);
+        }])->get();
         $departments = \App\Models\Department::orderBy('name')->get();
         $sources = \App\Models\Candidate::distinct()->pluck('source');
         $stages = \App\Enums\RecruitmentStage::cases();
 
-        // Prepare years for filter dropdown
-        $currentYear = date('Y');
-        $startYear = $currentYear - 3; // 3 years before current
-        $endYear = $currentYear + 1; // 1 year after current
-        $years = range($endYear, $startYear); // From endYear down to startYear
-
-        return view('candidates.index', compact(
-            'applications', 
-            'statuses', 
-            'stats',
-            'activeVacancies',
-            'type',
-            'duplicateCandidateIds',
-            'departments',
-            'sources',
-            'stages',
-            'selectedYear', // Pass selected year to view
-            'years' // Pass available years to view
-        ));
+        return view('candidates.index', compact('applications', 'statuses', 'stats', 'activeVacancies', 'type', 'duplicateCandidateIds', 'departments', 'sources', 'stages', 'selectedYear', 'years'));
     }
 
     /**
@@ -438,7 +450,9 @@ class CandidateController extends Controller
 
         // The "Move Position" modal needs a list of other active vacancies.
         $appliedVacancyIds = $candidate->applications->pluck('vacancy_id')->filter()->unique();
-        $activeVacancies = \App\Models\Vacancy::where('proposal_status', 'approved')
+        $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) {
+            $q->where('proposal_status', 'approved');
+        })
                                                ->whereNotIn('id', $appliedVacancyIds)
                                                ->get();
 

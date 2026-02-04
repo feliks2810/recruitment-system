@@ -76,6 +76,7 @@
                     <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
                     <select name="year" id="year" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             onchange="this.form.submit()">
+                        <option value="" {{ !request('year') ? 'selected' : '' }}>Semua Tahun</option>
                         @foreach($years as $year)
                             <option value="{{ $year }}" {{ $selectedYear == $year ? 'selected' : '' }}>{{ $year }}</option>
                         @endforeach
@@ -134,69 +135,88 @@
                     </select>
                 </div>
                 <div class="flex items-end justify-end mt-4 md:mt-0">
-                    <a href="{{ route('candidates.index', ['year' => date('Y')]) }}" class="w-full md:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm text-center">Reset Filter</a>
+                    <a href="{{ route('candidates.index') }}" class="w-full md:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm text-center">Reset Filter</a>
                 </div>
             </form>
         </div>
 
         <div class="flex-1 p-4 sm:p-6">
-            
+            @if(request('vacancy_id'))
+                <div class="mb-4">
+                    @php
+                        $selectedVacancy = $activeVacancies->firstWhere('id', request('vacancy_id'));
+                    @endphp
+                    @if($selectedVacancy)
+                        <p class="text-lg font-semibold text-gray-800">Menampilkan Statistik untuk Posisi: <span class="text-blue-600">{{ $selectedVacancy->name }}</span></p>
+                    @endif
+                </div>
+            @endif
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500">Total Kandidat</p>
-                            <p class="text-3xl font-bold text-gray-800">{{ $stats['total_candidates'] ?? 0 }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-users text-blue-600 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500">Dalam Proses</p>
-                            <p class="text-3xl font-bold text-yellow-500">{{ $stats['candidates_in_process'] ?? 0 }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-clock text-yellow-500 text-xl"></i>
+                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => null, 'type' => null])) }}" class="block">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Total Kandidat</p>
+                                <p class="text-3xl font-bold text-gray-800">{{ $stats['total_candidates'] ?? 0 }}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-users text-blue-600 text-xl"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500">Lulus</p>
-                            <p class="text-3xl font-bold text-green-500">{{ $stats['candidates_passed'] ?? 0 }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-check-circle text-green-500 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500">Ditolak</p>
-                            <p class="text-3xl font-bold text-red-500">{{ $stats['candidates_failed'] ?? 0 }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-times-circle text-red-500 text-xl"></i>
+                </a>
+                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'ON_PROCESS'])) }}" class="block">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Dalam Proses</p>
+                                <p class="text-3xl font-bold text-yellow-500">{{ $stats['candidates_in_process'] ?? 0 }}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-clock text-yellow-500 text-xl"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500">Cancel</p>
-                            <p class="text-3xl font-bold text-purple-500">{{ $stats['candidates_cancelled'] ?? 0 }}</p>
-                        </div>
-                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-ban text-purple-500 text-xl"></i>
+                </a>
+                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'HIRED'])) }}" class="block">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Lulus</p>
+                                <p class="text-3xl font-bold text-green-500">{{ $stats['candidates_passed'] ?? 0 }}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </a>
+                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'FAILED'])) }}" class="block">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Ditolak</p>
+                                <p class="text-3xl font-bold text-red-500">{{ $stats['candidates_failed'] ?? 0 }}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-times-circle text-red-500 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'CANCEL'])) }}" class="block">
+                    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Cancel</p>
+                                <p class="text-3xl font-bold text-purple-500">{{ $stats['candidates_cancelled'] ?? 0 }}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-ban text-purple-500 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
             </div>
 
             <div class="mb-6 bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -211,7 +231,8 @@
                 <div class="flex flex-wrap gap-3">
                     @forelse($activeVacancies as $vacancy)
                         @php
-                            $neededCount = $vacancy->needed_count ?? 0;
+                            $mppSubmission = $vacancy->mppSubmissions->first();
+                            $neededCount = $mppSubmission ? $mppSubmission->pivot->needed_count : 0;
                             $isActive = request('vacancy_id') == $vacancy->id;
                         @endphp
                         <a href="{{ route('candidates.index', array_merge(request()->all(), ['vacancy_id' => $vacancy->id])) }}" 
@@ -276,6 +297,7 @@
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kandidat</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posisi</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departemen</th>
+                                    <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tahun MPP</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tahapan</th>
@@ -340,6 +362,9 @@
                                                     N/A
                                                 @endif
                                             </div>
+                                        </td>
+                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {{ $application->mpp_year ?? 'N/A' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                             {{ $candidate->source }}

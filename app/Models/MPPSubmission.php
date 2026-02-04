@@ -55,9 +55,18 @@ class MPPSubmission extends Model
     /**
      * Get all vacancies associated with this MPP
      */
-    public function vacancies(): HasMany
+    public function vacancies()
     {
-        return $this->hasMany(Vacancy::class, 'mpp_submission_id', 'id');
+        return $this->belongsToMany(Vacancy::class, 'mpp_submission_vacancy', 'm_p_p_submission_id', 'vacancy_id')
+            ->withPivot([
+                'vacancy_status',
+                'needed_count',
+                'proposal_status',
+                'rejection_reason',
+                'proposed_needed_count',
+                'proposed_by_user_id',
+            ])
+            ->withTimestamps();
     }
 
     /**

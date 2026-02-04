@@ -15,24 +15,19 @@ class CandidateTemplateExport implements WithHeadings, ShouldAutoSize, WithStyle
     public function headings(): array
     {
         return [
-            'applicant_id',
-            'nama',
-            'email',
-            'phone',
+            'Tahun MPP',
+            'Applicant id',
+            'Nama',
+            'Email',
             'jk',
-            'tanggal_lahir',
-            'alamat',
-            'jenjang_pendidikan',
-            'perguruan_tinggi',
+            'tanggal lahir',
+            'perguruan tinggi',
             'jurusan',
-            'ipk',
             'source',
             'vacancy',
-            'department', // OPTIONAL: Will be auto-filled from vacancy if exists
             'psikotest_result',
-            'psikotest_date',
-            'cv',
-            'flk',
+            'test_date',
+            'Psikotest notes',
         ];
     }
 

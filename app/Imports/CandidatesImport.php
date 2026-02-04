@@ -6,6 +6,7 @@ use App\Models\Candidate;
 use App\Models\Application;
 use App\Models\Department;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -100,26 +101,28 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                     'mpp_year_from_file' => $mppYear
                 ]);
 
-                $vacancyQuery = \App\Models\Vacancy::where('name', $vacancyName)
-                    ->where('proposal_status', \App\Models\Vacancy::STATUS_APPROVED) // Must be an approved vacancy
-                    ->whereHas('mppSubmission', function ($q) use ($mppYear) {
+                // Eager load the specific MPP submission relationship
+                $vacancy = \App\Models\Vacancy::where('name', $vacancyName)
+                    ->with(['mppSubmissions' => function ($query) use ($mppYear) {
+                        $query->where('year', $mppYear)
+                              ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                              ->where('mpp_submission_vacancy.proposal_status', 'approved');
+                    }])
+                    ->whereHas('mppSubmissions', function ($q) use ($mppYear) {
                         $q->where('year', $mppYear)
-                          ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED); // Ensure linked MPP is approved for the year
-                    });
-                
-                Log::debug('CandidatesImport: Vacancy query details', [
-                    'row' => $rowIndex,
-                    'sql' => $vacancyQuery->toSql(),
-                    'bindings' => $vacancyQuery->getBindings()
-                ]);
+                          ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                          ->where('mpp_submission_vacancy.proposal_status', 'approved');
+                    })->first();
 
-                $vacancy = $vacancyQuery->first();
+                // Get the pivot data from the loaded relationship
+                $pivotData = $vacancy && $vacancy->mppSubmissions->isNotEmpty()
+                    ? $vacancy->mppSubmissions->first()->pivot
+                    : null;
                 
-                if (!$vacancy) {
+                if (!$vacancy || !$pivotData) {
                     $this->skipped++;
                     $errorMessage = 'Invalid Vacancy: "' . $vacancyName . '" for MPP year ' . $mppYear . ' was not found or not approved. Row skipped.';
                     
-                    // Add a warning to the import history for the user
                     $this->errors[] = [
                         'row' => $rowIndex,
                         'applicant_id' => $applicantId,
@@ -128,7 +131,6 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                         'error' => $errorMessage,
                     ];
                     
-                    // Log a warning instead of an error, as we are still processing the candidate
                     Log::warning('CandidatesImport: Vacancy not found or not approved. Skipping row.', [
                         'row' => $rowIndex,
                         'applicant_id' => $applicantId,
@@ -136,12 +138,12 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                         'year_used' => $mppYear,
                     ]);
 
-                    continue; // Skip this row
+                    continue;
                 } else {
                     Log::debug('CandidatesImport: Vacancy found for row', [
                         'row' => $rowIndex,
                         'id' => $vacancy->id,
-                        'mpp_year' => $vacancy->mppSubmission->year ?? 'N/A',
+                        'mpp_year' => $mppYear,
                     ]);
 
                     if ($vacancy->department_id) {
@@ -220,7 +222,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             // Determine candidate status
             if ($isFail) {
-                $candidateStatus = 'inactive';
+                $candidateStatus = 'active'; // Kandidat tetap aktif, hanya aplikasi yang ditolak
                 $overallStatus = 'DITOLAK';
             } elseif ($isPass) {
                 $candidateStatus = 'active';
@@ -232,11 +234,11 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             // Determine airsys_internal based on vacancy's MPP status
             $airsysInternal = null; // Default to null
-            if ($vacancy && $vacancy->vacancy_status) {
+            if ($pivotData && $pivotData->vacancy_status) {
                 // Assuming 'OSPKWT' means internal and 'OS' means external/non-organic
-                if (in_array($vacancy->vacancy_status, ['OSPKWT', 'INTERNAL'])) { // Add 'INTERNAL' for clarity if needed
+                if (in_array($pivotData->vacancy_status, ['OSPKWT', 'INTERNAL'])) { // Add 'INTERNAL' for clarity if needed
                     $airsysInternal = 'Yes';
-                } elseif (in_array($vacancy->vacancy_status, ['OS', 'EXTERNAL'])) { // Add 'EXTERNAL' for clarity if needed
+                } elseif (in_array($pivotData->vacancy_status, ['OS', 'EXTERNAL'])) { // Add 'EXTERNAL' for clarity if needed
                     $airsysInternal = 'No';
                 }
             }
@@ -258,6 +260,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                     'flk' => $row['flk'] ?? null,
                     'raw_department_name' => $rawDept,
                     'department_id' => $departmentId,
+                    'mpp_year' => $mppYear,
                     'airsys_internal' => $airsysInternal, // Set dynamically
                     'status' => $candidateStatus,
                 ]
@@ -269,12 +272,22 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 [
                     'candidate_id' => $candidate->id,
                     'vacancy_id' => $vacancy ? $vacancy->id : null,
+                    'mpp_year' => $mppYear,
                 ],
                 [
                     'overall_status' => $overallStatus,
-                    'department_id' => $departmentId, // Use department from vacancy or raw_department
+                    'department_id' => $departmentId,
                 ]
             );
+
+            Log::info('CandidatesImport: Application processed', [
+                'row' => $rowIndex,
+                'application_id' => $application->id,
+                'candidate_id' => $candidate->id,
+                'vacancy_id' => $vacancy ? $vacancy->id : null,
+                'mpp_year' => $mppYear,
+                'overall_status' => $overallStatus,
+            ]);
 
             // 3. Find or create the 'psikotes' stage for this application.
             // IMPORTANT: Force update to ensure status is refreshed

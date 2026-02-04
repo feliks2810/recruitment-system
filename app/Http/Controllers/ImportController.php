@@ -358,10 +358,10 @@ class ImportController extends Controller
         $normalizedVacancyName = strtolower(trim($vacancyName));
 
         $vacancy = Vacancy::whereRaw('LOWER(name) = ?', [$normalizedVacancyName])
-            ->where('proposal_status', Vacancy::STATUS_APPROVED) // Ensure vacancy proposal status is approved
-            ->whereHas('mppSubmission', function ($q) use ($year) {
+            ->whereHas('mppSubmissions', function ($q) use ($year) {
                 $q->where('year', $year)
-                  ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED); // Ensure linked MPP is approved for the year
+                  ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                  ->where('mpp_submission_vacancy.proposal_status', 'approved');
             });
         
         Log::debug('getVacancyId: Vacancy query build', ['sql' => $vacancy->toSql(), 'bindings' => $vacancy->getBindings()]);

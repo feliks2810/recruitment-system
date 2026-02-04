@@ -43,6 +43,15 @@
                         <option value="rejected" @selected(request('status') === 'rejected')>Rejected</option>
                     </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tahun</label>
+                    <select name="year" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="">Semua Tahun</option>
+                        @foreach ($years as $year)
+                            <option value="{{ $year }}" @selected(request('year') == $year)>{{ $year }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="flex items-end">
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Filter</button>
                 </div>
@@ -50,11 +59,12 @@
         </div>
 
         <!-- Table -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tahun</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departemen</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dibuat Oleh</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posisi</th>
@@ -68,6 +78,9 @@
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ ($mppSubmissions->currentPage() - 1) * $mppSubmissions->perPage() + $index + 1 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ $mpp->year }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ $mpp->department->name }}
@@ -107,7 +120,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">
                             Tidak ada pengajuan MPP
                         </td>
                     </tr>

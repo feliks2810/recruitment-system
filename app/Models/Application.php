@@ -36,6 +36,7 @@ class Application extends Model
         'candidate_id',
         'department_id',
         'vacancy_id',
+        'mpp_year',
         'processed_by_user_id',
         'internal_position',
         'cv_path',

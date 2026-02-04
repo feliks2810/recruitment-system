@@ -2,9 +2,9 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Vacancy;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\DB;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -32,7 +32,7 @@ class HandleInertiaRequests extends Middleware
     {
         /** @var \App\Models\User|null $user */
         $user = $request->user();
-        $pendingProposalsCount = Vacancy::where('proposal_status', 'pending')->count();
+        $pendingProposalsCount = DB::table('mpp_submission_vacancy')->where('proposal_status', 'pending')->count();
 
         return [
             ...parent::share($request),

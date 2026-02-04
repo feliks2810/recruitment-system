@@ -21,6 +21,7 @@ class Candidate extends Model
         'no',
         'raw_department_name',
         'department_id',
+        'mpp_year',
         'applicant_id',
         'nama',
         'source',
@@ -70,6 +71,11 @@ class Candidate extends Model
     public function applicationStages()
     {
         return $this->hasManyThrough(ApplicationStage::class, Application::class);
+    }
+
+    public function editHistories()
+    {
+        return $this->hasMany(CandidateEditHistory::class);
     }
 
     /**

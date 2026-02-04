@@ -87,7 +87,7 @@
     </div>
 
     <!-- Preview Modal -->
-    <div x-show="showModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-50 flex items-center justify-center" @keydown.escape.window="cancelImport">
+    <div x-show="showModal" x-cloak style="display: none;" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-50 flex items-center justify-center" @keydown.escape.window="cancelImport">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl mx-auto transform transition-all" @click.away="cancelImport">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-xl font-semibold text-gray-900">Hasil Validasi & Preview Import</h3>

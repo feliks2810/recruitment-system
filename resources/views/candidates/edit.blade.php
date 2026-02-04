@@ -133,6 +133,34 @@
                     </div>
                 </div>
 
+                <!-- Edit History -->
+                @if($editHistories->isNotEmpty())
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-md font-medium text-gray-900 mb-4">Riwayat Perubahan</h4>
+                    <div class="space-y-4">
+                        @foreach($editHistories as $history)
+                            <div class="p-3 bg-white rounded-lg border border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <p class="text-sm text-gray-600">
+                                        Diubah oleh <strong>{{ $history->user->name }}</strong> pada {{ $history->created_at->format('d M Y, H:i') }}
+                                    </p>
+                                </div>
+                                <div class="mt-2">
+                                    <ul class="list-disc pl-5 text-sm text-gray-800">
+                                        @foreach($history->changes as $field => $value)
+                                            <li>
+                                                <span class="font-semibold">{{ ucfirst(str_replace('_', ' ', $field)) }}:</span>
+                                                <span class="text-gray-600">{{ $value['old'] }}</span> &rarr; <span class="text-green-600 font-semibold">{{ $value['new'] }}</span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-3 pt-6 border-t border-gray-200">
                     <a href="{{ route('candidates.show', $candidate) }}" class="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2">

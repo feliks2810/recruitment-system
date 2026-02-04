@@ -179,8 +179,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{mppSubmission}', [MPPSubmissionController::class, 'destroy'])->name('destroy');
 
         // Per-vacancy approval actions
-        Route::post('/vacancy/{vacancy}/approve', [MPPSubmissionController::class, 'approveVacancy'])->name('approve-vacancy');
-        Route::post('/vacancy/{vacancy}/reject', [MPPSubmissionController::class, 'rejectVacancy'])->name('reject-vacancy');
+        Route::post('/{mppSubmission}/vacancy/{vacancy}/approve', [MPPSubmissionController::class, 'approveVacancy'])->name('approve-vacancy');
+        Route::post('/{mppSubmission}/vacancy/{vacancy}/reject', [MPPSubmissionController::class, 'rejectVacancy'])->name('reject-vacancy');
     });
 
     // Vacancy Document Routes

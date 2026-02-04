@@ -9,6 +9,7 @@ use App\Observers\ApplicationObserver;
 use App\Observers\CandidateObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\DB;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -30,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
         
         // Share pending proposals count with sidebar view
         View::composer('layouts.sidebar', function ($view) {
-            $pendingProposalsCount = Vacancy::where('proposal_status', 'pending')->count();
+            $pendingProposalsCount = DB::table('mpp_submission_vacancy')->where('proposal_status', 'pending')->count();
             $view->with('pendingProposalsCount', $pendingProposalsCount);
         });
     }

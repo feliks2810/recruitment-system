@@ -9,6 +9,17 @@
                 <div class="p-6 bg-white border-b border-gray-200">
                     <h2 class="font-semibold text-xl text-gray-800 leading-tight mb-4">Vacancy Statistics</h2>
 
+                    <div class="mb-4">
+                        <form method="GET" action="{{ route('vacancy.statistics') }}" class="flex items-center space-x-2">
+                            <label for="year" class="block text-sm font-medium text-gray-700">Filter by Year:</label>
+                            <select name="year" id="year" class="mt-1 block w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" onchange="this.form.submit()">
+                                @foreach($years as $yearOption)
+                                    <option value="{{ $yearOption }}" {{ $selectedYear == $yearOption ? 'selected' : '' }}>{{ $yearOption }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </div>
+
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">

@@ -53,7 +53,7 @@
                 <div class="space-y-4">
                     @forelse ($mppSubmission->vacancies as $vacancy)
                         @php
-                            $requiredDocType = $vacancy->vacancy_status === 'OSPKWT' ? 'A1' : 'B1';
+                            $requiredDocType = $vacancy->pivot->vacancy_status === 'OSPKWT' ? 'A1' : 'B1';
                             $document = $vacancy->getDocument($requiredDocType);
                             $isDepartmentUser = auth()->user()->hasRole('kepala departemen');
                             $isTeamHC = auth()->user()->hasAnyRole(['team_hc', 'team_hc_2']);
@@ -66,21 +66,21 @@
                                     <div class="flex items-center gap-4 mt-2">
                                         <span class="text-sm text-gray-600">
                                             <i class="fas fa-users mr-1"></i>
-                                            {{ $vacancy->needed_count ?? '-' }} orang
+                                            {{ $vacancy->pivot->needed_count ?? '-' }} orang
                                         </span>
                                         <span class="px-2 py-1 rounded text-xs font-medium
-                                            @if($vacancy->vacancy_status === 'OSPKWT') bg-blue-100 text-blue-800
-                                            @elseif($vacancy->vacancy_status === 'OS') bg-purple-100 text-purple-800 @endif
+                                            @if($vacancy->pivot->vacancy_status === 'OSPKWT') bg-blue-100 text-blue-800
+                                            @elseif($vacancy->pivot->vacancy_status === 'OS') bg-purple-100 text-purple-800 @endif
                                         ">
-                                            {{ $vacancy->vacancy_status }}
+                                            {{ $vacancy->pivot->vacancy_status }}
                                         </span>
                                     </div>
                                     <div class="mt-3">
-                                        @if($vacancy->proposal_status === \App\Models\Vacancy::STATUS_APPROVED)
+                                        @if($vacancy->pivot->proposal_status === 'approved')
                                             <span class="px-2 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Disetujui</span>
-                                        @elseif($vacancy->proposal_status === \App\Models\Vacancy::STATUS_REJECTED)
-                                            <span class="px-2 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800" title="{{ $vacancy->rejection_reason }}">Ditolak</span>
-                                        @elseif($vacancy->proposal_status === \App\Models\Vacancy::STATUS_PENDING_HC2_APPROVAL)
+                                        @elseif($vacancy->pivot->proposal_status === 'rejected')
+                                            <span class="px-2 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800" title="{{ $vacancy->pivot->rejection_reason }}">Ditolak</span>
+                                        @elseif($vacancy->pivot->proposal_status === 'pending_hc2_approval')
                                             <span class="px-2 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">Menunggu Approval HC2</span>
                                         @else
                                             <span class="px-2 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">Menunggu Approval HC1</span>
@@ -118,25 +118,25 @@
 
                                     <!-- Approval Actions -->
                                     @can('approve-mpp-submission')
-                                        @if(auth()->user()->hasRole('team_hc') && $vacancy->proposal_status === \App\Models\Vacancy::STATUS_PENDING)
+                                        @if(auth()->user()->hasRole('team_hc') && $vacancy->pivot->proposal_status === 'pending')
                                         <div class="flex gap-2 pt-2 border-t border-gray-200">
-                                            <form action="{{ route('mpp-submissions.approve-vacancy', $vacancy) }}" method="POST">
+                                            <form action="{{ route('mpp-submissions.approve-vacancy', [$mppSubmission, $vacancy]) }}" method="POST">
                                                 @csrf
                                                 <button type="submit" class="w-full px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">Approve (HC1)</button>
                                             </form>
-                                            <form action="{{ route('mpp-submissions.reject-vacancy', $vacancy) }}" method="POST" onsubmit="return handleReject(event, this)">
+                                            <form action="{{ route('mpp-submissions.reject-vacancy', [$mppSubmission, $vacancy]) }}" method="POST" onsubmit="return handleReject(event, this)">
                                                 @csrf
                                                 <input type="hidden" name="rejection_reason" class="rejection-reason-input">
                                                 <button type="submit" class="w-full px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">Reject</button>
                                             </form>
                                         </div>
-                                        @elseif(auth()->user()->hasRole('team_hc_2') && $vacancy->proposal_status === \App\Models\Vacancy::STATUS_PENDING_HC2_APPROVAL)
+                                        @elseif(auth()->user()->hasRole('team_hc_2') && $vacancy->pivot->proposal_status === 'pending_hc2_approval')
                                         <div class="flex gap-2 pt-2 border-t border-gray-200">
-                                            <form action="{{ route('mpp-submissions.approve-vacancy', $vacancy) }}" method="POST">
+                                            <form action="{{ route('mpp-submissions.approve-vacancy', [$mppSubmission, $vacancy]) }}" method="POST">
                                                 @csrf
                                                 <button type="submit" class="w-full px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">Approve (HC2)</button>
                                             </form>
-                                            <form action="{{ route('mpp-submissions.reject-vacancy', $vacancy) }}" method="POST" onsubmit="return handleReject(event, this)">
+                                            <form action="{{ route('mpp-submissions.reject-vacancy', [$mppSubmission, $vacancy]) }}" method="POST" onsubmit="return handleReject(event, this)">
                                                 @csrf
                                                 <input type="hidden" name="rejection_reason" class="rejection-reason-input">
                                                 <button type="submit" class="w-full px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">Reject</button>

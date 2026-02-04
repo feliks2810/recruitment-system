@@ -40,10 +40,19 @@ class MPPSubmissionController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        // Filter by year if requested
+        if ($request->filled('year')) {
+            $query->where('year', $request->input('year'));
+        }
+
         $mppSubmissions = $query->orderBy('created_at', 'desc')->paginate(15);
+
+        // Get distinct years for the filter dropdown
+        $years = MPPSubmission::select('year')->distinct()->orderBy('year', 'desc')->pluck('year');
 
         return view('mpp-submissions.index', [
             'mppSubmissions' => $mppSubmissions,
+            'years' => $years,
         ]);
     }
 
@@ -102,38 +111,55 @@ class MPPSubmissionController extends Controller
 
         $validated = $request->validate([
             'department_id' => 'required|exists:departments,id',
-            'year' => 'required|integer|min:2000|max:2100', // Added year validation
+            'year' => 'required|integer|min:2000|max:2100',
             'positions' => 'required|array|min:1',
             'positions.*.vacancy_id' => 'required|exists:vacancies,id',
             'positions.*.vacancy_status' => 'required|in:OSPKWT,OS',
             'positions.*.needed_count' => 'required|integer|min:1',
         ]);
 
+        // Custom validation to check for uniqueness
+        foreach ($validated['positions'] as $position) {
+            $existing = DB::table('mpp_submission_vacancy')
+                ->join('mpp_submissions', 'mpp_submission_vacancy.m_p_p_submission_id', '=', 'mpp_submissions.id')
+                ->where('mpp_submission_vacancy.vacancy_id', $position['vacancy_id'])
+                ->where('mpp_submissions.year', $validated['year'])
+                ->whereIn('mpp_submissions.status', [MPPSubmission::STATUS_SUBMITTED, MPPSubmission::STATUS_APPROVED])
+                ->exists();
+
+            if ($existing) {
+                $vacancy = Vacancy::find($position['vacancy_id']);
+                return back()->withErrors([
+                    'positions' => 'Posisi "' . $vacancy->name . '" sudah ada di pengajuan MPP lain untuk tahun ' . $validated['year'] . '.'
+                ])->withInput();
+            }
+        }
+
         DB::transaction(function () use ($validated, $user) {
-            // Create MPP submission - Immediately SUBMITTED
             $mppSubmission = MPPSubmission::create([
                 'created_by_user_id' => $user->id,
                 'department_id' => $validated['department_id'],
-                'year' => $validated['year'], // Store the year
-                'status' => MPPSubmission::STATUS_SUBMITTED, // Auto-submit
+                'year' => $validated['year'],
+                'status' => MPPSubmission::STATUS_SUBMITTED,
                 'submitted_at' => now(),
             ]);
 
-            // Create approval history
             $mppSubmission->approvalHistories()->create([
                 'user_id' => $user->id,
                 'action' => 'created_and_submitted',
             ]);
 
-            // Link vacancies to MPP submission
+            $vacanciesToAttach = [];
             foreach ($validated['positions'] as $position) {
-                Vacancy::find($position['vacancy_id'])->update([
-                    'mpp_submission_id' => $mppSubmission->id,
+                $vacanciesToAttach[$position['vacancy_id']] = [
                     'vacancy_status' => $position['vacancy_status'],
                     'needed_count' => $position['needed_count'],
-                    'proposal_status' => 'pending', // Set initial status
-                ]);
+                    'proposal_status' => 'pending',
+                    'proposed_by_user_id' => $user->id,
+                ];
             }
+
+            $mppSubmission->vacancies()->attach($vacanciesToAttach);
         });
 
         return redirect()->route('mpp-submissions.index')
@@ -167,7 +193,7 @@ class MPPSubmissionController extends Controller
     /**
      * Approve a specific vacancy within an MPP
      */
-    public function approveVacancy(Request $request, Vacancy $vacancy)
+    public function approveVacancy(Request $request, MPPSubmission $mppSubmission, Vacancy $vacancy)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -176,28 +202,31 @@ class MPPSubmissionController extends Controller
             abort(403);
         }
 
+        $pivot = $mppSubmission->vacancies()->where('vacancy_id', $vacancy->id)->first()->pivot;
         $message = 'Posisi berhasil disetujui.';
+
+        // Define constants for proposal statuses
+        $STATUS_PENDING = 'pending';
+        $STATUS_PENDING_HC2_APPROVAL = 'pending_hc2_approval';
+        $STATUS_APPROVED = 'approved';
 
         // Two-step approval logic
         if ($user->hasRole('team_hc')) {
-            // HC1 approves, moves to pending for HC2
-            if ($vacancy->proposal_status === Vacancy::STATUS_PENDING) {
-                $vacancy->update(['proposal_status' => Vacancy::STATUS_PENDING_HC2_APPROVAL]);
+            if ($pivot->proposal_status === $STATUS_PENDING) {
+                $pivot->update(['proposal_status' => $STATUS_PENDING_HC2_APPROVAL]);
                 $message = 'Posisi disetujui oleh Team HC 1 dan menunggu approval dari Team HC 2.';
             } else {
                 return back()->with('error', 'Status approval tidak valid untuk aksi ini.');
             }
         } elseif ($user->hasRole('team_hc_2')) {
-            // HC2 gives final approval
-            if ($vacancy->proposal_status === Vacancy::STATUS_PENDING_HC2_APPROVAL) {
-                $vacancy->update(['proposal_status' => Vacancy::STATUS_APPROVED]);
+            if ($pivot->proposal_status === $STATUS_PENDING_HC2_APPROVAL) {
+                $pivot->update(['proposal_status' => $STATUS_APPROVED]);
                 $message = 'Posisi berhasil disetujui sepenuhnya.';
 
-                // New logic to update candidate types
                 $newType = null;
-                if ($vacancy->vacancy_status === 'OSPKWT') {
+                if ($pivot->vacancy_status === 'OSPKWT') {
                     $newType = 'Yes'; // Organic
-                } elseif ($vacancy->vacancy_status === 'OS') {
+                } elseif ($pivot->vacancy_status === 'OS') {
                     $newType = 'No'; // Non-Organic
                 }
 
@@ -211,11 +240,10 @@ class MPPSubmissionController extends Controller
                 return back()->with('error', 'Posisi ini belum disetujui oleh Team HC 1.');
             }
         } else {
-            // Fallback for other roles with permission (e.g., admin) - direct approval
-            $vacancy->update(['proposal_status' => Vacancy::STATUS_APPROVED]);
+            $pivot->update(['proposal_status' => $STATUS_APPROVED]);
         }
 
-        $this->updateMPPStatus($vacancy->mppSubmission);
+        $this->updateMPPStatus($mppSubmission);
 
         return back()->with('success', $message);
     }
@@ -223,7 +251,7 @@ class MPPSubmissionController extends Controller
     /**
      * Reject a specific vacancy within an MPP
      */
-    public function rejectVacancy(Request $request, Vacancy $vacancy)
+    public function rejectVacancy(Request $request, MPPSubmission $mppSubmission, Vacancy $vacancy)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -236,12 +264,12 @@ class MPPSubmissionController extends Controller
             'rejection_reason' => 'required|string',
         ]);
 
-        $vacancy->update([
-            'proposal_status' => Vacancy::STATUS_REJECTED,
+        $mppSubmission->vacancies()->updateExistingPivot($vacancy->id, [
+            'proposal_status' => 'rejected',
             'rejection_reason' => $validated['rejection_reason'],
         ]);
 
-        $this->updateMPPStatus($vacancy->mppSubmission);
+        $this->updateMPPStatus($mppSubmission);
 
         return back()->with('success', 'Posisi ditolak.');
     }
@@ -255,12 +283,12 @@ class MPPSubmissionController extends Controller
         $vacancies = $mppSubmission->vacancies;
 
         $pendingCount = $vacancies->filter(function ($v) {
-            return in_array($v->proposal_status, [Vacancy::STATUS_PENDING, Vacancy::STATUS_PENDING_HC2_APPROVAL, null]);
+            return in_array($v->pivot->proposal_status, ['pending', 'pending_hc2_approval', null]);
         })->count();
 
         if ($pendingCount === 0) {
             // All vacancies have been processed
-            $approvedCount = $vacancies->where('proposal_status', Vacancy::STATUS_APPROVED)->count();
+            $approvedCount = $vacancies->where('pivot.proposal_status', 'approved')->count();
             
             if ($approvedCount > 0) {
                 $mppSubmission->update([
@@ -296,12 +324,8 @@ class MPPSubmissionController extends Controller
             abort(403);
         }
 
-        // Remove vacancy associations
-        $mppSubmission->vacancies()->update([
-            'mpp_submission_id' => null,
-            'vacancy_status' => null,
-            'proposal_status' => null,
-        ]);
+        // Detach all vacancies from the submission
+        $mppSubmission->vacancies()->detach();
 
         $mppSubmission->delete();
 
