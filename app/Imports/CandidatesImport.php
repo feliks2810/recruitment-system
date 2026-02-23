@@ -67,7 +67,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
             $rowIndex = $index + 2; // Excel row number
 
             // ================= SAFETY NORMALIZATION =================
-            $name = trim($row['nama'] ?? '');
+            $name = strtoupper(trim($row['nama'] ?? ''));
             if (empty($name)) {
                 $this->skipped++;
                 Log::info('CandidatesImport: Skip empty name', ['row' => $rowIndex]);
@@ -253,6 +253,28 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 }
             }
 
+            // ================= BIRTH DATE VALIDATION =================
+            // Skip row if birth date year cannot be parsed
+            $birthDate = null;
+            if (!empty($row['tanggal_lahir'])) {
+                $birthDateRaw = trim($row['tanggal_lahir']);
+                try {
+                    $birthDate = \Carbon\Carbon::parse($birthDateRaw);
+                    // Validate year is reasonable (between 1930 and current year)
+                    if ($birthDate->year < 1930 || $birthDate->year > date('Y')) {
+                        $this->skipped++;
+                        $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Tahun lahir tidak valid: ' . $birthDateRaw];
+                        Log::warning('CandidatesImport: Invalid birth year', ['row' => $rowIndex, 'applicant_id' => $applicantId, 'birth_date' => $birthDateRaw]);
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    $this->skipped++;
+                    $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Tahun lahir tidak bisa dibaca: ' . $birthDateRaw];
+                    Log::warning('CandidatesImport: Cannot parse birth date', ['row' => $rowIndex, 'applicant_id' => $applicantId, 'birth_date' => $birthDateRaw, 'error' => $e->getMessage()]);
+                    continue;
+                }
+            }
+
             // ================= UPSERT CANDIDATE =================
             $candidate = Candidate::updateOrCreate(
                 ['applicant_id' => $applicantId],
@@ -260,7 +282,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                     'nama' => $name,
                     'source' => $row['source'] ?? null,
                     'jk' => $genderNormalized, // Use normalized gender
-                    'tanggal_lahir' => $row['tanggal_lahir'] ?? null,
+                    'tanggal_lahir' => $birthDate,
                     'alamat_email' => $row['email'] ?? null,
                     'jenjang_pendidikan' => $row['jenjang_pendidikan'] ?? null,
                     'perguruan_tinggi' => $row['perguruan_tinggi'] ?? null,

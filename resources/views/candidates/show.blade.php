@@ -142,9 +142,9 @@
                                                id="stage_date"
                                                name="stage_date" 
                                                x-model="stageData.stage_date"
-                                               :min="previousStageDate || getCurrentDate()"
+                                               :min="selectedStage === 'Psikotest' ? '' : (previousStageDate || getCurrentDate())"
                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                        <template x-if="previousStageDate">
+                                        <template x-if="previousStageDate && selectedStage !== 'Psikotest'">
                                             <p class="mt-1 text-xs text-gray-500">Minimal tanggal: <span x-text="formatDate(previousStageDate)"></span> (tanggal stage sebelumnya)</p>
                                         </template>
                                     </div>

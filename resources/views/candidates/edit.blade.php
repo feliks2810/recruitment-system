@@ -62,8 +62,8 @@
                             <label for="jk" class="block text-sm font-medium text-gray-700">Jenis Kelamin</label>
                             <select name="jk" id="jk" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                                 <option value="">Pilih Jenis Kelamin</option>
-                                <option value="L" {{ old('jk', $candidate->jk) == 'L' ? 'selected' : '' }}>Laki-laki</option>
-                                <option value="P" {{ old('jk', $candidate->jk) == 'P' ? 'selected' : '' }}>Perempuan</option>
+                                <option value="Laki-laki" {{ old('jk', $candidate->jk) == 'Laki-laki' ? 'selected' : '' }}>Laki-laki</option>
+                                <option value="Perempuan" {{ old('jk', $candidate->jk) == 'Perempuan' ? 'selected' : '' }}>Perempuan</option>
                             </select>
                         </div>
                         <div>
