@@ -99,10 +99,19 @@
                             </div>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ getStatusBadgeClass($mpp->status) }}">
-                                {{ getStatusLabel($mpp->status) }}
-                            </span>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                            @php
+                                $approved = $mpp->vacancies->where('pivot.proposal_status', 'approved')->count();
+                                $rejected = $mpp->vacancies->where('pivot.proposal_status', 'rejected')->count();
+                                $pending = $mpp->vacancies->reject(function($v) {
+                                    return in_array($v->pivot->proposal_status, ['approved', 'rejected']);
+                                })->count();
+                            @endphp
+                            <div class="space-y-1">
+                                <p><span class="text-green-600 font-bold">✓</span> Disetujui: {{ $approved }}</p>
+                                <p><span class="text-yellow-600 font-bold">⏳</span> Menunggu: {{ $pending }}</p>
+                                <p><span class="text-red-600 font-bold">✕</span> Ditolak: {{ $rejected }}</p>
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ $mpp->created_at->format('d M Y H:i') }}

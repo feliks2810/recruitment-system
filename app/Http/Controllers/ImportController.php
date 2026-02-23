@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Exports\CandidateTemplateExport;
 use App\Imports\CandidatesImport;
 use App\Jobs\ProcessCandidateImport;
@@ -357,10 +358,15 @@ class ImportController extends Controller
 
         $normalizedVacancyName = strtolower(trim($vacancyName));
 
+        // Modified query to accept vacancy with proposal_status 'approved'
+        // even if MPP submission status is still 'submitted'
         $vacancy = Vacancy::whereRaw('LOWER(name) = ?', [$normalizedVacancyName])
             ->whereHas('mppSubmissions', function ($q) use ($year) {
                 $q->where('year', $year)
-                  ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                  ->whereIn('status', [
+                      \App\Models\MPPSubmission::STATUS_APPROVED,
+                      \App\Models\MPPSubmission::STATUS_SUBMITTED
+                  ])
                   ->where('mpp_submission_vacancy.proposal_status', 'approved');
             });
         

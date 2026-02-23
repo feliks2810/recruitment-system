@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\Vacancy;
 use App\Models\VacancyDocument;
+use App\Models\MPPSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -14,10 +16,38 @@ class VacancyDocumentController extends Controller
     /**
      * Show upload form
      */
-    public function showUploadForm(Vacancy $vacancy)
+    public function showUploadForm(Vacancy $vacancy, Request $request)
     {
+        $mppSubmissionId = $request->query('mpp_submission_id');
+        $vacancyStatus = null;
+
+        // If mpp_submission_id provided, get vacancy_status from pivot
+        if ($mppSubmissionId) {
+            $mppSubmission = MPPSubmission::find($mppSubmissionId);
+            if ($mppSubmission) {
+                $vacancyPivot = $mppSubmission->vacancies()->where('vacancy_id', $vacancy->id)->first();
+                if ($vacancyPivot) {
+                    $vacancyStatus = $vacancyPivot->pivot->vacancy_status;
+                }
+            }
+        }
+
+        // If still not found, try to get from any latest approved MPP submission
+        if (!$vacancyStatus) {
+            $latestMPP = $vacancy->mppSubmissions()
+                ->whereIn('status', [MPPSubmission::STATUS_APPROVED, MPPSubmission::STATUS_SUBMITTED])
+                ->latest()
+                ->first();
+            
+            if ($latestMPP) {
+                $vacancyStatus = $latestMPP->pivot->vacancy_status;
+            }
+        }
+
         return view('vacancy-documents.upload', [
             'vacancy' => $vacancy->load('department', 'vacancyDocuments.uploadedByUser'),
+            'vacancyStatus' => $vacancyStatus,
+            'requiredDocType' => $vacancyStatus === 'OSPKWT' ? VacancyDocument::TYPE_A1 : VacancyDocument::TYPE_B1,
         ]);
     }
 
@@ -53,14 +83,41 @@ class VacancyDocumentController extends Controller
             'document_type' => 'required|in:A1,B1',
         ]);
 
-        // Validate document type matches vacancy status
-        $requiredType = $vacancy->vacancy_status === 'OSPKWT' ? VacancyDocument::TYPE_A1 : VacancyDocument::TYPE_B1;
-        if ($validated['document_type'] !== $requiredType) {
-            $message = "Document type {$validated['document_type']} is not allowed for this vacancy. Required: {$requiredType}";
-            if ($request->wantsJson()) {
-                return response()->json(['error' => $message], 422);
+        // Determine vacancy_status from mpp_submission_id if provided, otherwise fallback to latest approved
+        $mppSubmissionId = $request->query('mpp_submission_id');
+        $vacancyStatus = 'OS'; // Default
+
+        if ($mppSubmissionId) {
+            $mppSubmission = MPPSubmission::find($mppSubmissionId);
+            if ($mppSubmission) {
+                $vacancyPivot = $mppSubmission->vacancies()->where('vacancy_id', $vacancy->id)->first();
+                if ($vacancyPivot) {
+                    $vacancyStatus = $vacancyPivot->pivot->vacancy_status;
+                }
             }
-            return back()->withErrors(['document' => $message]);
+        }
+
+        // If still default, try to get from any latest approved MPP submission
+        if ($vacancyStatus === 'OS') {
+            $latestMPP = $vacancy->mppSubmissions()
+                ->whereIn('status', [MPPSubmission::STATUS_APPROVED, MPPSubmission::STATUS_SUBMITTED])
+                ->latest()
+                ->first();
+            
+            if ($latestMPP) {
+                $vacancyStatus = $latestMPP->pivot->vacancy_status;
+            }
+        }
+
+        // Validate document type matches vacancy status
+        $requiredType = $vacancyStatus === 'OSPKWT' ? VacancyDocument::TYPE_A1 : VacancyDocument::TYPE_B1;
+        
+        // Ensure submitted document type matches required type
+        if ($validated['document_type'] !== $requiredType) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => "Document type mismatch"], 422);
+            }
+            return back()->withErrors(['document_type' => "Invalid document type for this vacancy"]);
         }
 
         // Check if document already exists for this vacancy and type
@@ -70,11 +127,11 @@ class VacancyDocumentController extends Controller
             ->first();
 
         if ($existingDoc) {
-            $message = 'A document of this type already exists for this vacancy';
+            $errorMessage = 'A document of this type already exists for this vacancy';
             if ($request->wantsJson()) {
-                return response()->json(['error' => $message], 422);
+                return response()->json(['error' => $errorMessage], 422);
             }
-            return back()->withErrors(['document' => $message]);
+            return back()->withErrors(['document' => $errorMessage]);
         }
 
         // Store the file

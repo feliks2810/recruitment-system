@@ -5,6 +5,8 @@ namespace App\Imports;
 use App\Models\Candidate;
 use App\Models\Application;
 use App\Models\Department;
+use App\Models\Vacancy;
+use App\Models\MPPSubmission;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -45,11 +47,11 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
      *    - Buat department baru jika belum ada
      * 
      * KOLOM YANG DIGUNAKAN:
-     * - applicant_id      (wajib): ID pelamar unik
-     * - nama              (wajib): Nama lengkap kandidat
-     * - vacancy           (wajib jika ada tahun_mpp): Nama vacancy → MUST EXIST IN DB!
-     * - tahun_mpp         (wajib jika ada vacancy): Tahun Manpower Plan
-     * - department        (opsional): Nama departemen (fallback)
+     * - applicant_id: column for applicant ID (wajib)
+     * - nama: column for candidate full name (wajib)
+     * - vacancy: column for vacancy name (wajib jika ada tahun_mpp)
+     * - tahun_mpp: column for MPP year (wajib jika ada vacancy)
+     * - department: column for department name (opsional)
      * 
      * ========================================================================
      */
@@ -102,15 +104,23 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 ]);
 
                 // Eager load the specific MPP submission relationship
-                $vacancy = \App\Models\Vacancy::where('name', $vacancyName)
+                // Modified to accept vacancy with proposal_status 'approved'
+                // even if MPP submission status is still 'submitted'
+                $vacancy = Vacancy::where('name', $vacancyName)
                     ->with(['mppSubmissions' => function ($query) use ($mppYear) {
                         $query->where('year', $mppYear)
-                              ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                              ->whereIn('status', [
+                                  MPPSubmission::STATUS_APPROVED,
+                                  MPPSubmission::STATUS_SUBMITTED
+                              ])
                               ->where('mpp_submission_vacancy.proposal_status', 'approved');
                     }])
                     ->whereHas('mppSubmissions', function ($q) use ($mppYear) {
                         $q->where('year', $mppYear)
-                          ->where('status', \App\Models\MPPSubmission::STATUS_APPROVED)
+                          ->whereIn('status', [
+                              MPPSubmission::STATUS_APPROVED,
+                              MPPSubmission::STATUS_SUBMITTED
+                          ])
                           ->where('mpp_submission_vacancy.proposal_status', 'approved');
                     })->first();
 

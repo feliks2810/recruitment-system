@@ -106,7 +106,7 @@
                                                 @endif
                                             @else
                                                 @if (($isDepartmentUser && auth()->user()->department_id === $vacancy->department_id) || $isTeamHC)
-                                                    <a href="{{ route('vacancy-documents.upload', $vacancy) }}" class="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-sm font-medium">
+                                                    <a href="{{ route('vacancy-documents.upload', $vacancy) }}?mpp_submission_id={{ $mppSubmission->id }}" class="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-sm font-medium">
                                                         <i class="fas fa-upload"></i> Upload Dokumen
                                                     </a>
                                                 @else

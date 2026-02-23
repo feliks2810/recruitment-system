@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Vacancy;
 use App\Models\MPPSubmission;

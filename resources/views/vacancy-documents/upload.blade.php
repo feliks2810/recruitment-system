@@ -9,9 +9,15 @@
                 <h1 class="text-3xl font-bold text-gray-900">Upload Dokumen Vacancy</h1>
                 <p class="mt-2 text-gray-600">{{ $vacancy->name }} - {{ $vacancy->department->name }}</p>
             </div>
-            <a href="{{ route('mpp-submissions.show', $vacancy->mppSubmission) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
-                ← Kembali
-            </a>
+            @if(request()->query('mpp_submission_id'))
+                <a href="{{ route('mpp-submissions.show', request()->query('mpp_submission_id')) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                    ← Kembali
+                </a>
+            @else
+                <a href="{{ route('mpp-submissions.index') }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                    ← Kembali
+                </a>
+            @endif
         </div>
 
         <!-- Info Box -->
@@ -19,18 +25,17 @@
             <p class="text-sm text-blue-800">
                 <strong>Status Vacancy:</strong> 
                 <span class="px-2 py-1 rounded text-xs font-medium
-                    @if($vacancy->vacancy_status === 'OSPKWT')
+                    @if($vacancyStatus === 'OSPKWT')
                         bg-blue-100 text-blue-800
-                    @elseif($vacancy->vacancy_status === 'OS')
+                    @elseif($vacancyStatus === 'OS')
                         bg-purple-100 text-purple-800
+                    @else
+                        bg-gray-100 text-gray-800
                     @endif
                 ">
-                    {{ $vacancy->vacancy_status }}
+                    {{ $vacancyStatus ?? 'Tidak Ditentukan' }}
                 </span>
             </p>
-            @php
-                $requiredDocType = $vacancy->vacancy_status === 'OSPKWT' ? 'A1' : 'B1';
-            @endphp
             <p class="text-sm text-blue-800 mt-2">
                 <strong>Dokumen yang diperlukan:</strong> Dokumen {{ $requiredDocType }}
             </p>
@@ -68,7 +73,7 @@
                     <form action="{{ route('vacancy-documents.upload', $vacancy) }}" method="POST" enctype="multipart/form-data">
                         @csrf
 
-                        <!-- Document Type (Hidden) -->
+                        <!-- Document Type (Auto-detected) -->
                         <input type="hidden" name="document_type" value="{{ $requiredDocType }}">
 
                         <!-- File Upload -->
