@@ -4,6 +4,13 @@
 @section('page-title', 'Edit Posisi')
 @section('page-subtitle', 'Formulir untuk mengedit posisi')
 
+@push('header-filters')
+<a href="{{ route('vacancies.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+    <i class="fas fa-arrow-left text-sm"></i>
+    <span>Kembali</span>
+</a>
+@endpush
+
 @section('content')
 <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
     <form action="{{ route('vacancies.update', $vacancy->id) }}" method="POST" class="space-y-6">

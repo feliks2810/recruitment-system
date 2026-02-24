@@ -4,6 +4,13 @@
 @section('page-title', 'Manajemen Departemen')
 @section('page-subtitle', 'Ubah data departemen.')
 
+@push('header-filters')
+<a href="{{ route('departments.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+    <i class="fas fa-arrow-left text-sm"></i>
+    <span>Kembali</span>
+</a>
+@endpush
+
 @section('content')
 <div class="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
     <h3 class="text-lg font-semibold text-gray-900 mb-4">Formulir Edit Departemen</h3>

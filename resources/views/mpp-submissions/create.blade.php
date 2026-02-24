@@ -1,5 +1,12 @@
 @extends('layouts.app')
 
+@push('header-filters')
+<a href="{{ route('mpp-submissions.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+    <i class="fas fa-arrow-left text-sm"></i>
+    <span>Kembali</span>
+</a>
+@endpush
+
 @section('content')
 <div class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">

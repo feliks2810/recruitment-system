@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class ImportController extends Controller
 {
@@ -239,8 +240,9 @@ class ImportController extends Controller
         }
         
         // 3. Date format check
-        if (!empty($row['tanggal_lahir']) && !$this->parseDate($row['tanggal_lahir'])) {
-            $errors[] = "Baris {$rowIndex}: Format tanggal lahir tidak valid. Gunakan format YYYY-MM-DD atau DD-MM-YYYY.";
+        $birthDateValue = $row['tanggal_lahir'] ?? $row['tanggal lahir'] ?? null;
+        if (!empty($birthDateValue) && !$this->parseDate($birthDateValue)) {
+            $errors[] = "Baris {$rowIndex}: Format tanggal lahir tidak valid.";
         }
         
         // 4. Vacancy check - Must exist in an approved MPP for the selected year
@@ -257,11 +259,12 @@ class ImportController extends Controller
 
         // 5. Duplicate check (only if all required fields are valid and no vacancy error)
         if (empty($errors)) {
+            $birthDateValue = $row['tanggal_lahir'] ?? $row['tanggal lahir'] ?? null;
             $duplicateCheckData = [
                 'email' => $row['alamat_email'],
                 'nama' => $row['nama'],
                 'jk' => $row['jenis_kelamin'] ?? null,
-                'tanggal_lahir' => $this->parseDate($row['tanggal_lahir']),
+                'tanggal_lahir' => $this->parseDate($birthDateValue),
                 'applicant_id' => $row['id_pelamar'] ?? null,
             ];
 
@@ -331,20 +334,18 @@ class ImportController extends Controller
             return null;
         }
 
-        // If it's a numeric value from Excel
-        if (is_numeric($dateString) && $dateString > 25569) {
-            try {
-                $unixTimestamp = ($dateString - 25569) * 86400;
-                return Carbon::createFromTimestamp($unixTimestamp)->format('Y-m-d');
-            } catch (\Exception $e) {
-                Log::warning('Failed to parse Excel date: ' . $dateString);
-            }
-        }
-
-        // Try parsing common string formats
         try {
-            return Carbon::parse($dateString)->format('Y-m-d');
+            // Use official PhpSpreadsheet Date library for Excel serial conversion
+            if (is_numeric($dateString)) {
+                // Excel serial number
+                $dateObj = Date::excelToDateTimeObject($dateString);
+                return \Carbon\Carbon::instance($dateObj)->format('Y-m-d');
+            } else {
+                // Text format - use Carbon parse
+                return \Carbon\Carbon::parse($dateString)->format('Y-m-d');
+            }
         } catch (\Exception $e) {
+            Log::warning('Failed to parse date', ['value' => $dateString, 'error' => $e->getMessage()]);
             return null;
         }
     }

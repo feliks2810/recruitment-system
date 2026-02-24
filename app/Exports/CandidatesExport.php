@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
 class CandidatesExport implements FromCollection, WithHeadings, WithMapping, WithColumnWidths, WithStyles
 {
     protected $candidates;
+    private $rowNumber = 0;
 
     public function __construct($candidates = null)
     {
@@ -26,13 +27,28 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
      */
     public function collection()
     {
+        // Reset row number for fresh export
+        $this->rowNumber = 0;
+        
+        // Always query fresh to ensure relationships are loaded properly
         if ($this->candidates) {
-            return $this->candidates instanceof Collection 
-                ? $this->candidates 
-                : collect($this->candidates);
+            // If candidates passed as collection, get their IDs and reload with relationships
+            if ($this->candidates instanceof Collection) {
+                $ids = $this->candidates->pluck('id')->toArray();
+                return Candidate::whereIn('id', $ids)->with(['department', 'applications' => function($q) {
+                    $q->with(['vacancy', 'stages']);
+                }])->get();
+            }
+            
+            // If already Eloquent collection
+            return $this->candidates->load(['department', 'applications' => function($q) {
+                $q->with(['vacancy', 'stages']);
+            }]);
         }
 
-        return Candidate::with(['department'])->get();
+        return Candidate::with(['department', 'applications' => function($q) {
+            $q->with(['vacancy', 'stages']);
+        }])->get();
     }
 
     /**
@@ -55,8 +71,6 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
             'Source',
             'Current Stage',
             'Overall Status',
-            'CV Review Status',
-            'CV Review Date',
             'Psikotes Result',
             'Psikotes Date',
             'HC Interview Status',
@@ -73,9 +87,18 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
             'Hiring Date',
             'Type',
             'Department',
-            'Created At',
-            'Updated At',
         ];
+    }
+
+    /**
+     * Format date to dd-mm-yyyy
+     */
+    private function formatDate($date)
+    {
+        if (!$date) {
+            return '';
+        }
+        return \Carbon\Carbon::parse($date)->format('d-m-Y');
     }
 
     /**
@@ -84,41 +107,73 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
      */
     public function map($candidate): array
     {
+        $this->rowNumber++;
+        
+        // Get first application with its stages
+        $application = $candidate->applications->first();
+        $vacancy = $application?->vacancy->name ?? '';
+        
+        // Get stage data from application stages
+        $stages = $application?->stages ?? collect();
+        $stagesByName = $stages->keyBy('stage_name');
+        
+        // Get current stage (latest stage with a status)
+        $currentStage = '';
+        if ($stages->count() > 0) {
+            $latestStage = $stages->last();
+            if ($latestStage) {
+                $stageNames = [
+                    'psikotes' => 'Psikotest',
+                    'hc_interview' => 'HC Interview',
+                    'user_interview' => 'User Interview',
+                    'interview_bod' => 'Interview BOD',
+                    'offering_letter' => 'Offering Letter',
+                    'mcu' => 'MCU',
+                    'hiring' => 'Hiring',
+                ];
+                $currentStage = $stageNames[$latestStage->stage_name] ?? $latestStage->stage_name;
+            }
+        }
+        
+        $psikotesStage = $stagesByName->get('psikotes');
+        $hcInterviewStage = $stagesByName->get('hc_interview');
+        $userInterviewStage = $stagesByName->get('user_interview');
+        $bodInterviewStage = $stagesByName->get('interview_bod');
+        $offeringLetterStage = $stagesByName->get('offering_letter');
+        $mcuStage = $stagesByName->get('mcu');
+        $hiringStage = $stagesByName->get('hiring');
+        
         return [
-            $candidate->no,
+            $this->rowNumber,
             $candidate->applicant_id,
             $candidate->nama,
             $candidate->alamat_email,
             $candidate->jk,
-            $candidate->tanggal_lahir,
-            $candidate->vacancy,
+            $this->formatDate($candidate->tanggal_lahir),
+            $vacancy,
             $candidate->ipk,
             $candidate->jenjang_pendidikan,
             $candidate->perguruan_tinggi,
             $candidate->jurusan,
             $candidate->source,
-            $candidate->current_stage,
-            $candidate->overall_status,
-            $candidate->cv_review_status,
-            $candidate->cv_review_date,
-            $candidate->psikotes_result ?? $candidate->psikotest_result,
-            $candidate->psikotes_date,
-            $candidate->hc_interview_status,
-            $candidate->hc_interview_date,
-            $candidate->user_interview_status,
-            $candidate->user_interview_date,
-            $candidate->bod_interview_status ?? $candidate->bodgm_interview_status,
-            $candidate->bod_interview_date ?? $candidate->bodgm_interview_date,
-            $candidate->offering_letter_status,
-            $candidate->offering_letter_date,
-            $candidate->mcu_status,
-            $candidate->mcu_date,
-            $candidate->hiring_status,
-            $candidate->hiring_date,
+            $currentStage,
+            $application?->overall_status ?? '',
+            $psikotesStage?->status ?? '',
+            $this->formatDate($psikotesStage?->scheduled_date),
+            $hcInterviewStage?->status ?? '',
+            $this->formatDate($hcInterviewStage?->scheduled_date),
+            $userInterviewStage?->status ?? '',
+            $this->formatDate($userInterviewStage?->scheduled_date),
+            $bodInterviewStage?->status ?? '',
+            $this->formatDate($bodInterviewStage?->scheduled_date),
+            $offeringLetterStage?->status ?? '',
+            $this->formatDate($offeringLetterStage?->scheduled_date),
+            $mcuStage?->status ?? '',
+            $this->formatDate($mcuStage?->scheduled_date),
+            $hiringStage?->status ?? '',
+            $this->formatDate($hiringStage?->scheduled_date),
             $candidate->airsys_internal === 'Yes' ? 'Organic' : 'Non-Organic',
             $candidate->department->name ?? '',
-            $candidate->created_at,
-            $candidate->updated_at,
         ];
     }
 
@@ -142,26 +197,22 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
             'L' => 15,  // Source
             'M' => 15,  // Current Stage
             'N' => 15,  // Overall Status
-            'O' => 15,  // CV Review Status
-            'P' => 12,  // CV Review Date
-            'Q' => 15,  // Psikotes Result
-            'R' => 12,  // Psikotes Date
-            'S' => 15,  // HC Interview Status
-            'T' => 12,  // HC Interview Date
-            'U' => 15,  // User Interview Status
-            'V' => 12,  // User Interview Date
-            'W' => 15,  // BOD Interview Status
-            'X' => 12,  // BOD Interview Date
-            'Y' => 15,  // Offering Letter Status
-            'Z' => 12,  // Offering Letter Date
-            'AA' => 12, // MCU Status
-            'AB' => 12, // MCU Date
-            'AC' => 12, // Hiring Status
-            'AD' => 12, // Hiring Date
-            'AE' => 12, // Type
-            'AF' => 15, // Department
-            'AG' => 15, // Created At
-            'AH' => 15, // Updated At
+            'O' => 15,  // Psikotes Result
+            'P' => 12,  // Psikotes Date
+            'Q' => 15,  // HC Interview Status
+            'R' => 12,  // HC Interview Date
+            'S' => 15,  // User Interview Status
+            'T' => 12,  // User Interview Date
+            'U' => 15,  // BOD Interview Status
+            'V' => 12,  // BOD Interview Date
+            'W' => 15,  // Offering Letter Status
+            'X' => 12,  // Offering Letter Date
+            'Y' => 12,  // MCU Status
+            'Z' => 12,  // MCU Date
+            'AA' => 12, // Hiring Status
+            'AB' => 12, // Hiring Date
+            'AC' => 12, // Type
+            'AD' => 15, // Department
         ];
     }
 
@@ -176,7 +227,7 @@ class CandidatesExport implements FromCollection, WithHeadings, WithMapping, Wit
             1 => ['font' => ['bold' => true]],
             
             // Set alignment for all cells
-            'A:AH' => [
+            'A:AD' => [
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_LEFT,
                     'vertical' => Alignment::VERTICAL_CENTER,

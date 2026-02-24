@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
@@ -254,25 +255,72 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
 
             // ================= BIRTH DATE VALIDATION =================
-            // Skip row if birth date year cannot be parsed
+            // Support both header formats: 'tanggal_lahir' (normalized) and 'tanggal lahir' (with space)
             $birthDate = null;
-            if (!empty($row['tanggal_lahir'])) {
-                $birthDateRaw = trim($row['tanggal_lahir']);
-                try {
-                    $birthDate = \Carbon\Carbon::parse($birthDateRaw);
-                    // Validate year is reasonable (between 1930 and current year)
-                    if ($birthDate->year < 1930 || $birthDate->year > date('Y')) {
-                        $this->skipped++;
-                        $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Tahun lahir tidak valid: ' . $birthDateRaw];
-                        Log::warning('CandidatesImport: Invalid birth year', ['row' => $rowIndex, 'applicant_id' => $applicantId, 'birth_date' => $birthDateRaw]);
-                        continue;
-                    }
-                } catch (\Exception $e) {
+            $birthDateValue = $row['tanggal_lahir'] ?? $row['tanggal lahir'] ?? null;
+
+            if (!$birthDateValue) {
+                // Empty birth date - skip row
+                $this->skipped++;
+                $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Tanggal lahir wajib diisi'];
+                Log::warning('CandidatesImport: Missing birth date', ['row' => $rowIndex, 'applicant_id' => $applicantId]);
+                continue;
+            }
+
+            try {
+                // Use official PhpSpreadsheet Date library for Excel serial conversion
+                // This handles both numeric (Excel serial) and text date formats
+                if (is_numeric($birthDateValue)) {
+                    // Excel serial number
+                    $birthDate = \Carbon\Carbon::instance(Date::excelToDateTimeObject($birthDateValue));
+                    Log::debug('CandidatesImport: Parsed Excel serial date', [
+                        'serial' => $birthDateValue,
+                        'result' => $birthDate->format('Y-m-d'),
+                        'row' => $rowIndex,
+                    ]);
+                } else {
+                    // Text format - try Carbon parse which supports multiple formats
+                    $birthDate = \Carbon\Carbon::parse($birthDateValue);
+                    Log::debug('CandidatesImport: Parsed text date', [
+                        'raw' => $birthDateValue,
+                        'result' => $birthDate->format('Y-m-d'),
+                        'row' => $rowIndex,
+                    ]);
+                }
+
+                // Validate year is reasonable (between 1930 and current year)
+                if ($birthDate->year < 1930 || $birthDate->year > date('Y')) {
                     $this->skipped++;
-                    $this->errors[] = ['row' => $rowIndex, 'applicant_id' => $applicantId, 'nama' => $name, 'error' => 'Tahun lahir tidak bisa dibaca: ' . $birthDateRaw];
-                    Log::warning('CandidatesImport: Cannot parse birth date', ['row' => $rowIndex, 'applicant_id' => $applicantId, 'birth_date' => $birthDateRaw, 'error' => $e->getMessage()]);
+                    $this->errors[] = [
+                        'row' => $rowIndex,
+                        'applicant_id' => $applicantId,
+                        'nama' => $name,
+                        'error' => 'Tahun lahir tidak valid: ' . $birthDate->format('Y-m-d') . '. Tahun harus antara 1930 dan ' . date('Y')
+                    ];
+                    Log::warning('CandidatesImport: Birth year out of range', [
+                        'row' => $rowIndex,
+                        'applicant_id' => $applicantId,
+                        'parsed_year' => $birthDate->year,
+                        'value' => $birthDateValue,
+                    ]);
                     continue;
                 }
+            } catch (\Exception $e) {
+                // Failed to parse by any method
+                $this->skipped++;
+                $this->errors[] = [
+                    'row' => $rowIndex,
+                    'applicant_id' => $applicantId,
+                    'nama' => $name,
+                    'error' => 'Tidak dapat membaca format tanggal lahir: ' . (string)$birthDateValue
+                ];
+                Log::warning('CandidatesImport: Could not parse birth date', [
+                    'row' => $rowIndex,
+                    'applicant_id' => $applicantId,
+                    'value' => $birthDateValue,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
             }
 
             // ================= UPSERT CANDIDATE =================
