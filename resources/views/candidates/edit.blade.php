@@ -5,10 +5,10 @@
 @section('page-subtitle', 'Perbarui informasi kandidat')
 
 @push('header-filters')
-<a href="{{ route('candidates.show', $candidate) }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+<button onclick="history.back()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
     <i class="fas fa-arrow-left text-sm"></i>
     <span>Kembali</span>
-</a>
+</button>
 @endpush
 
 @section('content')
@@ -163,10 +163,10 @@
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-3 pt-6 border-t border-gray-200">
-                    <a href="{{ route('candidates.show', $candidate) }}" class="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+                    <button type="button" onclick="history.back()" class="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2">
                         <i class="fas fa-times text-sm"></i>
                         <span>Batal</span>
-                    </a>
+                    </button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
                         <i class="fas fa-save text-sm"></i>
                         <span>Simpan Perubahan</span>

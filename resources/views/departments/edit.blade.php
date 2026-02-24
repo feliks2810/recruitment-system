@@ -5,10 +5,10 @@
 @section('page-subtitle', 'Ubah data departemen.')
 
 @push('header-filters')
-<a href="{{ route('departments.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+<button onclick="history.back()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
     <i class="fas fa-arrow-left text-sm"></i>
     <span>Kembali</span>
-</a>
+</button>
 @endpush
 
 @section('content')
@@ -30,7 +30,7 @@
         </div>
 
         <div class="mt-6 flex items-center justify-end gap-x-4 border-t border-gray-200 pt-6">
-            <a href="{{ route('departments.index') }}" class="text-sm font-semibold leading-6 text-gray-900">Batal</a>
+            <button type="button" onclick="history.back()" class="text-sm font-semibold leading-6 text-gray-900">Batal</button>
             <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                 Update Departemen
             </button>

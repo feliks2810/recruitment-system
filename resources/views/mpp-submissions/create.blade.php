@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
 @push('header-filters')
-<a href="{{ route('mpp-submissions.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+<button onclick="history.back()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
     <i class="fas fa-arrow-left text-sm"></i>
     <span>Kembali</span>
-</a>
+</button>
 @endpush
 
 @section('content')
@@ -110,12 +110,13 @@
                     >
                         Simpan & Kirim
                     </button>
-                    <a
-                        href="{{ route('mpp-submissions.index') }}"
+                    <button
+                        type="button"
+                        onclick="history.back()"
                         class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 inline-block"
                     >
                         Batal
-                    </a>
+                    </button>
                 </div>
             </form>
         </div>

@@ -9,9 +9,9 @@
                 <h1 class="text-3xl font-bold text-gray-900">Detail Pengajuan MPP</h1>
                 <p class="mt-2 text-gray-600">{{ $mppSubmission->department->name }}</p>
             </div>
-            <a href="{{ route('mpp-submissions.index') }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+            <button onclick="history.back()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 cursor-pointer border-none">
                 ← Kembali
-            </a>
+            </button>
         </div>
 
         <!-- Success/Error Messages -->

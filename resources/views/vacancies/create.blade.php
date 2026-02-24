@@ -5,10 +5,10 @@
 @section('page-subtitle', 'Formulir untuk menambahkan posisi baru')
 
 @push('header-filters')
-<a href="{{ route('vacancies.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+<button onclick="history.back()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
     <i class="fas fa-arrow-left text-sm"></i>
     <span>Kembali</span>
-</a>
+</button>
 @endpush
 
 @section('content')
@@ -42,9 +42,9 @@
             <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 Simpan Posisi
             </button>
-            <a href="{{ route('vacancies.index') }}" class="ml-3 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <button type="button" onclick="history.back()" class="ml-3 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                 Batal
-            </a>
+            </button>
         </div>
     </form>
 </div>

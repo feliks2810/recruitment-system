@@ -5,10 +5,10 @@
 @section('page-subtitle', 'Perbarui informasi pengguna')
 
 @push('header-filters')
-<a href="{{ route('users.index') }}" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
+<button onclick="history.back()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 border border-gray-300">
     <i class="fas fa-arrow-left text-sm"></i>
     <span>Kembali</span>
-</a>
+</button>
 @endpush
 
 @section('content')
@@ -88,9 +88,9 @@
             
             <div class="flex justify-end">
                 <div class="flex space-x-3">
-                    <a href="{{ route('users.index') }}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" onclick="history.back()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         Batal
-                    </a>
+                    </button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                         Simpan Perubahan
                     </button>

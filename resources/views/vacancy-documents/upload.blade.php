@@ -10,13 +10,13 @@
                 <p class="mt-2 text-gray-600">{{ $vacancy->name }} - {{ $vacancy->department->name }}</p>
             </div>
             @if(request()->query('mpp_submission_id'))
-                <a href="{{ route('mpp-submissions.show', request()->query('mpp_submission_id')) }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                <button onclick="history.back()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 cursor-pointer border-none">
                     ← Kembali
-                </a>
+                </button>
             @else
-                <a href="{{ route('mpp-submissions.index') }}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                <button onclick="history.back()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 cursor-pointer border-none">
                     ← Kembali
-                </a>
+                </button>
             @endif
         </div>
 
