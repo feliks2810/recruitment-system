@@ -6,6 +6,7 @@ use App\Models\Application;
 use App\Models\Candidate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 
@@ -17,7 +18,7 @@ class StatisticsController extends Controller
         $endDate = $request->get('end_date');
         $source = $request->get('source');
 
-        $user = auth()->user();
+        $user = Auth::user();
         $baseQuery = Application::query(); // Initialize $baseQuery here
 
         if ($user->hasRole('kepala departemen') && $user->department_id) {
@@ -85,8 +86,9 @@ class StatisticsController extends Controller
 
     private function getRecruitmentFunnelData($query)
     {
+        $totalApplications = (clone $query)->count();
+        
         $stages = [
-            'Aplikasi' => (clone $query)->count(),
             'Psikotes' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'psikotes');})->count(),
             'Interview HC' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'hc_interview');})->count(),
             'Interview User' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'user_interview');})->count(),
@@ -95,7 +97,7 @@ class StatisticsController extends Controller
         ];
 
         $funnel = [];
-        $previousStageCount = $stages['Aplikasi'];
+        $previousStageCount = $totalApplications;
 
         foreach ($stages as $stageName => $count) {
             $conversionRate = $previousStageCount > 0 ? round(($count / $previousStageCount) * 100, 1) : 0;
@@ -112,7 +114,7 @@ class StatisticsController extends Controller
 
     private function getSourceEffectivenessData($startDate, $endDate, $source)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $query = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
 
@@ -148,16 +150,34 @@ class StatisticsController extends Controller
         $data = (clone $query)
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->select('candidates.jk', DB::raw('count(*) as count'))
-            ->whereNotNull('candidates.jk')
-            ->where('candidates.jk', '!=', '')
             ->groupBy('candidates.jk')
-            ->orderByDesc('count')
             ->get();
 
-        // Transform the collection into an associative array for Chart.js
-        $transformedData = [];
+        // Transform the collection into a normalized associative array for Chart.js
+        $transformedData = [
+            'Laki-laki' => 0,
+            'Perempuan' => 0,
+        ];
+        
+        $unknownCount = 0;
+
         foreach ($data as $item) {
-            $transformedData[$item->jk] = $item->count;
+            $jk = trim($item->jk ?? '');
+            $lowerJk = strtolower($jk);
+            
+            if (empty($jk)) {
+                $unknownCount += $item->count;
+            } elseif (in_array($lowerJk, ['laki-laki', 'l', 'laki laki', 'male'])) {
+                $transformedData['Laki-laki'] += $item->count;
+            } elseif (in_array($lowerJk, ['perempuan', 'p', 'female'])) {
+                $transformedData['Perempuan'] += $item->count;
+            } else {
+                $unknownCount += $item->count;
+            }
+        }
+        
+        if ($unknownCount > 0) {
+            $transformedData['Tidak Diketahui'] = $unknownCount;
         }
 
         return $transformedData;
@@ -187,7 +207,7 @@ class StatisticsController extends Controller
 
     private function getMonthlyApplicationData($startDate, $endDate, $source)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $query = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'));
@@ -285,7 +305,6 @@ class StatisticsController extends Controller
         \Log::info("Timeline Analysis - Total applications: {$totalApplications}");
 
         $allStages = [
-            'CV Review' => 'cv_review',
             'Psikotes' => 'psikotes',
             'Interview HC' => 'hc_interview',
             'Interview User' => 'user_interview',

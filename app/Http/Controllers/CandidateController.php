@@ -298,7 +298,7 @@ class CandidateController extends Controller
     public function index(Request $request)
     {
         $type = $request->input('type');
-        $user = auth()->user();
+        $user = Auth::user();
 
         // --- Year & Filter Preparation ---
 
@@ -380,7 +380,10 @@ class CandidateController extends Controller
             });
         }
         
-        if ($request->filled('vacancy_id')) { $query->where('applications.vacancy_id', $request->vacancy_id); }
+        if ($request->filled('vacancy_id')) { 
+            $query->where('applications.vacancy_id', $request->vacancy_id); 
+            $statsQuery->where('applications.vacancy_id', $request->vacancy_id);
+        }
         if ($request->filled('department_id')) { $query->where('candidates.department_id', $request->department_id); }
         if ($request->filled('source')) { $query->where('candidates.source', $request->source); }
         if ($request->filled('stage')) {
@@ -407,9 +410,20 @@ class CandidateController extends Controller
             'duplicate' => $duplicateCandidateIds->count(),
         ];
         $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) use ($selectedYear) {
-            $q->where('proposal_status', 'approved')->where('year', $selectedYear);
+            $q->where('proposal_status', 'approved');
+            if ($selectedYear) {
+                $q->where('year', $selectedYear);
+            }
         })->with(['mppSubmissions' => function ($q) use ($selectedYear) {
-            $q->where('proposal_status', 'approved')->where('year', $selectedYear);
+            $q->where('proposal_status', 'approved');
+            if ($selectedYear) {
+                $q->where('year', $selectedYear);
+            }
+        }])
+        ->withCount(['applications' => function ($q) use ($selectedYear) {
+            if ($selectedYear) {
+                $q->where('mpp_year', $selectedYear);
+            }
         }])->get();
         $departments = \App\Models\Department::orderBy('name')->get();
         $sources = \App\Models\Candidate::distinct()->pluck('source');
@@ -515,7 +529,7 @@ class CandidateController extends Controller
             [
                 'status' => 'PINDAH_POSISI',
                 'notes' => 'Kandidat dipindahkan ke posisi baru: ' . $newVacancy->name,
-                'conducted_by' => auth()->user()->name,
+                'conducted_by' => Auth::user()->name,
             ]
         );
 

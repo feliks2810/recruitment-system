@@ -236,11 +236,8 @@
                             $isActive = request('vacancy_id') == $vacancy->id;
                         @endphp
                         <a href="{{ route('candidates.index', array_merge(request()->all(), ['vacancy_id' => $vacancy->id])) }}" 
-                           class="flex items-center text-sm font-medium px-3 py-2 rounded-full transition-all {{ $isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' }}">
+                           class="flex items-center text-sm font-medium px-4 py-2 rounded-full transition-all {{ $isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' }}">
                             <span>{{ $vacancy->name }}</span>
-                            <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full {{ $isActive ? 'bg-white bg-opacity-30' : 'bg-blue-500 text-white' }}">
-                                {{ $neededCount }} 
-                            </span>
                         </a>
                     @empty
                         <p class="text-sm text-gray-500">Tidak ada lowongan yang aktif saat ini.</p>
@@ -381,7 +378,7 @@
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ $latestStage ? Str::title(str_replace('_', ' ', $latestStage->stage_name)) : 'N/A' }}
+                                            {{ $latestStage ? \App\Models\Candidate::formatStageName($latestStage->stage_name) : 'N/A' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ $application->created_at->format('d M Y') }}

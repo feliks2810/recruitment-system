@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class Candidate extends Model
 {
@@ -393,5 +394,24 @@ class Candidate extends Model
             'CANCELLED' => 'gray',
             default => 'blue',
         };
+    }
+
+    /**
+     * Format stage name for display
+     * Converts 'hc_interview' to 'HC Interview', etc.
+     */
+    public static function formatStageName(string $stageName): string
+    {
+        $stageMap = [
+            'psikotes' => 'Psikotest',
+            'hc_interview' => 'HC Interview',
+            'user_interview' => 'User Interview',
+            'interview_bod' => 'Interview BOD',
+            'offering_letter' => 'Offering Letter',
+            'mcu' => 'MCU',
+            'hiring' => 'Hiring',
+        ];
+
+        return $stageMap[strtolower($stageName)] ?? Str::title(str_replace('_', ' ', $stageName));
     }
 }

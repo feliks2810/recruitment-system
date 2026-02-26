@@ -10,7 +10,6 @@ use App\Models\ApplicationStage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -29,7 +28,7 @@ class DashboardController extends Controller
             }
         // Filter by year if provided
         if ($year) {
-            $baseQuery->whereYear('created_at', $year);
+            $baseQuery->whereYear('applications.created_at', $year);
         }
 
         // Get real statistics based on overall_status
@@ -109,36 +108,65 @@ class DashboardController extends Controller
             ];
         })->values();
 
-        // Gender Distribution
-        $genderDistributionQuery = Candidate::query();
-        if ($user->hasRole('kepala departemen')) {
-            $genderDistributionQuery->where('department_id', $user->department_id);
-        }
-        if ($year) {
-            $genderDistributionQuery->whereYear('created_at', $year);
-        }
-        $gender_distribution = $genderDistributionQuery
-            ->select('jk', DB::raw('count(*) as count'))
-            ->whereNotNull('jk')
-            ->where('jk', '!=', '')
-            ->groupBy('jk')
+        // Gender Distribution - Show all including NULL/empty as "Tidak Diketahui"
+        $genderRaw = (clone $baseQuery)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->select('candidates.jk', DB::raw('count(*) as count'))
+            ->groupBy('candidates.jk')
             ->get();
+        
+        // Normalize gender values - combine all empty/null as unknown
+        $genderMap = [];
+        $unknownCount = 0;
+        
+        foreach ($genderRaw as $item) {
+            $jk = trim($item->jk ?? '');
+            
+            if (empty($jk)) {
+                // All NULL and empty string combined as unknown
+                $unknownCount += $item->count;
+            } else {
+                // Normalize gender values
+                $normalizedJk = $jk;
+                $lowerJk = strtolower($jk);
+                
+                if (in_array($lowerJk, ['laki-laki', 'l', 'laki laki', 'male'])) {
+                    $normalizedJk = 'L';
+                } elseif (in_array($lowerJk, ['perempuan', 'p', 'female'])) {
+                    $normalizedJk = 'P';
+                }
+                
+                if (!isset($genderMap[$normalizedJk])) {
+                    $genderMap[$normalizedJk] = 0;
+                }
+                $genderMap[$normalizedJk] += $item->count;
+            }
+        }
+        
+        // Build final collection
+        $gender_distribution = collect();
+        
+        // Add known genders first (sorted by count)
+        arsort($genderMap);
+        foreach ($genderMap as $jk => $count) {
+            $gender_distribution->push((object)['jk' => $jk, 'count' => $count]);
+        }
+        
+        // Add unknown at the end
+        if ($unknownCount > 0) {
+            $gender_distribution->push((object)['jk' => null, 'count' => $unknownCount]);
+        }
 
-        // University Distribution
-        $universityDistributionQuery = Candidate::query();
-        if ($user->hasRole('kepala departemen')) {
-            $universityDistributionQuery->where('department_id', $user->department_id);
-        }
-        if ($year) {
-            $universityDistributionQuery->whereYear('created_at', $year);
-        }
-        $university_distribution = $universityDistributionQuery
-            ->select('perguruan_tinggi', DB::raw('count(*) as count'))
-            ->whereNotNull('perguruan_tinggi')
-            ->where('perguruan_tinggi', '!=', '')
-            ->groupBy('perguruan_tinggi')
+        // University Distribution - Using same approach as StatisticsController
+        $university_distribution = (clone $baseQuery)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('educations', 'candidates.id', '=', 'educations.candidate_id')
+            ->select('educations.institution as perguruan_tinggi', DB::raw('count(*) as count'))
+            ->whereNotNull('educations.institution')
+            ->where('educations.institution', '!=', '')
+            ->groupBy('educations.institution')
             ->orderByDesc('count')
-            ->limit(10) // Limit to top 10 universities
+            ->limit(10)
             ->get();
 
         $departments = [];
@@ -203,34 +231,57 @@ class DashboardController extends Controller
         $user = Auth::user();
         $events = [];
 
-        // Commenting out ApplicationStage based events as per user request to not show "history tests" or "stages" in the calendar.
-        // $stagesQuery = ApplicationStage::with(['application.candidate'])
-        //     ->whereNotNull('scheduled_date')
-        //     ->whereDate('scheduled_date', '>=', now()->startOfYear())
-        //     ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
+        // Get only PENDING/IN-PROGRESS scheduled stages for each application
+        $stagesQuery = ApplicationStage::with(['application.candidate'])
+            ->whereNotNull('scheduled_date')
+            ->where(function($q) {
+                $q->whereIn('status', ['PENDING', 'PROSES', 'MENUNGGU'])
+                  ->orWhereNull('status');
+            })
+            ->whereDate('scheduled_date', '>=', now()->startOfYear())
+            ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
 
-        // if ($user->hasRole('kepala departemen')) {
-        //     $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
-        //         $q->where('department_id', $user->department_id);
-        //     });
-        // }
+        if ($user->hasRole('kepala departemen')) {
+            $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
+                $q->where('department_id', $user->department_id);
+            });
+        }
 
-        // $stages = $stagesQuery->get();
+        // Get all scheduled stages and group by application to find the latest one
+        $allScheduledStages = $stagesQuery->get();
+        $latestStagesByApplication = $allScheduledStages->groupBy('application_id')->map(function ($stages) {
+            // Sort by scheduled_date desc, then by id desc to get the most recent one
+            return $stages->sortByDesc(function($stage) {
+                return $stage->scheduled_date . '_' . $stage->id;
+            })->first();
+        });
 
-        // foreach ($stages as $stage) {
-        //     $events[] = [
-        //         'id' => 'stage_' . $stage->id,
-        //         'type' => 'candidate_test',
-        //         'title' => $stage->application->candidate->nama . ' - ' . Str::title(str_replace('_', ' ', $stage->stage_name)),
-        //         'description' => 'Test ' . Str::title(str_replace('_', ' ', $stage->stage_name)) . ' untuk kandidat ' . $stage->application->candidate->nama,
-        //         'date' => Carbon::parse($stage->scheduled_date)->format('Y-m-d'),
-        //         'time' => Carbon::parse($stage->scheduled_date)->format('H:i'),
-        //         'url' => route('candidates.show', $stage->application->candidate_id),
-        //         'candidate_id' => $stage->application->candidate_id,
-        //         'stage' => $stage->stage_name,
-        //         'applicant_id' => $stage->application->candidate->applicant_id ?? 'N/A'
-        //     ];
-        // }
+        // Process ApplicationStage events first
+        $processed = []; // To track candidate_id + date to avoid duplicates
+        
+        foreach ($latestStagesByApplication as $stage) {
+            $displayName = Candidate::formatStageName($stage->stage_name);
+            $candidateName = $stage->application->candidate->nama ?? 'Unknown';
+            $dateKey = Carbon::parse($stage->scheduled_date)->format('Y-m-d');
+            $candidateId = $stage->application->candidate_id;
+
+            $events[] = [
+                'id' => 'stage_' . $stage->id,
+                'type' => 'candidate_test',
+                'title' => $candidateName . ' - ' . $displayName,
+                'description' => 'Jadwal ' . $displayName . ' untuk ' . $candidateName,
+                'date' => $dateKey,
+                'time' => Carbon::parse($stage->scheduled_date)->format('H:i'),
+                'url' => route('candidates.show', $candidateId),
+                'candidate_id' => $candidateId,
+                'stage' => $stage->stage_name,
+                'applicant_id' => $stage->application->candidate->applicant_id ?? 'N/A',
+                'is_custom' => false
+            ];
+            
+            // Mark this candidate + date as processed
+            $processed[$candidateId . '_' . $dateKey] = true;
+        }
 
         $customEventsQuery = Event::whereNotNull('date')
             ->whereDate('date', '>=', now()->startOfYear())
@@ -243,14 +294,23 @@ class DashboardController extends Controller
         $customEvents = $customEventsQuery->get();
 
         foreach ($customEvents as $event) {
+            $dateKey = Carbon::parse($event->date)->format('Y-m-d');
+            $candidateId = $event->candidate_id;
+
+            // Skip if we already have an ApplicationStage event for this candidate on this date
+            if ($candidateId && isset($processed[$candidateId . '_' . $dateKey])) {
+                continue;
+            }
+
             $events[] = [
                 'id' => 'custom_' . $event->id,
                 'type' => 'custom_event',
                 'title' => $event->title,
                 'description' => $event->description ?? 'No description',
-                'date' => Carbon::parse($event->date)->format('Y-m-d'),
+                'date' => $dateKey,
                 'time' => $event->time ? Carbon::parse($event->time)->format('H:i') : null,
-                'url' => $event->candidate_id ? route('candidates.show', $event->candidate_id) : '#',
+                'url' => $candidateId ? route('candidates.show', $candidateId) : '#',
+                'is_custom' => true
             ];
         }
 
@@ -261,6 +321,7 @@ class DashboardController extends Controller
     {
         $year = $request->get('year', date('Y'));
         $user = Auth::user();
+        $query = Application::query();
 
     if ($user->hasRole('kepala departemen')) {
         $query->whereHas('candidate', function ($cq) use ($user) {
