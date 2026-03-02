@@ -152,7 +152,7 @@
                 </div>
             @endif
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
-                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => null, 'type' => null])) }}" class="block">
+                <a href="{{ route('candidates.index', request()->except(['status', 'type', 'page'])) }}" class="block">
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
@@ -165,7 +165,7 @@
                         </div>
                     </div>
                 </a>
-                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'ON_PROCESS'])) }}" class="block">
+                <a href="{{ route('candidates.index', array_merge(request()->except('page'), ['status' => 'ON_PROCESS'])) }}" class="block">
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
@@ -178,7 +178,7 @@
                         </div>
                     </div>
                 </a>
-                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'HIRED'])) }}" class="block">
+                <a href="{{ route('candidates.index', array_merge(request()->except('page'), ['status' => 'HIRED'])) }}" class="block">
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
@@ -191,7 +191,7 @@
                         </div>
                     </div>
                 </a>
-                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'FAILED'])) }}" class="block">
+                <a href="{{ route('candidates.index', array_merge(request()->except('page'), ['status' => 'FAILED'])) }}" class="block">
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
@@ -204,7 +204,7 @@
                         </div>
                     </div>
                 </a>
-                <a href="{{ route('candidates.index', array_merge(request()->query(), ['status' => 'CANCEL'])) }}" class="block">
+                <a href="{{ route('candidates.index', array_merge(request()->except('page'), ['status' => 'CANCEL'])) }}" class="block">
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
@@ -223,7 +223,7 @@
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-md font-semibold text-gray-800">Active Openings</h3>
                     @if(request('vacancy_id'))
-                    <a href="{{ route('candidates.index', array_merge(request()->except('vacancy_id'), [])) }}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    <a href="{{ route('candidates.index', request()->except(['vacancy_id', 'page'])) }}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <i class="fas fa-times mr-1"></i>Clear Filter
                     </a>
                     @endif
@@ -235,7 +235,7 @@
                             $neededCount = $mppSubmission ? $mppSubmission->pivot->needed_count : 0;
                             $isActive = request('vacancy_id') == $vacancy->id;
                         @endphp
-                        <a href="{{ route('candidates.index', array_merge(request()->all(), ['vacancy_id' => $vacancy->id])) }}" 
+                        <a href="{{ route('candidates.index', array_merge(request()->except('page'), ['vacancy_id' => $vacancy->id])) }}" 
                            class="flex items-center text-sm font-medium px-4 py-2 rounded-full transition-all {{ $isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' }}">
                             <span>{{ $vacancy->name }}</span>
                         </a>
