@@ -69,13 +69,17 @@ class ApplicationStageService
         // Handle post-update logic
         $nextStageKey = $this->stageConfig[$stageKey]['next'] ?? null;
 
-        if (in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA'])) {
+        // "LULUS", "DISARANKAN", "DITERIMA", "HIRED" are all considered passing results
+        if (in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'])) {
             if ($nextStageKey) {
                 $this->prepareNextStage($application, $nextStageKey, $validatedData);
             }
-        } elseif (in_array($result, ['DITOLAK', 'TIDAK LULUS', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'])) {
+        } 
+        // "TIDAK LULUS", "DITOLAK", "GAGAL", "TIDAK DIHIRING", "TIDAK DISARANKAN" are all considered failing results
+        elseif (in_array($result, ['TIDAK LULUS', 'DITOLAK', 'GAGAL', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'])) {
             $this->resetFutureStages($application, $stageKey);
         }
+        // "DIPERTIMBANGKAN" - does not advance to next stage, but does not fail the application either
         
         if ($nextStageKey && isset($validatedData['next_stage_date'])) {
             $this->createCalendarEvent($application, $nextStageKey, $validatedData['next_stage_date']);
@@ -87,6 +91,111 @@ class ApplicationStageService
         $application->save();
 
         return $application;
+    }
+
+    public function resetStage(Application $application, string $stageKey): void
+    {
+        $stage = $application->stages()->where('stage_name', $stageKey)->first();
+        if (!$stage) {
+            throw ValidationException::withMessages(['stage' => 'Stage tidak ditemukan.']);
+        }
+
+        // Delete the stage
+        $stage->delete();
+
+        // Also delete future stages if any
+        $this->resetFutureStages($application, $stageKey);
+
+        // Check for "Move Position" revert scenario
+        // If we just reset the stage that was passed during move (like interview_bod) 
+        // OR if this application was created via move and now has no stages left 
+        // (meaning it's just the 'pending' next stage created by the system)
+        if ($application->stages()->count() === 0) {
+            // Find a previous application that was set to 'PINDAH'
+            $previousApplication = $application->candidate->applications()
+                ->where('id', '!=', $application->id)
+                ->where('overall_status', 'PINDAH')
+                ->latest()
+                ->first();
+
+            if ($previousApplication) {
+                // Delete this current (new) application
+                $candidate = $application->candidate;
+                $application->delete();
+
+                // Restore previous application
+                $previousApplication->update(['overall_status' => 'PROSES']);
+                
+                // Restore candidate's previous department/type from previous vacancy
+                if ($previousApplication->vacancy) {
+                    $candidate->department_id = $previousApplication->vacancy->department_id;
+                    // Try to restore airsys_internal if possible from old vacancy
+                    // This is complex as it depends on mpp_year, but we'll revert to 
+                    // a reasonable state or just keep current (better than nothing)
+                    $mpp = $previousApplication->vacancy->mppSubmissions()
+                        ->where('year', $previousApplication->mpp_year)
+                        ->where('proposal_status', 'approved')
+                        ->first();
+                    if ($mpp) {
+                        $candidate->airsys_internal = ($mpp->pivot->vacancy_status === 'OSPKWT') ? 'Yes' : 'No';
+                    }
+                    $candidate->save();
+                }
+                
+                return; // Revert complete
+            }
+        }
+
+        // Re-evaluate overall status for normal reset
+        // Find the latest stage before this one that has a result
+        $latestStage = $application->stages()->orderBy('id', 'desc')->first();
+        
+        if ($latestStage) {
+            $this->updateOverallApplicationStatus($application, $latestStage->stage_name, $latestStage->status);
+        } else {
+            $application->overall_status = 'PROSES';
+            $application->candidate->status = 'active';
+        }
+
+        $application->save();
+        $application->candidate->save();
+    }
+
+    public function copyStages(Application $fromApplication, Application $toApplication): void
+    {
+        // Sort stages by order from stageConfig to ensure sequential processing
+        $stages = $fromApplication->stages->sortBy(function ($stage) {
+            return $this->stageConfig[$stage->stage_name]['order'] ?? 999;
+        });
+
+        foreach ($stages as $stage) {
+            $result = strtoupper($stage->status);
+            
+            // Create the stage record for the new application
+            $toApplication->stages()->updateOrCreate(
+                ['stage_name' => $stage->stage_name],
+                [
+                    'status' => $result,
+                    'scheduled_date' => $stage->scheduled_date,
+                    'conducted_by_user_id' => $stage->conducted_by_user_id,
+                    'notes' => $stage->notes,
+                ]
+            );
+
+            // Trigger next stage creation if the current stage was passed
+            $nextStageKey = $this->stageConfig[$stage->stage_name]['next'] ?? null;
+            if ($nextStageKey && in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'])) {
+                // Only create if it doesn't already exist from the previous fromApplication stages
+                $existsInFrom = $fromApplication->stages->where('stage_name', $nextStageKey)->first();
+                if (!$existsInFrom) {
+                    $this->prepareNextStage($toApplication, $nextStageKey, []);
+                }
+            }
+
+            $this->updateOverallApplicationStatus($toApplication, $stage->stage_name, $result);
+        }
+        
+        $toApplication->save();
     }
 
     private function getPreviousStageKey(string $currentStageKey): ?string
@@ -179,7 +288,7 @@ class ApplicationStageService
 
     private function updateOverallApplicationStatus(Application $application, string $stageKey, string $result): void
     {
-        // DITOLAK at any stage means rejection
+        // DITOLAK/TIDAK LULUS at any stage means rejection
         if (in_array($result, ['GAGAL', 'TIDAK LULUS', 'DITOLAK', 'TIDAK DIHIRING', 'TIDAK DISARANKAN'])) {
             $application->overall_status = 'DITOLAK';
             // Check if all other applications are also rejected before marking candidate as inactive
@@ -205,7 +314,7 @@ class ApplicationStageService
             // Set candidate status to inactive since they are hired
             $application->candidate->status = 'inactive';
         } 
-        // All other cases -> PROSES (still in process)
+        // All other cases -> PROSES (still in process, including DIPERTIMBANGKAN)
         else {
             $application->overall_status = 'PROSES';
             $application->candidate->status = 'active';

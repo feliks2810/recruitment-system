@@ -215,10 +215,10 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 $psikotestResult = 'LULUS';
                 $isPass = true;
             } elseif (in_array($psikotestResultRaw, ['gagal', 'fail', 'failed', 'tidak lulus', 'fail psikotes', 'gagal psikotes'])) {
-                $psikotestResult = 'GAGAL';
+                $psikotestResult = 'TIDAK LULUS';
                 $isFail = true;
-            } elseif (in_array($psikotestResultRaw, ['retest', 'ulang', 'retry', 'tes ulang', 'psikotes ulang'])) {
-                $psikotestResult = 'RETEST';
+            } elseif (in_array($psikotestResultRaw, ['retest', 'ulang', 'retry', 'tes ulang', 'psikotes ulang', 'dipertimbangkan'])) {
+                $psikotestResult = 'DIPERTIMBANGKAN';
                 $isRetest = true;
             }
 
@@ -442,8 +442,8 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
                 ]);
 
             } elseif ($isFail) {
-                // GAGAL: Mark all stages as rejected
-                $application->stages()->update(['status' => 'DITOLAK']);
+                // TIDAK LULUS: Mark all stages as rejected
+                $application->stages()->update(['status' => 'TIDAK LULUS']);
                 
                 Log::info('CandidatesImport: Candidate FAILED psikotes - Application rejected', [
                     'candidate_id' => $candidate->id,

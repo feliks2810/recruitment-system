@@ -234,10 +234,11 @@
                                             <select id="new_vacancy_id"
                                                     name="new_vacancy_id"
                                                     x-model="selectedVacancyId"
+                                                    @change="handleVacancyChange()"
                                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
                                                 <option value="">Pilih Posisi</option>
                                                 <template x-for="vacancy in activeVacancies" :key="vacancy.id">
-                                                    <option :value="vacancy.id" x-text="vacancy.name + ' (Dibutuhkan: ' + vacancy.needed_count + ')'"></option>
+                                                    <option :value="vacancy.id" x-text="vacancy.name"></option>
                                                 </template>
                                             </select>
                                         </div>
@@ -245,6 +246,20 @@
                                         <div x-show="!activeVacancies || activeVacancies.length === 0" class="mt-2 text-sm text-gray-600 bg-yellow-50 p-3 rounded">
                                             Tidak ada posisi terbuka saat ini untuk dipindahkan. Mohon cek kembali nanti.
                                         </div>
+                                    </div>
+
+                                    <div x-show="selectedVacancyId && availableMppYears.length > 0">
+                                        <label for="new_mpp_year" class="block text-sm font-medium text-gray-700">Pilih Tahun MPP <span class="text-red-500">*</span></label>
+                                        <select id="new_mpp_year"
+                                                name="new_mpp_year"
+                                                x-model="selectedMppYear"
+                                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                                                required>
+                                            <option value="">Pilih Tahun</option>
+                                            <template x-for="year in availableMppYears" :key="year">
+                                                <option :value="year" x-text="year"></option>
+                                            </template>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -556,7 +571,7 @@
                     @case('CANCEL') bg-gray-100 text-gray-800 @break
                     @default bg-gray-100 text-gray-800
                 @endswitch">
-                {{ $app->overall_status }}
+                {{ strtoupper($app->overall_status) === 'DITOLAK' ? 'TIDAK LULUS' : $app->overall_status }}
             </span>
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -586,6 +601,25 @@
                                                 </p>
                                             </div>
                                             <div class="px-6 py-6">
+                                                {{-- Warning for PINDAH status --}}
+                                                <template x-if="applications.find(a => a.id === activeApplicationId)?.overall_status === 'PINDAH'">
+                                                    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+                                                        <div class="flex items-center text-red-700 text-sm">
+                                                            <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                            </svg>
+                                                            <span class="font-medium">Kandidat ini telah dipindahkan ke posisi lain dari aplikasi ini.</span>
+                                                        </div>
+                                                        @if(Auth::user()->hasRole('team_hc_2'))
+                                                        <button @click="cancelMove()" 
+                                                                class="px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors flex items-center gap-1 shadow-sm">
+                                                            <i class="fas fa-undo text-[10px]"></i>
+                                                            <span>Batalkan Perpindahan</span>
+                                                        </button>
+                                                        @endif
+                                                    </div>
+                                                </template>
+
                                                 <div class="flow-root">
                                                     <template x-if="currentTimeline && Object.keys(currentTimeline).length > 0">
                                                         <ul class="space-y-8">
@@ -680,23 +714,37 @@
                             
                                                                                     @canany(['edit-candidates','edit-timeline'])
                                                                                         <template x-if="stage.status !== 'locked'">
-                                                                                            <button @click="openStageModal(
-                                                                                                stage.display_name,
-                                                                                                stage.stage_key,
-                                                                                                stage.result || '',
-                                                                                                stage.notes || '',
-                                                                                                stage.can_edit_result !== false,
-                                                                                                stage.next_stage_scheduled_date || null,
-                                                                                                stage.previous_stage_date || null,
-                                                                                                stage.date || null
-                                                                                            )"
-                                                                                            class="text-blue-600 hover:text-blue-800 transition-colors"
-                                                                                            :title="'Update status ' + stage.display_name">
-                                                                                                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                                                                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
-                                                                                                </svg>
-                                                                                            </button>
+                                                                                            <div class="flex items-center space-x-1">
+                                                                                                <button @click="openStageModal(
+                                                                                                    stage.display_name,
+                                                                                                    stage.stage_key,
+                                                                                                    stage.result || '',
+                                                                                                    stage.notes || '',
+                                                                                                    stage.can_edit_result !== false,
+                                                                                                    stage.next_stage_scheduled_date || null,
+                                                                                                    stage.previous_stage_date || null,
+                                                                                                    stage.date || null
+                                                                                                )"
+                                                                                                class="text-blue-600 hover:text-blue-800 transition-colors"
+                                                                                                :title="'Update status ' + stage.display_name">
+                                                                                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                                                                                        <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                                                                                                    </svg>
+                                                                                                </button>
+
+                                                                                                @if(Auth::user()->hasRole('team_hc_2'))
+                                                                                                <button @click="stage.can_reset ? resetStage(stage.stage_key, stage.display_name) : null"
+                                                                                                        :class="stage.can_reset ? 'text-red-600 hover:text-red-800 cursor-pointer' : 'text-gray-300 cursor-not-allowed'"
+                                                                                                        class="transition-colors"
+                                                                                                        :disabled="!stage.can_reset"
+                                                                                                        :title="stage.can_reset ? 'Reset ' + stage.display_name : 'Hanya stage yang baru saja di-update yang dapat di-reset'">
+                                                                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                                                    </svg>
+                                                                                                </button>
+                                                                                                @endif
+                                                                                            </div>
                                                                                         </template>
                                                                                     @endcanany
                                                                                 </div>
@@ -757,6 +805,8 @@
                                     selectedComment: '',
                                     isSubmitting: false,
                                     selectedVacancyId: '',
+                                    selectedMppYear: '',
+                                    availableMppYears: [],
                             
                                     allTimelines: allTimelines,
                                     activeApplicationId: initialActiveApplicationId,
@@ -780,27 +830,21 @@
                                     previousStageDate: null,
                             
                                     stageOptions: {
-                                        screening: ['LULUS', 'TIDAK LULUS'],
-                                        psikotes: ['LULUS', 'TIDAK LULUS'],
+                                        screening: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
                                         hc_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-                                        user_interview: ['DISARANKAN', 'TIDAK DISARANKAN', 'DIPERTIMBANGKAN'],
-                                        interview_bod: ['DISARANKAN', 'TIDAK DISARANKAN', 'PINDAH_POSISI'],
-                                        offering_letter: ['DITERIMA', 'DITOLAK'],
-                                        mcu: ['LULUS', 'TIDAK LULUS'],
-                                        hiring: ['HIRED', 'TIDAK DIHIRING']
+                                        user_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        interview_bod: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN', 'PINDAH_POSISI'],
+                                        offering_letter: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        mcu: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        hiring: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN']
                                     },
                                     
                                     labelMap: {
                                         'LULUS': 'Lulus',
                                         'TIDAK LULUS': 'Tidak Lulus',
                                         'DIPERTIMBANGKAN': 'Dipertimbangkan',
-                                        'DISARANKAN': 'Disarankan',
-                                        'TIDAK DISARANKAN': 'Tidak Disarankan',
                                         'PINDAH_POSISI': 'Pindahkan Posisi',
-                                        'DITERIMA': 'Diterima',
-                                        'DITOLAK': 'Ditolak',
-                                        'HIRED': 'Hired',
-                                        'TIDAK DIHIRING': 'Tidak Dihiring',
                                     },
                                     
                                     availableResults: [],
@@ -850,6 +894,7 @@
                                             'PENDING': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' }, // Ellipsis
                                             'SENT': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' },
                                             'DIPERTIMBANGKAN': { bgColor: 'bg-yellow-100', textColor: 'text-yellow-800', icon: '&hellip;' },
+                                            'TIDAK LULUS': { bgColor: 'bg-red-100', textColor: 'text-red-800', icon: '&#x2715;' }, // Cross
                                             'default': { bgColor: 'bg-red-100', textColor: 'text-red-800', icon: '&#x2715;' } // Cross
                                         };
                                         return resultConfig[result.toUpperCase()] || resultConfig['default'];
@@ -865,7 +910,7 @@
                                         this.showNextStage = false;
                                         this.stageData.next_stage_date = '';
                             
-                                        if (['LULUS', 'DISARANKAN', 'DITERIMA'].includes(this.stageData.result)) {
+                                        if (this.stageData.result === 'LULUS') {
                                             const nextStage = this.stageSequence[this.stageData.stage];
                                             if (nextStage) {
                                                 this.showNextStage = true;
@@ -911,7 +956,7 @@
                                             next_stage_date: ''
                                         };
                             
-                                        if (['LULUS', 'DISARANKAN'].includes(this.stageData.result)) {
+                                        if (this.stageData.result === 'LULUS') {
                                             this.handleResultChange();
                                         }
                             
@@ -925,9 +970,34 @@
                             
                                     openMovePositionModal() {
                                         this.selectedVacancyId = '';
+                                        this.selectedMppYear = '';
+                                        this.availableMppYears = [];
                                         this.showMovePositionModal = true;
                                     },
                             
+                                    handleVacancyChange() {
+                                        this.selectedMppYear = '';
+                                        if (!this.selectedVacancyId) {
+                                            this.availableMppYears = [];
+                                            return;
+                                        }
+                                        
+                                        const vacancy = this.activeVacancies.find(v => v.id == this.selectedVacancyId);
+                                        if (vacancy && vacancy.mpp_submissions) {
+                                            this.availableMppYears = vacancy.mpp_submissions.map(mpp => mpp.year);
+                                            
+                                            // Sort unique years descending
+                                            this.availableMppYears = [...new Set(this.availableMppYears)].sort((a, b) => b - a);
+
+                                            // If only one year, auto-select it
+                                            if (this.availableMppYears.length === 1) {
+                                                this.selectedMppYear = this.availableMppYears[0];
+                                            }
+                                        } else {
+                                            this.availableMppYears = [];
+                                        }
+                                    },
+
                                     closeMovePositionModal() {
                                         if (this.isSubmitting) return;
                                         this.showMovePositionModal = false;
@@ -1042,11 +1112,17 @@
                                             alert('Pilih posisi baru terlebih dahulu.');
                                             return;
                                         }
+
+                                        if (this.availableMppYears.length > 0 && !this.selectedMppYear) {
+                                            alert('Pilih tahun MPP terlebih dahulu.');
+                                            return;
+                                        }
                             
                                         this.isSubmitting = true;
                             
                                         const payload = {
                                             new_vacancy_id: this.selectedVacancyId,
+                                            mpp_year: this.selectedMppYear,
                                         };
                             
                                         try {
@@ -1086,6 +1162,82 @@
                                                 throw new Error(errorMessage);
                                             }
                             
+                                                                                    } catch (error) {
+                                                                                    alert('Terjadi kesalahan: ' + error.message);
+                                                                                } finally {
+                                                                                    this.isSubmitting = false;
+                                                                                }
+                                                                            },
+                                        
+                                                                            async cancelMove() {
+                                                                                if (!confirm('Apakah Anda yakin ingin membatalkan perpindahan posisi ini? Aplikasi baru akan dihapus dan aplikasi ini akan dipulihkan.')) {
+                                                                                    return;
+                                                                                }
+                                        
+                                                                                this.isSubmitting = true;
+                                        
+                                                                                try {
+                                                                                    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                                                                                    if (!csrfToken) {
+                                                                                        throw new Error('CSRF token tidak ditemukan di halaman.');
+                                                                                    }
+                                        
+                                                                                    const response = await fetch(`/applications/${this.activeApplicationId}/cancel-move`, {
+                                                                                        method: 'POST',
+                                                                                        headers: {
+                                                                                            'Content-Type': 'application/json',
+                                                                                            'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                                                                            'X-Requested-With': 'XMLHttpRequest',
+                                                                                            'Accept': 'application/json'
+                                                                                        }
+                                                                                    });
+                                        
+                                                                                    const data = await response.json();
+                                        
+                                                                                    if (response.ok) {
+                                                                                        alert(data.message || 'Perpindahan berhasil dibatalkan.');
+                                                                                        window.location.reload();
+                                                                                    } else {
+                                                                                        throw new Error(data.message || 'Gagal membatalkan perpindahan.');
+                                                                                    }
+                                                                                } catch (error) {
+                                                                                    alert('Terjadi kesalahan: ' + error.message);
+                                                                                } finally {
+                                                                                    this.isSubmitting = false;
+                                                                                }
+                                                                            },
+                                        
+                                                                            async resetStage(stageKey, stageDisplayName) {                                        if (!confirm(`Apakah Anda yakin ingin me-reset tahap ${stageDisplayName}? Tahap ini dan semua tahap setelahnya akan dihapus.`)) {
+                                            return;
+                                        }
+
+                                        this.isSubmitting = true;
+
+                                        try {
+                                            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                                            if (!csrfToken) {
+                                                throw new Error('CSRF token tidak ditemukan di halaman.');
+                                            }
+
+                                            const response = await fetch(`/applications/${this.activeApplicationId}/reset-stage`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                                    'X-Requested-With': 'XMLHttpRequest',
+                                                    'Accept': 'application/json'
+                                                },
+                                                body: JSON.stringify({ stage: stageKey })
+                                            });
+
+                                            const data = await response.json();
+
+                                            if (response.ok) {
+                                                alert(data.message || 'Stage reset successfully.');
+                                                window.location.reload();
+                                            } else {
+                                                throw new Error(data.message || 'Gagal me-reset stage.');
+                                            }
                                         } catch (error) {
                                             alert('Terjadi kesalahan: ' + error.message);
                                         } finally {

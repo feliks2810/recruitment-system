@@ -287,7 +287,7 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Distribusi Tahapan</h3>
         <div class="space-y-3">
             @forelse($process_distribution ?? [] as $dist)
-            <a href="{{ route('candidates.index', ['current_stage' => $dist['stage'] ?? '']) }}" 
+            <a href="{{ route('candidates.index', ['stage' => $dist['stage'] ?? '']) }}" 
                class="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">

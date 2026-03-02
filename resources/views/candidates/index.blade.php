@@ -195,7 +195,7 @@
                     <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm text-gray-500">Ditolak</p>
+                                <p class="text-sm text-gray-500">Tidak Lulus</p>
                                 <p class="text-3xl font-bold text-red-500">{{ $stats['candidates_failed'] ?? 0 }}</p>
                             </div>
                             <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
@@ -370,7 +370,7 @@
                                              @if($application->overall_status == 'LULUS')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Lulus</span>
                                             @elseif($application->overall_status == 'DITOLAK')
-                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ditolak</span>
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Tidak Lulus</span>
                                             @elseif($application->overall_status == 'CANCEL')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Cancel</span>
                                             @else
@@ -532,12 +532,7 @@
                                     <option value="">Pilih Status</option>
                                     <option value="LULUS">LULUS</option>
                                     <option value="TIDAK LULUS">TIDAK LULUS</option>
-                                    <option value="PENDING">PENDING</option>
-                                    <option value="DISARANKAN">DISARANKAN</option>
-                                    <option value="TIDAK DISARANKAN">TIDAK DISARANKAN</option>
-                                    <option value="DITERIMA">DITERIMA</option>
-                                    <option value="DITOLAK">DITOLAK</option>
-                                    <option value="HIRED">HIRED</option>
+                                    <option value="DIPERTIMBANGKAN">DIPERTIMBANGKAN</option>
                                 </select>
                             </div>
                             <div>

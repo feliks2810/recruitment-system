@@ -68,7 +68,7 @@ class CandidateRequest extends FormRequest
             'user_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
             'bod_interview_status' => 'nullable|in:DISARANKAN,TIDAK DISARANKAN,DIPERTIMBANGKAN,CANCEL',
             'offering_letter_status' => 'nullable|in:DITERIMA,DITOLAK,SENT',
-            'mcu_status' => 'nullable|in:LULUS,TIDAK LULUS',
+            'mcu_status' => 'nullable|in:LULUS,TIDAK LULUS,DIPERTIMBANGKAN',
             'hiring_status' => 'nullable|in:HIRED,TIDAK DIHIRING',
             
             // Notes - optional

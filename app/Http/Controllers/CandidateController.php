@@ -58,6 +58,73 @@ class CandidateController extends Controller
             return response()->json(['message' => 'Error updating stage: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * =========================
+     * RESET APPLICATION STAGE
+     * =========================
+     *
+     * @param Request $request
+     * @param Application $application
+     * @param ApplicationStageService $stageService
+     * @return JsonResponse
+     */
+    /**
+     * =========================
+     * CANCEL POSITION MOVE
+     * =========================
+     */
+    public function cancelMove(Application $application)
+    {
+        if (!Auth::user()->hasRole('team_hc_2')) {
+            return response()->json(['message' => 'Unauthorized. Only HC 2 can cancel moves.'], 403);
+        }
+
+        if ($application->overall_status !== 'PINDAH') {
+            return response()->json(['message' => 'Hanya aplikasi dengan status PINDAH yang dapat dibatalkan.'], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Find the application created AFTER this one for this candidate
+            $nextApplication = Application::where('candidate_id', $application->candidate_id)
+                ->where('id', '>', $application->id)
+                ->orderBy('id', 'asc')
+                ->first();
+
+            if ($nextApplication) {
+                // Delete the new application and its stages
+                $nextApplication->stages()->delete();
+                $nextApplication->delete();
+            }
+
+            // Restore THIS application
+            $application->update(['overall_status' => 'PROSES']);
+
+            // Re-evaluate candidate's department and type from this restored application
+            $candidate = $application->candidate;
+            if ($application->vacancy) {
+                $candidate->department_id = $application->vacancy->department_id;
+                
+                $mpp = $application->vacancy->mppSubmissions()
+                    ->where('year', $application->mpp_year)
+                    ->where('proposal_status', 'approved')
+                    ->first();
+                if ($mpp) {
+                    $candidate->airsys_internal = ($mpp->pivot->vacancy_status === 'OSPKWT') ? 'Yes' : 'No';
+                }
+                $candidate->save();
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Perpindahan posisi berhasil dibatalkan. Aplikasi sebelumnya telah dipulihkan.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error canceling move: ' . $e->getMessage());
+            return response()->json(['message' => 'Gagal membatalkan perpindahan: ' . $e->getMessage()], 500);
+        }
+    }
     
     /**
      * Show the form for creating a new candidate
@@ -80,9 +147,6 @@ class CandidateController extends Controller
         return view('candidates.create', compact('vacancies', 'departments', 'applicantId'));
     }
 
-    /**
-     * Store a newly created candidate
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -93,6 +157,10 @@ class CandidateController extends Controller
             'tanggal_lahir' => 'nullable|date',
             'vacancy_id' => 'required|exists:vacancies,id',
             'mpp_year' => 'nullable|integer',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:100',
+            'jurusan' => 'nullable|string|max:100',
+            'ipk' => 'nullable|numeric|min:0|max:4',
             'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
@@ -104,12 +172,22 @@ class CandidateController extends Controller
 
             $vacancy = Vacancy::findOrFail($validated['vacancy_id']);
 
-            // Determine candidate type from vacancy status
+            // Determine candidate type from vacancy status from pivot
             $airsysInternal = null;
-            if ($vacancy->vacancy_status === 'OSPKWT') {
-                $airsysInternal = 'Yes'; // Organic
-            } elseif ($vacancy->vacancy_status === 'OS') {
-                $airsysInternal = 'No'; // Non-Organic
+            if ($validated['mpp_year']) {
+                $mppSubmission = $vacancy->mppSubmissions()
+                    ->where('year', $validated['mpp_year'])
+                    ->where('proposal_status', 'approved')
+                    ->first();
+                
+                if ($mppSubmission) {
+                    $vacancyStatus = $mppSubmission->pivot->vacancy_status;
+                    if ($vacancyStatus === 'OSPKWT') {
+                        $airsysInternal = 'Yes';
+                    } elseif ($vacancyStatus === 'OS') {
+                        $airsysInternal = 'No';
+                    }
+                }
             }
             
             $data = [
@@ -120,6 +198,10 @@ class CandidateController extends Controller
                 'tanggal_lahir' => $validated['tanggal_lahir'],
                 'department_id' => $vacancy->department_id, // Get department from vacancy
                 'airsys_internal' => $airsysInternal,
+                'jenjang_pendidikan' => $validated['jenjang_pendidikan'],
+                'perguruan_tinggi' => $validated['perguruan_tinggi'],
+                'jurusan' => $validated['jurusan'],
+                'ipk' => $validated['ipk'],
             ];
 
             if ($request->hasFile('cv')) {
@@ -185,7 +267,10 @@ class CandidateController extends Controller
             'applicant_id' => 'required|string',
             'jk' => 'nullable|string',
             'tanggal_lahir' => 'nullable|date',
-            'vacancy_id' => 'required|exists:vacancies,id',
+            'jenjang_pendidikan' => 'nullable|string|max:100',
+            'perguruan_tinggi' => 'nullable|string|max:100',
+            'jurusan' => 'nullable|string|max:100',
+            'ipk' => 'nullable|numeric|min:0|max:4',
             'cv' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'flk' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
         ]);
@@ -193,23 +278,15 @@ class CandidateController extends Controller
         try {
             DB::beginTransaction();
 
-            $vacancy = Vacancy::findOrFail($validated['vacancy_id']);
-
-            // Determine candidate type from vacancy status
-            $airsysInternal = null;
-            if ($vacancy->vacancy_status === 'OSPKWT') {
-                $airsysInternal = 'Yes'; // Organic
-            } elseif ($vacancy->vacancy_status === 'OS') {
-                $airsysInternal = 'No'; // Non-Organic
-            }
-
             $data = [
                 'nama' => $validated['nama'],
                 'alamat_email' => $validated['alamat_email'],
                 'jk' => $validated['jk'] ?? null,
                 'tanggal_lahir' => $validated['tanggal_lahir'],
-                'department_id' => $vacancy->department_id,
-                'airsys_internal' => $airsysInternal,
+                'jenjang_pendidikan' => $validated['jenjang_pendidikan'],
+                'perguruan_tinggi' => $validated['perguruan_tinggi'],
+                'jurusan' => $validated['jurusan'],
+                'ipk' => $validated['ipk'],
             ];
 
             if ($request->hasFile('cv')) {
@@ -242,7 +319,7 @@ class CandidateController extends Controller
                 foreach ($changes as $key => $value) {
                     if ($key !== 'updated_at') {
                         $historyChanges[$key] = [
-                            'old' => $originalData[$key],
+                            'old' => $originalData[$key] ?? null,
                             'new' => $value,
                         ];
                     }
@@ -255,14 +332,6 @@ class CandidateController extends Controller
                     'candidate_id' => $candidate->id,
                     'user_id' => Auth::id(),
                     'changes' => $historyChanges,
-                ]);
-            }
-
-            // Update the application for the candidate
-            $application = $candidate->applications()->latest()->first();
-            if ($application) {
-                $application->update([
-                    'vacancy_id' => $vacancy->id,
                 ]);
             }
 
@@ -400,7 +469,7 @@ class CandidateController extends Controller
             ->paginate(15);
 
         // --- Data for View ---
-        $statuses = [ 'ON_PROCESS' => 'On Process', 'WAITING_HC_INTERVIEW' => 'Waiting HC Interview', 'HIRED' => 'Hired', 'FAILED' => 'Failed' ];
+        $statuses = [ 'ON_PROCESS' => 'Proses', 'HIRED' => 'Lulus', 'FAILED' => 'Tidak Lulus' ];
         $stats = [
             'total_candidates' => (clone $statsQuery)->distinct('candidate_id')->count('candidate_id'),
             'candidates_in_process' => (clone $statsQuery)->where('overall_status', 'PROSES')->count(),
@@ -463,12 +532,14 @@ class CandidateController extends Controller
         }
 
         // The "Move Position" modal needs a list of other active vacancies.
-        $appliedVacancyIds = $candidate->applications->pluck('vacancy_id')->filter()->unique();
+        $appliedVacancyIds = $candidate->applications->whereNotIn('overall_status', ['CANCEL', 'PINDAH'])->pluck('vacancy_id')->filter()->unique();
         $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) {
             $q->where('proposal_status', 'approved');
         })
-                                               ->whereNotIn('id', $appliedVacancyIds)
-                                               ->get();
+        ->with(['mppSubmissions' => function($q) {
+            $q->where('proposal_status', 'approved')->select('mpp_submissions.id', 'year');
+        }])
+        ->get();
 
         return view('candidates.show', compact(
             'candidate', 
@@ -504,36 +575,77 @@ class CandidateController extends Controller
     /**
      * Placeholder for moving candidate position.
      */
-    public function movePosition(Request $request, Application $application)
+    public function movePosition(Request $request, Application $application, ApplicationStageService $stageService)
     {
         $validated = $request->validate([
             'new_vacancy_id' => 'required|exists:vacancies,id',
+            'mpp_year' => 'required|integer',
         ]);
 
-        $newVacancy = Vacancy::find($validated['new_vacancy_id']);
-        $candidate = $application->candidate;
+        try {
+            DB::beginTransaction();
 
-        // Create a new application
-        $newApplication = Application::create([
-            'candidate_id' => $candidate->id,
-            'vacancy_id' => $newVacancy->id,
-            'overall_status' => 'PROSES',
-        ]);
+            $newVacancy = Vacancy::findOrFail($validated['new_vacancy_id']);
+            $candidate = $application->candidate;
 
-        // Deactivate old application
-        $application->update(['overall_status' => 'PINDAH']);
+            // Re-evaluate candidate's department and internal status
+            $candidate->department_id = $newVacancy->department_id;
+            
+            $mppSubmission = $newVacancy->mppSubmissions()
+                ->where('year', $validated['mpp_year'])
+                ->where('proposal_status', 'approved')
+                ->first();
+            
+            if ($mppSubmission) {
+                $vacancyStatus = $mppSubmission->pivot->vacancy_status;
+                $candidate->airsys_internal = ($vacancyStatus === 'OSPKWT') ? 'Yes' : 'No';
+            }
+            $candidate->save();
 
-        // Add a note to the old application's interview_bod stage
-        $application->stages()->updateOrCreate(
-            ['stage_name' => 'interview_bod'],
-            [
-                'status' => 'PINDAH_POSISI',
-                'notes' => 'Kandidat dipindahkan ke posisi baru: ' . $newVacancy->name,
-                'conducted_by' => Auth::user()->name,
-            ]
-        );
+            // Create NEW application as requested
+            $newApplication = Application::create([
+                'candidate_id' => $candidate->id,
+                'vacancy_id' => $newVacancy->id,
+                'mpp_year' => $validated['mpp_year'],
+                'overall_status' => $application->overall_status, // Inherit status (usually PROSES)
+            ]);
 
-        return response()->json(['message' => 'Candidate position moved successfully.']);
+            // Deactivate OLD application
+            $application->update(['overall_status' => 'PINDAH']);
+
+            // Clone all existing stages to the NEW application using the improved service method
+            $stageService->copyStages($application, $newApplication);
+
+            // Automatically pass the BOD stage for the new application
+            // This will also trigger the creation of the next stage (offering_letter)
+            try {
+                $stageService->processStageUpdate($newApplication, [
+                    'stage' => 'interview_bod',
+                    'result' => 'LULUS',
+                    'notes' => "[PINDAH POSISI] Otomatis lulus BOD karena pindah posisi dari: " . ($application->vacancy->name ?? 'N/A') . " (Tahun MPP: " . $validated['mpp_year'] . ")",
+                    'stage_date' => now()->format('Y-m-d'),
+                ]);
+            } catch (\Exception $e) {
+                // If validation fails (e.g. they hadn't reached BOD), we just log it and proceed
+                // The candidate might be moved from an earlier stage if the UI allows it
+                \Log::warning("Could not automatically pass BOD stage during move: " . $e->getMessage());
+                
+                // At least add a note about the move to the most recent stage
+                $latestStage = $newApplication->stages()->orderBy('id', 'desc')->first();
+                if ($latestStage) {
+                    $existingNotes = $latestStage->notes ?? '';
+                    $newNote = "\n[PINDAH POSISI] Berlanjut dari posisi: " . ($application->vacancy->name ?? 'N/A') . " (Tahun MPP: " . $validated['mpp_year'] . ")";
+                    $latestStage->update(['notes' => $existingNotes . $newNote]);
+                }
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Candidate position moved successfully. New application created with previous history.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error moving position: ' . $e->getMessage());
+            return response()->json(['message' => 'Error moving position: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

@@ -73,22 +73,6 @@
                     </div>
                 </div>
 
-                <!-- Position Information -->
-                <div class="bg-gray-50 rounded-lg p-4">
-                    <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Posisi</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="vacancy_id" class="block text-sm font-medium text-gray-700">Nama Lowongan *</label>
-                            <select name="vacancy_id" id="vacancy_id" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-                                <option value="">Pilih Lowongan</option>
-                                @foreach($vacancies as $vacancy)
-                                    <option value="{{ $vacancy->id }}" {{ old('vacancy_id', $candidate->applications->first()->vacancy_id ?? null) == $vacancy->id ? 'selected' : '' }}>{{ $vacancy->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Education Information -->
                 <div class="bg-gray-50 rounded-lg p-4">
                     <h4 class="text-md font-medium text-gray-900 mb-4">Informasi Pendidikan</h4>

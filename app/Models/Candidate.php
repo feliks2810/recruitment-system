@@ -311,6 +311,8 @@ class Candidate extends Model
                         $currentStageStatus = 'completed';
                     } elseif (in_array(strtoupper($stageStatus), ['GAGAL', 'TIDAK LULUS', 'DITOLAK', 'TIDAK DISARANKAN'])) {
                         $currentStageStatus = 'failed';
+                    } elseif (strtoupper($stageStatus) === 'DIPERTIMBANGKAN') {
+                        $currentStageStatus = 'pending';
                     } else {
                         $currentStageStatus = 'in_progress';
                     }
@@ -340,6 +342,28 @@ class Candidate extends Model
             
             // Can edit result only if next stage doesn't exist yet
             $canEditResult = !$nextStageExists;
+
+            // Can reset only if THIS stage has a result (not MENUNGGU) 
+            // AND next stage doesn't have a result (is MENUNGGU or doesn't exist)
+            $canReset = false;
+            if ($stage && strtoupper($stage->status) !== 'MENUNGGU') {
+                if (!$nextStage || strtoupper($nextStage->status) === 'MENUNGGU') {
+                    $canReset = true;
+                }
+            }
+            
+            // SPECIAL CASE: If application overall_status is 'PINDAH', 
+            // the last completed stage should be resettable to undo the move.
+            if ($application->overall_status === 'PINDAH') {
+                 // Find the actual last stage that exists in the DB for this application
+                 $lastStageInDb = $application->stages->sortByDesc(function ($s) use ($stageConfig) {
+                     return array_search($s->stage_name, array_keys($stageConfig));
+                 })->first();
+                 
+                 if ($lastStageInDb && $stage && $stage->id === $lastStageInDb->id) {
+                     $canReset = true;
+                 }
+            }
             
             $timeline[] = [
                 'stage_key' => $key,
@@ -352,6 +376,7 @@ class Candidate extends Model
                 'next_stage_exists' => $nextStageExists,
                 'next_stage_scheduled_date' => $nextStageScheduledDate,
                 'can_edit_result' => $canEditResult,
+                'can_reset' => $canReset,
                 'previous_stage_date' => $previousStageDate,
                 'is_edited' => $isEdited,
             ];

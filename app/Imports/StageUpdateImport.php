@@ -23,8 +23,12 @@ class StageUpdateImport implements ToCollection, WithHeadingRow, WithChunkReadin
     // Status mapping
     private const STATUS_MAP = [
         'pass' => ['final' => 'LULUS', 'overall' => 'PROSES', 'create_next' => true],
-        'fail' => ['final' => 'DITOLAK', 'overall' => 'DITOLAK', 'create_next' => false],
+        'lulus' => ['final' => 'LULUS', 'overall' => 'PROSES', 'create_next' => true],
+        'fail' => ['final' => 'TIDAK LULUS', 'overall' => 'DITOLAK', 'create_next' => false],
+        'gagal' => ['final' => 'TIDAK LULUS', 'overall' => 'DITOLAK', 'create_next' => false],
+        'tidak lulus' => ['final' => 'TIDAK LULUS', 'overall' => 'DITOLAK', 'create_next' => false],
         'retest' => ['final' => 'CANCEL', 'overall' => 'PROSES', 'create_next' => false],
+        'dipertimbangkan' => ['final' => 'DIPERTIMBANGKAN', 'overall' => 'PROSES', 'create_next' => false],
     ];
 
     public function __construct(string $stageName)

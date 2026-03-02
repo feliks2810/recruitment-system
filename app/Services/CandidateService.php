@@ -210,7 +210,7 @@ class CandidateService
 
         // 3. Failed: Applications with a final 'failed' status, AND are not cancelled.
         $candidates_failed = (clone $baseAppQuery)
-            ->where('overall_status', 'DITOLAK')
+            ->whereIn('overall_status', ['DITOLAK', 'TIDAK LULUS'])
             ->whereNotIn('id', $cancelledAppIds)
             ->count();
             
