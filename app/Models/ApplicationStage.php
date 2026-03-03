@@ -29,12 +29,14 @@ class ApplicationStage extends Model
         'stage_name',
         'status',
         'scheduled_date',
+        'original_scheduled_date',
         'notes',
         'conducted_by_user_id',
     ];
 
     protected $casts = [
-        'scheduled_date' => 'datetime',
+        'scheduled_date' => 'date',
+        'original_scheduled_date' => 'date',
     ];
 
     public function application(): BelongsTo

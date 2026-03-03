@@ -43,10 +43,14 @@ class ApplicationStageService
                 throw ValidationException::withMessages(['stage' => 'Stage tidak ditemukan.']);
             }
             
+            // Shift the date: current scheduled_date becomes original_scheduled_date
+            // This shows "Sebelum" = last updated date, "Sesudah" = current date
+            $originalDate = $existingStage->scheduled_date;
             
             // Only update scheduled_date, keep existing result and other data
             $existingStage->update([
                 'scheduled_date' => $stageDate,
+                'original_scheduled_date' => $originalDate,
             ]);
             
             return $application;
@@ -54,12 +58,17 @@ class ApplicationStageService
 
         $this->validateStageTransition($application, $stageKey);
         
+        // Find existing stage to preserve original date
+        $existingStage = $application->stages()->where('stage_name', $stageKey)->first();
+        $originalDate = $existingStage ? ($existingStage->original_scheduled_date ?? $existingStage->scheduled_date) : null;
+
         // Update current stage
         $result = strtoupper($validatedData['result']);
         $stageData = [
             'stage_name' => $stageKey,
             'status' => $result,
             'scheduled_date' => $stageDate,
+            'original_scheduled_date' => $originalDate,
             'notes' => $validatedData['notes'] ?? null,
             'conducted_by_user_id' => Auth::id(),
         ];
@@ -152,6 +161,7 @@ class ApplicationStageService
             'stage_name' => $stageKey,
             'status' => 'MENUNGGU',
             'scheduled_date' => now(),
+            'original_scheduled_date' => null, // New stage, no edit history
             'conducted_by_user_id' => Auth::id(),
         ]);
 
@@ -252,6 +262,7 @@ class ApplicationStageService
             'stage_name' => $nextStageKey,
             'status' => 'MENUNGGU',
             'scheduled_date' => $validatedData['next_stage_date'] ?? null,
+            'original_scheduled_date' => null, // New stage, no edit history
             'notes' => 'Otomatis dibuat setelah tahap sebelumnya lulus.',
             'conducted_by' => null,
         ];

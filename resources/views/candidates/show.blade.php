@@ -692,11 +692,6 @@
                                                                                     <h4 class="text-sm font-medium" 
                                                                                         :class="{ 'text-gray-500': stage.status === 'locked', 'text-gray-900': stage.status !== 'locked' }"
                                                                                         x-text="stage.display_name"></h4>
-                                                                                    <template x-if="stage.stage_key !== 'psikotes' && stage.is_edited">
-                                                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700" title="Stage ini telah di-edit">
-                                                                                            edited
-                                                                                        </span>
-                                                                                    </template>
                                                                                     <template x-if="stage.status === 'locked'">
                                                                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="Tahap ini terkunci sampai tahap sebelumnya lulus.">
                                                                                             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -709,10 +704,39 @@
                             
                                                                                 <div class="flex items-center space-x-2">
                                                                                     <template x-if="stage.date && stage.result">
-                                                                                        <div class="flex flex-col">
-                                                                                            <span class="text-xs text-gray-500" x-text="formatDate(stage.date)"></span>
-                                                                                            <template x-if="stage.stage_key !== 'psikotes' && stage.next_stage_exists && stage.next_stage_scheduled_date && stage.is_edited">
-                                                                                                <span class="text-xs text-amber-600 mt-0.5" x-text="formatDate(stage.next_stage_scheduled_date)"></span>
+                                                                                        <div class="flex items-center space-x-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                                                                            <span class="text-xs font-medium text-gray-600" x-text="formatDate(stage.date)"></span>
+                                                                                            <template x-if="stage.is_edited && stage.original_date">
+                                                                                                <div class="relative flex items-center" x-data="{ showDateHistory: false }">
+                                                                                                    <button @mouseenter="showDateHistory = true" @mouseleave="showDateHistory = false" class="text-amber-500 hover:text-amber-600 focus:outline-none transition-colors">
+                                                                                                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                                                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                                                                        </svg>
+                                                                                                    </button>
+                                                                                                    <div x-show="showDateHistory" 
+                                                                                                         x-transition:enter="transition ease-out duration-200"
+                                                                                                         x-transition:enter-start="opacity-0 translate-y-1"
+                                                                                                         x-transition:enter-end="opacity-100 translate-y-0"
+                                                                                                         x-transition:leave="transition ease-in duration-150"
+                                                                                                         x-transition:leave-start="opacity-100 translate-y-0"
+                                                                                                         x-transition:leave-end="opacity-0 translate-y-1"
+                                                                                                         class="absolute bottom-full right-0 mb-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-50 p-2 pointer-events-none"
+                                                                                                         style="display: none;">
+                                                                                                        <div class="space-y-1.5">
+                                                                                                            <div class="flex justify-between items-center text-[10px] pb-1 border-b border-gray-100">
+                                                                                                                <span class="text-gray-400 font-semibold uppercase">Histori Tanggal</span>
+                                                                                                            </div>
+                                                                                                            <div class="flex justify-between items-center">
+                                                                                                                <span class="text-[10px] text-gray-500">Sebelum:</span>
+                                                                                                                <span class="text-[10px] font-medium text-gray-700 line-through" x-text="formatDate(stage.original_date)"></span>
+                                                                                                            </div>
+                                                                                                            <div class="flex justify-between items-center">
+                                                                                                                <span class="text-[10px] text-gray-500">Sesudah:</span>
+                                                                                                                <span class="text-[10px] font-bold text-blue-600" x-text="formatDate(stage.date)"></span>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
                                                                                             </template>
                                                                                         </div>
                                                                                     </template>
@@ -936,14 +960,20 @@
                                         }
                             
                                         this.showNextStage = false;
-                                        this.stageData.next_stage_date = '';
-                            
+                                        
                                         if (this.stageData.result === 'LULUS') {
                                             const nextStage = this.stageSequence[this.stageData.stage];
                                             if (nextStage) {
                                                 this.showNextStage = true;
                                                 this.nextStageName = this.stageDisplayNames[nextStage];
+                                                // Pre-fill next stage date if it's already scheduled
+                                                if (!this.stageData.next_stage_date && this.nextStageScheduledDate) {
+                                                    this.stageData.next_stage_date = this.nextStageScheduledDate;
+                                                }
                                             }
+                                        } else {
+                                            // Clear next stage date if result is not LULUS
+                                            this.stageData.next_stage_date = '';
                                         }
                                     },
                             
@@ -981,7 +1011,7 @@
                                             result: result || '',
                                             notes: notes || '',
                                             stage_date: currentStageDate || '',
-                                            next_stage_date: ''
+                                            next_stage_date: nextStageScheduledDate || ''
                                         };
                             
                                         if (this.stageData.result === 'LULUS') {

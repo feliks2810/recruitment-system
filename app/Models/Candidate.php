@@ -334,11 +334,8 @@ class Candidate extends Model
             $previousStage = $previousStageKey ? $existingStages->get($previousStageKey) : null;
             $previousStageDate = $previousStage && $previousStage->scheduled_date ? $previousStage->scheduled_date->format('Y-m-d') : null;
             
-            // Check if this stage was edited (date is earlier than next stage scheduled date)
-            $isEdited = false;
-            if ($stage && $stage->scheduled_date && $nextStageScheduledDate) {
-                $isEdited = $stage->scheduled_date->format('Y-m-d') < $nextStageScheduledDate;
-            }
+            // Check if this stage was edited
+            $isEdited = $stage && $stage->original_scheduled_date !== null && $stage->original_scheduled_date->format('Y-m-d') !== $stage->scheduled_date->format('Y-m-d');
             
             // Can edit result only if next stage doesn't exist yet
             $canEditResult = !$nextStageExists;
@@ -347,7 +344,7 @@ class Candidate extends Model
             // AND next stage doesn't have a result (is MENUNGGU or doesn't exist)
             // AND is NOT an automated BOD pass from a position move (this is locked)
             $canReset = false;
-            if ($stage && strtoupper($stage->status) !== 'MENUNGGU') {
+            if ($stage && strtoupper($stageStatus) !== 'MENUNGGU') {
                 if (!$nextStage || strtoupper($nextStage->status) === 'MENUNGGU') {
                     $canReset = true;
                     
@@ -377,6 +374,7 @@ class Candidate extends Model
                 'status' => $currentStageStatus,
                 'result' => $stageStatus,
                 'date' => $stage?->scheduled_date ? $stage->scheduled_date->format('Y-m-d') : null,
+                'original_date' => ($stage && $stage->original_scheduled_date) ? $stage->original_scheduled_date->format('Y-m-d') : null,
                 'notes' => $stage?->notes ?? null,
                 'evaluator' => $stage?->conductedByUser->name ?? null,
                 'next_stage_exists' => $nextStageExists,
