@@ -378,7 +378,11 @@
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ $latestStage ? \App\Models\Candidate::formatStageName($latestStage->stage_name) : 'N/A' }}
+                                            @if($latestStage)
+                                                {{ \App\Models\Candidate::formatStageName($latestStage->stage_name) }}
+                                            @else
+                                                Psikotest
+                                            @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ $application->created_at->format('d M Y') }}
@@ -391,7 +395,7 @@
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white hover:bg-gray-50 relative">
                                             <div class="flex items-center gap-1 sm:gap-2">
                                                 @can('show-candidates')
-                                                    <a href="{{ route('candidates.show', $candidate) }}" class="text-blue-600 hover:text-blue-900 p-1" title="Lihat Detail">
+                                                    <a href="{{ route('candidates.show', [$candidate, 'application_id' => $application->id]) }}" class="text-blue-600 hover:text-blue-900 p-1" title="Lihat Detail">
                                                         <i class="fas fa-eye text-sm"></i>
                                                     </a>
                                                 @endcan

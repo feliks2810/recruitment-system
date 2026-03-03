@@ -146,16 +146,18 @@ class ApplicationStageService
             }
         }
 
+        // After deleting, recreate this stage as MENUNGGU 
+        // This ensures the stage name is preserved in the list view
+        $application->stages()->create([
+            'stage_name' => $stageKey,
+            'status' => 'MENUNGGU',
+            'scheduled_date' => now(),
+            'conducted_by_user_id' => Auth::id(),
+        ]);
+
         // Re-evaluate overall status for normal reset
-        // Find the latest stage before this one that has a result
-        $latestStage = $application->stages()->orderBy('id', 'desc')->first();
-        
-        if ($latestStage) {
-            $this->updateOverallApplicationStatus($application, $latestStage->stage_name, $latestStage->status);
-        } else {
-            $application->overall_status = 'PROSES';
-            $application->candidate->status = 'active';
-        }
+        $application->overall_status = 'PROSES';
+        $application->candidate->status = 'active';
 
         $application->save();
         $application->candidate->save();

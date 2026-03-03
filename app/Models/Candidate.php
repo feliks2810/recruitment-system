@@ -311,7 +311,7 @@ class Candidate extends Model
                         $currentStageStatus = 'completed';
                     } elseif (in_array(strtoupper($stageStatus), ['GAGAL', 'TIDAK LULUS', 'DITOLAK', 'TIDAK DISARANKAN'])) {
                         $currentStageStatus = 'failed';
-                    } elseif (strtoupper($stageStatus) === 'DIPERTIMBANGKAN') {
+                    } elseif (in_array(strtoupper($stageStatus), ['DIPERTIMBANGKAN', 'MENUNGGU'])) {
                         $currentStageStatus = 'pending';
                     } else {
                         $currentStageStatus = 'in_progress';
@@ -345,10 +345,16 @@ class Candidate extends Model
 
             // Can reset only if THIS stage has a result (not MENUNGGU) 
             // AND next stage doesn't have a result (is MENUNGGU or doesn't exist)
+            // AND is NOT an automated BOD pass from a position move (this is locked)
             $canReset = false;
             if ($stage && strtoupper($stage->status) !== 'MENUNGGU') {
                 if (!$nextStage || strtoupper($nextStage->status) === 'MENUNGGU') {
                     $canReset = true;
+                    
+                    // Special rule: If this is the automated BOD stage from a move, do not allow reset.
+                    if ($key === 'interview_bod' && $stage->notes && str_contains($stage->notes, '[PINDAH POSISI]')) {
+                        $canReset = false;
+                    }
                 }
             }
             

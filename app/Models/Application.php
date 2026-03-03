@@ -76,6 +76,6 @@ class Application extends Model
 
     public function latestStage(): HasOne
     {
-        return $this->hasOne(ApplicationStage::class)->latest('updated_at');
+        return $this->hasOne(ApplicationStage::class)->latest('id');
     }
 }

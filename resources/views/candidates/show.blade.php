@@ -601,14 +601,17 @@
                                                 </p>
                                             </div>
                                             <div class="px-6 py-6">
-                                                {{-- Warning for PINDAH status --}}
+                                                {{-- Warning for PINDAH status (Source of move) --}}
                                                 <template x-if="applications.find(a => a.id === activeApplicationId)?.overall_status === 'PINDAH'">
-                                                    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+                                                    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between shadow-sm">
                                                         <div class="flex items-center text-red-700 text-sm">
                                                             <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                                                             </svg>
-                                                            <span class="font-medium">Kandidat ini telah dipindahkan ke posisi lain dari aplikasi ini.</span>
+                                                            <div class="flex flex-col">
+                                                                <span class="font-bold">Kandidat ini telah dipindahkan dari posisi ini.</span>
+                                                                <span class="text-xs" x-text="'Tujuan: ' + (applications.find(a => a.id === activeApplicationId)?.internal_position || 'Posisi Lain')"></span>
+                                                            </div>
                                                         </div>
                                                         @if(Auth::user()->hasRole('team_hc_2'))
                                                         <button @click="cancelMove()" 
@@ -617,6 +620,18 @@
                                                             <span>Batalkan Perpindahan</span>
                                                         </button>
                                                         @endif
+                                                    </div>
+                                                </template>
+
+                                                {{-- Info for applications that were the destination of a move --}}
+                                                <template x-if="applications.find(a => a.id === activeApplicationId)?.overall_status !== 'PINDAH' && currentTimeline && currentTimeline.some(s => s.notes && s.notes.includes('[PINDAH POSISI]'))">
+                                                    <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center shadow-sm">
+                                                        <div class="flex items-center text-blue-700 text-sm">
+                                                            <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                            </svg>
+                                                            <span class="font-medium">Kandidat ini dipindahkan ke posisi ini.</span>
+                                                        </div>
                                                     </div>
                                                 </template>
 
@@ -755,7 +770,7 @@
                                                                                     <div class="flex items-center space-x-2">
                                                                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" 
                                                                                             :class="getResultClass(stage.result).bgColor + ' ' + getResultClass(stage.result).textColor"
-                                                                                            x-html="getResultClass(stage.result).icon + ' ' + stage.result"></span>
+                                                                                            x-html="getResultClass(stage.result).icon + ' ' + (labelMap[stage.result.toUpperCase()] || stage.result)"></span>
                                                                                         <template x-if="stage.evaluator">
                                                                                             <p class="text-gray-500" x-text="'oleh ' + stage.evaluator"></p>
                                                                                         </template>
@@ -845,6 +860,7 @@
                                         'TIDAK LULUS': 'Tidak Lulus',
                                         'DIPERTIMBANGKAN': 'Dipertimbangkan',
                                         'PINDAH_POSISI': 'Pindahkan Posisi',
+                                        'MENUNGGU': 'Menunggu hasil...',
                                     },
                                     
                                     availableResults: [],
@@ -871,6 +887,17 @@
                                     init() {
                                         if (this.activeApplicationId && this.allTimelines[this.activeApplicationId]) {
                                             this.currentTimeline = this.allTimelines[this.activeApplicationId];
+                                        } else if (Object.keys(this.allTimelines).length > 0) {
+                                            // Fallback to first available timeline if activeApplicationId is not set or invalid
+                                            const firstAppId = Object.keys(this.allTimelines)[0];
+                                            this.activeApplicationId = parseInt(firstAppId);
+                                            this.currentTimeline = this.allTimelines[firstAppId];
+                                            
+                                            // Find vacancy name for this fallback
+                                            const app = this.applications.find(a => a.id == this.activeApplicationId);
+                                            if (app && app.vacancy) {
+                                                this.activeApplicationVacancyName = app.vacancy.name;
+                                            }
                                         }
                                     },
                             
@@ -894,6 +921,7 @@
                                             'PENDING': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' }, // Ellipsis
                                             'SENT': { bgColor: 'bg-blue-100', textColor: 'text-blue-800', icon: '&hellip;' },
                                             'DIPERTIMBANGKAN': { bgColor: 'bg-yellow-100', textColor: 'text-yellow-800', icon: '&hellip;' },
+                                            'MENUNGGU': { bgColor: 'bg-yellow-100', textColor: 'text-yellow-800', icon: '&hellip;' },
                                             'TIDAK LULUS': { bgColor: 'bg-red-100', textColor: 'text-red-800', icon: '&#x2715;' }, // Cross
                                             'default': { bgColor: 'bg-red-100', textColor: 'text-red-800', icon: '&#x2715;' } // Cross
                                         };

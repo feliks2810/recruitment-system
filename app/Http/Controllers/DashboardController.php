@@ -21,14 +21,15 @@ class DashboardController extends Controller
         $user = Auth::user();
 
         $baseQuery = Application::query();
-            if ($user->hasRole('kepala departemen')) {
-                $baseQuery->whereHas('candidate', function ($query) use ($user) {
-                    $query->where('department_id', $user->department_id);
-                });
-            }
-        // Filter by year if provided
+        if ($user->hasRole('kepala departemen')) {
+            $baseQuery->whereHas('candidate', function ($query) use ($user) {
+                $query->where('department_id', $user->department_id);
+            });
+        }
+        
+        // Filter by mpp_year to match Candidate List
         if ($year) {
-            $baseQuery->whereYear('applications.created_at', $year);
+            $baseQuery->where('applications.mpp_year', $year);
         }
 
         // Get real statistics based on overall_status
@@ -52,14 +53,28 @@ class DashboardController extends Controller
         }
         $recent_candidates = $recentCandidatesQuery->get();
 
-        $distributionQuery = ApplicationStage::whereHas('application', function($q) use ($year, $user) {
-                    $q->whereYear('created_at', $year);
+        $distributionQuery = ApplicationStage::whereIn('id', function($query) use ($year, $user) {
+            $query->select(DB::raw('MAX(id)'))
+                ->from('application_stages')
+                ->whereIn('application_id', function($sub) use ($year, $user) {
+                    $sub->select('id')
+                        ->from('applications')
+                        ->where('overall_status', 'PROSES');
+                    
+                    if ($year) {
+                        $sub->where('mpp_year', $year);
+                    }
+                    
                     if ($user->hasRole('kepala departemen')) {
-                        $q->whereHas('candidate', function ($cq) use ($user) {
-                            $cq->where('department_id', $user->department_id);
+                        $sub->whereIn('candidate_id', function($csub) use ($user) {
+                            $csub->select('id')
+                                ->from('candidates')
+                                ->where('department_id', $user->department_id);
                         });
                     }
-                });
+                })
+                ->groupBy('application_id');
+        });
         $stageOrder = [
             'psikotes',
             'hc_interview',
@@ -238,6 +253,9 @@ class DashboardController extends Controller
                 $q->whereIn('status', ['PENDING', 'PROSES', 'MENUNGGU'])
                   ->orWhereNull('status');
             })
+            ->whereHas('application', function($q) {
+                $q->whereNotIn('overall_status', ['CANCEL', 'PINDAH']);
+            })
             ->whereDate('scheduled_date', '>=', now()->startOfYear())
             ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
 
@@ -323,11 +341,15 @@ class DashboardController extends Controller
         $user = Auth::user();
         $query = Application::query();
 
-    if ($user->hasRole('kepala departemen')) {
-        $query->whereHas('candidate', function ($cq) use ($user) {
-            $cq->where('department_id', $user->department_id);
-        });
-    }
+        if ($year) {
+            $query->where('mpp_year', $year);
+        }
+
+        if ($user->hasRole('kepala departemen')) {
+            $query->whereHas('candidate', function ($cq) use ($user) {
+                $cq->where('department_id', $user->department_id);
+            });
+        }
 
         $stats = $query
             ->selectRaw('MONTH(created_at) as month,
@@ -361,13 +383,15 @@ class DashboardController extends Controller
         
         $query = Application::query();
         
-            if ($user->hasRole('kepala departemen')) {
-                $query->whereHas('candidate', function ($cq) use ($user) {
-                    $cq->where('department_id', $user->department_id);
-                });
-            }        
+        if ($user->hasRole('kepala departemen')) {
+            $query->whereHas('candidate', function ($cq) use ($user) {
+                $cq->where('department_id', $user->department_id);
+            });
+        }        
+        
         $years = $query
-            ->selectRaw('YEAR(created_at) as year')
+            ->whereNotNull('mpp_year')
+            ->select('mpp_year as year')
             ->distinct()
             ->orderBy('year', 'desc')
             ->pluck('year')

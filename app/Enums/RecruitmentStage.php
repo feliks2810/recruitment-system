@@ -7,9 +7,8 @@ enum RecruitmentStage: string
     case PSIKOTES = 'psikotes';
     case HC_INTERVIEW = 'hc_interview';
     case USER_INTERVIEW = 'user_interview';
-    case BOD_INTERVIEW = 'bod_interview';
-    case OFFERING = 'offering';
+    case INTERVIEW_BOD = 'interview_bod';
+    case OFFERING_LETTER = 'offering_letter';
     case MCU = 'mcu';
-    case HIRED = 'hired';
-    case FAILED = 'failed';
+    case HIRING = 'hiring';
 }
