@@ -413,6 +413,7 @@ class CandidateController extends Controller
         $query = Application::query()
             ->select('applications.*') // IMPORTANT: Select from applications table to avoid conflicts
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id')
             ->with([
                 'candidate.department',
                 'candidate.latestPsikotest',
@@ -422,9 +423,20 @@ class CandidateController extends Controller
                 'stages',
             ]);
 
+        // Apply department filter for head of department
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $query->where('vacancies.department_id', $user->department_id);
+        }
+
         // statsQuery should have all filters applied to match the dashboard logic
         $statsQuery = Application::query()
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
+        
+        // Add vacancies join for head of department filtering
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $statsQuery->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id')
+                       ->where('vacancies.department_id', $user->department_id);
+        }
 
         // --- Applying Filters ---
 
@@ -442,8 +454,14 @@ class CandidateController extends Controller
         // --- DUPLICATE LOGIC ---
         // Find candidates who applied more than once in the same year
         $duplicateCandidateQuery = Application::select('candidate_id')
+            ->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id')
             ->groupBy('candidate_id', 'mpp_year')
             ->havingRaw('COUNT(*) > 1');
+
+        // Filter by head of department's department if applicable
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $duplicateCandidateQuery->where('vacancies.department_id', $user->department_id);
+        }
 
         if ($selectedYear) {
             $duplicateCandidateQuery->where('mpp_year', $selectedYear);
@@ -458,11 +476,17 @@ class CandidateController extends Controller
                 
                 // If we're looking at all years, ensure we only show the years that are duplicate
                 if (!$selectedYear) {
-                    $duplicateCondition = function($q) {
+                    $duplicateCondition = function($q) use ($user) {
                         $q->select('candidate_id', 'mpp_year')
                           ->from('applications')
+                          ->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id')
                           ->groupBy('candidate_id', 'mpp_year')
                           ->havingRaw('COUNT(*) > 1');
+                        
+                        // Filter by head of department's department if applicable
+                        if ($user->hasRole('kepala departemen') && $user->department_id) {
+                            $q->where('vacancies.department_id', $user->department_id);
+                        }
                     };
                     $query->whereIn(DB::raw('(applications.candidate_id, applications.mpp_year)'), $duplicateCondition);
                     $statsQuery->whereIn(DB::raw('(applications.candidate_id, applications.mpp_year)'), $duplicateCondition);
@@ -578,8 +602,14 @@ class CandidateController extends Controller
             if ($selectedYear) {
                 $q->where('year', $selectedYear);
             }
-        }])
-        ->withCount(['applications' => function ($q) use ($selectedYear) {
+        }]);
+
+        // Filter vacancies by head of department's department
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $activeVacancies->where('vacancies.department_id', $user->department_id);
+        }
+
+        $activeVacancies = $activeVacancies->withCount(['applications' => function ($q) use ($selectedYear) {
             if ($selectedYear) {
                 $q->where('mpp_year', $selectedYear);
             }
@@ -636,8 +666,15 @@ class CandidateController extends Controller
         })
         ->with(['mppSubmissions' => function($q) {
             $q->where('proposal_status', 'approved')->select('mpp_submissions.id', 'year');
-        }])
-        ->get();
+        }]);
+
+        // Filter vacancies by head of department's department
+        $user = Auth::user();
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $activeVacancies->where('vacancies.department_id', $user->department_id);
+        }
+
+        $activeVacancies = $activeVacancies->get();
 
         return view('candidates.show', compact(
             'candidate', 
