@@ -14,16 +14,16 @@ class ApplicationObserver
     {
         // Create the initial 'psikotes' stage for the new application, as 'cv_review' is now bypassed.
         try {
-            $conductedBy = Auth::user()?->name ?? 'System';
+            $conductedByUserId = Auth::id();
         } catch (\Exception $e) {
-            $conductedBy = 'System';
+            $conductedByUserId = null;
         }
         
         $application->stages()->create([
             'stage_name' => 'psikotes',
             'status' => 'PROSES',
             'scheduled_date' => now(),
-            'conducted_by' => $conductedBy,
+            'conducted_by_user_id' => $conductedByUserId,
         ]);
     }
 

@@ -44,9 +44,9 @@ class VacancyStatisticsController extends Controller
                 return $vacancy->mppSubmissions->where('year', $selectedYear)->where('pivot.proposal_status', 'approved')->isNotEmpty();
             });
 
-            $totalApplicants = $filteredApplications->count();
-            $hiredCount = $filteredApplications->where('overall_status', 'LULUS')->count();
-            $rejectedCount = $filteredApplications->where('overall_status', 'DITOLAK')->count();
+            $totalApplicants = $filteredApplications->unique('candidate_id')->count();
+            $hiredCount = $filteredApplications->where('overall_status', 'LULUS')->unique('candidate_id')->count();
+            $rejectedCount = $filteredApplications->where('overall_status', 'DITOLAK')->unique('candidate_id')->count();
 
             // The needed_count is associated with a specific MPP submission for a given year
             // Find the relevant MPP submission for the selected year

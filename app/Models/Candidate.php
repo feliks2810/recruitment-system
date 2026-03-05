@@ -337,14 +337,15 @@ class Candidate extends Model
             // Check if this stage was edited
             $isEdited = $stage && $stage->original_scheduled_date !== null && $stage->original_scheduled_date->format('Y-m-d') !== $stage->scheduled_date->format('Y-m-d');
             
-            // Can edit result only if next stage doesn't exist yet
-            $canEditResult = !$nextStageExists;
+            // Can edit result only if next stage doesn't exist yet AND stage is not locked
+            $canEditResult = !$nextStageExists && (!$stage || !$stage->is_locked);
 
             // Can reset only if THIS stage has a result (not MENUNGGU) 
             // AND next stage doesn't have a result (is MENUNGGU or doesn't exist)
             // AND is NOT an automated BOD pass from a position move (this is locked)
+            // AND stage is NOT locked
             $canReset = false;
-            if ($stage && strtoupper($stageStatus) !== 'MENUNGGU') {
+            if ($stage && strtoupper($stageStatus) !== 'MENUNGGU' && !$stage->is_locked) {
                 if (!$nextStage || strtoupper($nextStage->status) === 'MENUNGGU') {
                     $canReset = true;
                     
@@ -357,13 +358,14 @@ class Candidate extends Model
             
             // SPECIAL CASE: If application overall_status is 'PINDAH', 
             // the last completed stage should be resettable to undo the move.
+            // BUT only if it's not locked
             if ($application->overall_status === 'PINDAH') {
                  // Find the actual last stage that exists in the DB for this application
                  $lastStageInDb = $application->stages->sortByDesc(function ($s) use ($stageConfig) {
                      return array_search($s->stage_name, array_keys($stageConfig));
                  })->first();
                  
-                 if ($lastStageInDb && $stage && $stage->id === $lastStageInDb->id) {
+                 if ($lastStageInDb && $stage && $stage->id === $lastStageInDb->id && !$stage->is_locked) {
                      $canReset = true;
                  }
             }
@@ -383,6 +385,7 @@ class Candidate extends Model
                 'can_reset' => $canReset,
                 'previous_stage_date' => $previousStageDate,
                 'is_edited' => $isEdited,
+                'is_locked' => $stage?->is_locked ?? false,
             ];
 
             // The next stage is only unlocked if the current stage has been passed.

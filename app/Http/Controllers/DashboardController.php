@@ -18,62 +18,62 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $year = $request->get('year', date('Y'));
+        $vacancy_id = $request->get('vacancy_id');
         $user = Auth::user();
 
         $baseQuery = Application::query();
+        
+        // Filter by user role/department
         if ($user->hasRole('kepala departemen')) {
             $baseQuery->whereHas('candidate', function ($query) use ($user) {
                 $query->where('department_id', $user->department_id);
             });
         }
         
-        // Filter by mpp_year to match Candidate List
+        // Filter by mpp_year
         if ($year) {
             $baseQuery->where('applications.mpp_year', $year);
         }
 
-        // Get real statistics based on overall_status
+        // Filter by vacancy (Revision 1)
+        if ($vacancy_id) {
+            $baseQuery->where('applications.vacancy_id', $vacancy_id);
+        }
+
+        // Get real statistics (Revision 1)
+        // Note: We count unique candidates in each status to avoid duplicates (Revision 1)
         $stats = [
-            'total_candidates' => (clone $baseQuery)->count(),
-            'candidates_in_process' => (clone $baseQuery)->where('overall_status', 'PROSES')->count(),
-            'candidates_passed' => (clone $baseQuery)->where('overall_status', 'LULUS')->count(),
-            'candidates_failed' => (clone $baseQuery)->where('overall_status', 'DITOLAK')->count(),
-            'candidates_cancelled' => (clone $baseQuery)->where('overall_status', 'CANCEL')->count(),
+            'total_candidates' => (clone $baseQuery)->distinct('candidate_id')->count('candidate_id'),
+            'candidates_in_process' => (clone $baseQuery)->where('overall_status', 'PROSES')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_passed' => (clone $baseQuery)->where('overall_status', 'LULUS')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_failed' => (clone $baseQuery)->where('overall_status', 'DITOLAK')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_cancelled' => (clone $baseQuery)->where('overall_status', 'CANCEL')->distinct('candidate_id')->count('candidate_id'),
         ];
 
-        $applications = (clone $baseQuery)->with(['stages' => function($query) {
-            $query->orderBy('scheduled_date', 'desc')->orderBy('id', 'desc');
-        }])->get();
+        // Distribution query - Get the latest stage for each unique candidate's latest application (Revision 1 & 11)
+        $distributionQuery = ApplicationStage::whereIn('id', function($query) use ($year, $vacancy_id, $user) {
+            $query->select(DB::raw('MAX(as2.id) as latest_id'))
+                ->from('application_stages as as2')
+                ->join('applications as a2', 'as2.application_id', '=', 'a2.id')
+                ->where('a2.overall_status', 'PROSES');
+            
+            if ($year) {
+                $query->where('a2.mpp_year', $year);
+            }
 
-        $recentCandidatesQuery = Candidate::with('department', 'applications')
-            ->orderBy('created_at', 'desc')
-            ->limit(5);
-        if ($user->hasRole('kepala departemen')) {
-            $recentCandidatesQuery->where('department_id', $user->department_id);
-        }
-        $recent_candidates = $recentCandidatesQuery->get();
+            if ($vacancy_id) {
+                $query->where('a2.vacancy_id', $vacancy_id);
+            }
+            
+            if ($user->hasRole('kepala departemen')) {
+                $query->whereIn('a2.candidate_id', function($csub) use ($user) {
+                    $csub->select('id')
+                        ->from('candidates')
+                        ->where('department_id', $user->department_id);
+                });
+            }
 
-        $distributionQuery = ApplicationStage::whereIn('id', function($query) use ($year, $user) {
-            $query->select(DB::raw('MAX(id)'))
-                ->from('application_stages')
-                ->whereIn('application_id', function($sub) use ($year, $user) {
-                    $sub->select('id')
-                        ->from('applications')
-                        ->where('overall_status', 'PROSES');
-                    
-                    if ($year) {
-                        $sub->where('mpp_year', $year);
-                    }
-                    
-                    if ($user->hasRole('kepala departemen')) {
-                        $sub->whereIn('candidate_id', function($csub) use ($user) {
-                            $csub->select('id')
-                                ->from('candidates')
-                                ->where('department_id', $user->department_id);
-                        });
-                    }
-                })
-                ->groupBy('application_id');
+            $query->groupBy('a2.candidate_id');
         });
         $stageOrder = [
             'psikotes',
@@ -124,9 +124,10 @@ class DashboardController extends Controller
         })->values();
 
         // Gender Distribution - Show all including NULL/empty as "Tidak Diketahui"
-        $genderRaw = (clone $baseQuery)
+        $genderRaw = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
-            ->select('candidates.jk', DB::raw('count(*) as count'))
+            ->whereIn('applications.id', (clone $baseQuery)->pluck('id'))
+            ->select('candidates.jk', DB::raw('count(DISTINCT applications.candidate_id) as count'))
             ->groupBy('candidates.jk')
             ->get();
         
@@ -172,11 +173,20 @@ class DashboardController extends Controller
             $gender_distribution->push((object)['jk' => null, 'count' => $unknownCount]);
         }
 
+        $recentCandidatesQuery = Candidate::with('department', 'applications')
+            ->orderBy('created_at', 'desc')
+            ->limit(5);
+        if ($user->hasRole('kepala departemen')) {
+            $recentCandidatesQuery->where('department_id', $user->department_id);
+        }
+        $recent_candidates = $recentCandidatesQuery->get();
+
         // University Distribution - Using same approach as StatisticsController
-        $university_distribution = (clone $baseQuery)
+        $university_distribution = DB::table('applications')
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->join('educations', 'candidates.id', '=', 'educations.candidate_id')
-            ->select('educations.institution as perguruan_tinggi', DB::raw('count(*) as count'))
+            ->whereIn('applications.id', (clone $baseQuery)->pluck('id'))
+            ->select('educations.institution as perguruan_tinggi', DB::raw('count(DISTINCT applications.candidate_id) as count'))
             ->whereNotNull('educations.institution')
             ->where('educations.institution', '!=', '')
             ->groupBy('educations.institution')
@@ -202,6 +212,13 @@ class DashboardController extends Controller
             array_unshift($availableYears, date('Y'));
         }
 
+        $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) use ($year) {
+            $q->where('proposal_status', 'approved');
+            if ($year) {
+                $q->where('year', $year);
+            }
+        })->orderBy('name')->get();
+
         return view('dashboard', [
             'stats' => $stats,
             'recent_candidates' => $recent_candidates,
@@ -211,6 +228,8 @@ class DashboardController extends Controller
             'summaryYear' => $summaryYear,
             'availableYears' => $availableYears,
             'year' => $year,
+            'vacancy_id' => $vacancy_id,
+            'activeVacancies' => $activeVacancies,
             'departments' => $departments,
             'gender_distribution' => $gender_distribution,
             'university_distribution' => $university_distribution,

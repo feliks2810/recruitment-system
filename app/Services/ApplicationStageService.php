@@ -42,6 +42,10 @@ class ApplicationStageService
             if (!$existingStage) {
                 throw ValidationException::withMessages(['stage' => 'Stage tidak ditemukan.']);
             }
+
+            if ($existingStage->is_locked) {
+                throw ValidationException::withMessages(['stage' => 'Tahapan ini telah dikunci dan tidak dapat diubah lagi.']);
+            }
             
             // Shift the date: current scheduled_date becomes original_scheduled_date
             // This shows "Sebelum" = last updated date, "Sesudah" = current date
@@ -58,8 +62,13 @@ class ApplicationStageService
 
         $this->validateStageTransition($application, $stageKey);
         
-        // Find existing stage to preserve original date
+        // Find existing stage to preserve original date and check lock
         $existingStage = $application->stages()->where('stage_name', $stageKey)->first();
+
+        if ($existingStage && $existingStage->is_locked) {
+            throw ValidationException::withMessages(['stage' => 'Tahapan ini telah dikunci dan tidak dapat diubah lagi.']);
+        }
+
         $originalDate = $existingStage ? ($existingStage->original_scheduled_date ?? $existingStage->scheduled_date) : null;
 
         // Update current stage
@@ -184,6 +193,8 @@ class ApplicationStageService
             $result = strtoupper($stage->status);
             
             // Create the stage record for the new application
+            // This will overwrite the auto-created 'psikotes' stage from the observer
+            // We ensure is_locked is false so the new application can be processed
             $toApplication->stages()->updateOrCreate(
                 ['stage_name' => $stage->stage_name],
                 [
@@ -191,23 +202,17 @@ class ApplicationStageService
                     'scheduled_date' => $stage->scheduled_date,
                     'conducted_by_user_id' => $stage->conducted_by_user_id,
                     'notes' => $stage->notes,
+                    'is_locked' => false,
                 ]
             );
 
-            // Trigger next stage creation if the current stage was passed
-            $nextStageKey = $this->stageConfig[$stage->stage_name]['next'] ?? null;
-            if ($nextStageKey && in_array($result, ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'])) {
-                // Only create if it doesn't already exist from the previous fromApplication stages
-                $existsInFrom = $fromApplication->stages->where('stage_name', $nextStageKey)->first();
-                if (!$existsInFrom) {
-                    $this->prepareNextStage($toApplication, $nextStageKey, []);
-                }
-            }
-
-            $this->updateOverallApplicationStatus($toApplication, $stage->stage_name, $result);
+            // After copying each stage, we should NOT call prepareNextStage because 
+            // we are copying a completed history. Any future stage should be handled 
+            // by the last stage in the sequence or by the movePosition logic.
         }
         
-        $toApplication->save();
+        // After all stages are copied, set the overall status to match or default to PROSES
+        $toApplication->update(['overall_status' => 'PROSES']);
     }
 
     private function getPreviousStageKey(string $currentStageKey): ?string

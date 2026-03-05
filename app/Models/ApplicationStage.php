@@ -32,11 +32,13 @@ class ApplicationStage extends Model
         'original_scheduled_date',
         'notes',
         'conducted_by_user_id',
+        'is_locked',
     ];
 
     protected $casts = [
         'scheduled_date' => 'date',
         'original_scheduled_date' => 'date',
+        'is_locked' => 'boolean',
     ];
 
     public function application(): BelongsTo

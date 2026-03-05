@@ -417,11 +417,14 @@ class CandidateController extends Controller
                 'candidate.department',
                 'candidate.latestPsikotest',
                 'candidate.latestHCInterview',
-                'vacancy',
+                'vacancy.department',
+                'department',
                 'stages',
             ]);
 
-        $statsQuery = Application::query();
+        // statsQuery should have all filters applied to match the dashboard logic
+        $statsQuery = Application::query()
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
 
         // --- Applying Filters ---
 
@@ -433,9 +436,7 @@ class CandidateController extends Controller
 
         if ($user->hasRole('kepala departemen') && $user->department_id) {
             $query->where('candidates.department_id', $user->department_id);
-            $statsQuery->whereHas('candidate', function ($q) use ($user) {
-                $q->where('department_id', $user->department_id);
-            });
+            $statsQuery->where('candidates.department_id', $user->department_id);
         }
 
         // --- DUPLICATE LOGIC ---
@@ -463,16 +464,37 @@ class CandidateController extends Controller
                           ->groupBy('candidate_id', 'mpp_year')
                           ->havingRaw('COUNT(*) > 1');
                     };
-                    $query->whereIn(DB::raw('(candidate_id, mpp_year)'), $duplicateCondition);
-                    $statsQuery->whereIn(DB::raw('(candidate_id, mpp_year)'), $duplicateCondition);
+                    $query->whereIn(DB::raw('(applications.candidate_id, applications.mpp_year)'), $duplicateCondition);
+                    $statsQuery->whereIn(DB::raw('(applications.candidate_id, applications.mpp_year)'), $duplicateCondition);
                 }
+            } elseif ($request->type === 'non-duplicate') {
+                // Revision 2: Non Duplicate Candidate
+                $query->whereNotIn('applications.candidate_id', $duplicateCandidateIds);
+                $statsQuery->whereNotIn('applications.candidate_id', $duplicateCandidateIds);
             } elseif ($request->type === 'organic') {
-                $query->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'Yes'); });
-                $statsQuery->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'Yes'); });
+                $query->where('candidates.airsys_internal', 'Yes');
+                $statsQuery->where('candidates.airsys_internal', 'Yes');
             } elseif ($request->type === 'non-organic') {
-                $query->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'No'); });
-                $statsQuery->whereHas('candidate', function ($q) { $q->where('airsys_internal', 'No'); });
+                $query->where('candidates.airsys_internal', 'No');
+                $statsQuery->where('candidates.airsys_internal', 'No');
             }
+        }
+
+        // Revision 3: Filter candidates not yet moved
+        if ($request->boolean('not_moved')) {
+            // A candidate is "moved" if they have ANY application with status 'PINDAH'
+            $query->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('applications as sub_app')
+                  ->whereRaw('sub_app.candidate_id = applications.candidate_id')
+                  ->where('sub_app.overall_status', 'PINDAH');
+            });
+            $statsQuery->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('applications as sub_app')
+                  ->whereRaw('sub_app.candidate_id = applications.candidate_id')
+                  ->where('sub_app.overall_status', 'PINDAH');
+            });
         }
 
         if ($request->filled('status')) {
@@ -496,7 +518,7 @@ class CandidateController extends Controller
                   ->orWhere('candidates.alamat_email', 'like', "%{$search}%");
             };
             $query->where($filterSearch);
-            $statsQuery->whereHas('candidate', $filterSearch);
+            $statsQuery->where($filterSearch);
         }
         
         if ($request->filled('vacancy_id')) { 
@@ -506,25 +528,19 @@ class CandidateController extends Controller
         
         if ($request->filled('department_id')) { 
             $query->where('candidates.department_id', $request->department_id);
-            $statsQuery->whereHas('candidate', function($q) use ($request) {
-                $q->where('department_id', $request->department_id);
-            });
+            $statsQuery->where('candidates.department_id', $request->department_id);
         }
         
         if ($request->filled('source')) { 
             $query->where('candidates.source', $request->source);
-            $statsQuery->whereHas('candidate', function($q) use ($request) {
-                $q->where('source', $request->source);
-            });
+            $statsQuery->where('candidates.source', $request->source);
         }
         
         if ($request->filled('stage')) {
             $stage = $request->stage;
             $filterByLatestStage = function ($q) use ($stage) {
-                // We use a subquery to ensure we are only matching if the LATEST stage for this application
-                // is the one we're filtering for.
                 $q->where('stage_name', $stage)
-                  ->where('id', function($sub) use ($stage) {
+                  ->where('id', function($sub) {
                       $sub->select(DB::raw('max(id)'))
                           ->from('application_stages')
                           ->whereColumn('application_id', 'applications.id');
@@ -546,10 +562,10 @@ class CandidateController extends Controller
         $statuses = [ 'ON_PROCESS' => 'Proses', 'HIRED' => 'Lulus', 'FAILED' => 'Tidak Lulus', 'CANCEL' => 'Cancel' ];
         $stats = [
             'total_candidates' => (clone $statsQuery)->distinct('candidate_id')->count('candidate_id'),
-            'candidates_in_process' => (clone $statsQuery)->where('overall_status', 'PROSES')->count(),
-            'candidates_passed' => (clone $statsQuery)->where('overall_status', 'LULUS')->count(),
-            'candidates_failed' => (clone $statsQuery)->where('overall_status', 'DITOLAK')->count(),
-            'candidates_cancelled' => (clone $statsQuery)->where('overall_status', 'CANCEL')->count(),
+            'candidates_in_process' => (clone $statsQuery)->where('overall_status', 'PROSES')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_passed' => (clone $statsQuery)->where('overall_status', 'LULUS')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_failed' => (clone $statsQuery)->where('overall_status', 'DITOLAK')->distinct('candidate_id')->count('candidate_id'),
+            'candidates_cancelled' => (clone $statsQuery)->where('overall_status', 'CANCEL')->distinct('candidate_id')->count('candidate_id'),
             'duplicate' => $duplicateCandidateIds->count(),
         ];
         $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) use ($selectedYear) {
@@ -670,7 +686,7 @@ class CandidateController extends Controller
             $newVacancy = Vacancy::findOrFail($validated['new_vacancy_id']);
             $candidate = $application->candidate;
 
-            // Re-evaluate candidate's department and internal status
+            // Update candidate's department and internal status
             $candidate->department_id = $newVacancy->department_id;
             
             $mppSubmission = $newVacancy->mppSubmissions()
@@ -684,47 +700,58 @@ class CandidateController extends Controller
             }
             $candidate->save();
 
-            // Create NEW application as requested
+            // Create NEW application
             $newApplication = Application::create([
                 'candidate_id' => $candidate->id,
                 'vacancy_id' => $newVacancy->id,
+                'department_id' => $newVacancy->department_id, // Ensure application department is updated (Revision 4)
                 'mpp_year' => $validated['mpp_year'],
-                'overall_status' => $application->overall_status, // Inherit status (usually PROSES)
+                'overall_status' => 'PROSES', // New application is in process
             ]);
 
-            // Deactivate OLD application
+            // Deactivate OLD application and mark its status
             $application->update([
                 'overall_status' => 'PINDAH',
                 'internal_position' => $newVacancy->name . " (" . $validated['mpp_year'] . ")"
             ]);
 
-            // Clone all existing stages to the NEW application using the improved service method
+            // LOCK all existing stages of the old application (Revision 6)
+            $application->stages()->update(['is_locked' => true]);
+
+            // Ensure stages are fresh and loaded
+            $application->load('stages');
+
+            // Clone all existing stages to the NEW application
             $stageService->copyStages($application, $newApplication);
 
-            // Automatically pass the BOD stage for the new application
-            try {
-                $stageService->processStageUpdate($newApplication, [
-                    'stage' => 'interview_bod',
-                    'result' => 'LULUS',
-                    'notes' => "[PINDAH POSISI] Otomatis lulus BOD karena pindah posisi dari: " . ($application->vacancy->name ?? 'N/A') . " (Tahun MPP: " . $application->mpp_year . ")",
-                    'stage_date' => now()->format('Y-m-d'),
-                ]);
-            } catch (\Exception $e) {
-                // If validation fails (e.g. they hadn't reached BOD), we just log it and proceed
-                // The candidate might be moved from an earlier stage if the UI allows it
-                \Log::warning("Could not automatically pass BOD stage during move: " . $e->getMessage());
-                
-                // At least add a note about the move to the most recent stage
-                $latestStage = $newApplication->stages()->orderBy('id', 'desc')->first();
-                if ($latestStage) {
-                    $existingNotes = $latestStage->notes ?? '';
-                    $newNote = "\n[PINDAH POSISI] Berlanjut dari posisi: " . ($application->vacancy->name ?? 'N/A') . " (Tahun MPP: " . $validated['mpp_year'] . ")";
-                    $latestStage->update(['notes' => $existingNotes . $newNote]);
+            // RESET the active stage of the new application (Revision 5)
+            // Instead of just ID, find the stage that corresponds to the current process point
+            $newApplication->load('stages');
+            $processStages = ['psikotes', 'hc_interview', 'user_interview', 'interview_bod', 'offering_letter', 'mcu', 'hiring'];
+            $newStages = $newApplication->stages->keyBy('stage_name');
+            
+            $stageToReset = null;
+            foreach ($processStages as $sName) {
+                if ($newStages->has($sName)) {
+                    $stageToReset = $newStages->get($sName);
+                    // If this stage is not passed, this is the one to reset
+                    if (!in_array(strtoupper($stageToReset->status), ['LULUS', 'DISARANKAN', 'DITERIMA', 'HIRED'])) {
+                        break;
+                    }
                 }
             }
 
+            if ($stageToReset) {
+                $stageToReset->update([
+                    'status' => 'MENUNGGU',
+                    'notes' => "[PINDAH POSISI] Berlanjut dari posisi: " . ($application->vacancy->name ?? 'N/A') . " (Tahun MPP: " . $application->mpp_year . ")",
+                    'conducted_by_user_id' => null,
+                    'is_locked' => false,
+                ]);
+            }
+
             DB::commit();
-            return response()->json(['message' => 'Candidate position moved successfully. New application created with previous history.']);
+            return response()->json(['message' => 'Kandidat berhasil dipindahkan ke posisi baru. Tahapan di-reset untuk posisi baru.']);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Error moving position: ' . $e->getMessage());

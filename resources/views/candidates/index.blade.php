@@ -60,82 +60,108 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow p-4 mb-6">
-            <form method="GET" x-ref="filterForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="lg:col-span-2">
-                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Cari Kandidat</label>
-                    <input type="text"
-                           id="search"
-                           name="search"
-                           value="{{ request('search') }}"
-                           placeholder="Cari nama, email, atau posisi..."
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           @keydown.enter.prevent="$refs.filterForm.submit()">
-                </div>
-                <div>
-                    <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
-                    <select name="year" id="year" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('year') ? 'selected' : '' }}>Semua Tahun</option>
-                        @foreach($years as $year)
-                            <option value="{{ $year }}" {{ $selectedYear == $year ? 'selected' : '' }}>{{ $year }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <select name="status" id="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
-                        @foreach($statuses as $value => $display)
-                            <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>{{ $display }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin'))
-                <div>
-                    <label for="department_id" class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
-                    <select name="department_id" id="department_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('department_id') ? 'selected' : '' }}>Semua Department</option>
-                        @foreach($departments as $department)
-                            <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                @endif
-                <div>
-                    <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                    <select name="source" id="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('source') ? 'selected' : '' }}>Semua Source</option>
-                        @foreach($sources as $source)
-                            <option value="{{ $source }}" {{ request('source') == $source ? 'selected' : '' }}>{{ $source }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="stage" class="block text-sm font-medium text-gray-700 mb-1">Tahapan</label>
-                    <select name="stage" id="stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('stage') ? 'selected' : '' }}>Semua Tahapan</option>
-                        @foreach($stages as $stage)
-                            <option value="{{ $stage->value }}" {{ request('stage') == $stage->value ? 'selected' : '' }}>{{ Str::title(str_replace('_', ' ', $stage->name)) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
-                    <select name="type" id="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            onchange="this.form.submit()">
-                        <option value="" {{ !request('type') ? 'selected' : '' }}>Semua Tipe</option>
-                        <option value="duplicate" {{ request('type') == 'duplicate' ? 'selected' : '' }}>Duplicate</option>
-                        <option value="organic" {{ request('type') == 'organic' ? 'selected' : '' }}>Organik</option>
-                        <option value="non-organic" {{ request('type') == 'non-organic' ? 'selected' : '' }}>Non-Organik</option>
-                    </select>
-                </div>
-                <div class="flex items-end justify-end mt-4 md:mt-0">
-                    <a href="{{ route('candidates.index') }}" class="w-full md:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm text-center">Reset Filter</a>
+        <div class="bg-white rounded-xl shadow p-5 mb-6 border border-gray-100">
+            <form method="GET" x-ref="filterForm">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {{-- Row 1 --}}
+                    
+                    <!-- Cari Kandidat -->
+                    <div class="lg:col-span-1">
+                        <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Cari Kandidat</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text"
+                                   id="search"
+                                   name="search"
+                                   value="{{ request('search') }}"
+                                   placeholder="Cari nama, email, atau ID..."
+                                   class="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                   @keydown.enter.prevent="$refs.filterForm.submit()">
+                        </div>
+                    </div>
+
+                    <!-- Tahun MPP -->
+                    <div>
+                        <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Tahun MPP</label>
+                        <select name="year" id="year" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                onchange="this.form.submit()">
+                            <option value="" {{ !request('year') ? 'selected' : '' }}>Semua Tahun</option>
+                            @foreach($years as $year)
+                                <option value="{{ $year }}" {{ $selectedYear == $year ? 'selected' : '' }}>{{ $year }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Status Akhir -->
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status Akhir</label>
+                        <select name="status" id="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                onchange="this.form.submit()">
+                            <option value="" {{ !request('status') ? 'selected' : '' }}>Semua Status</option>
+                            @foreach($statuses as $value => $display)
+                                <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>{{ $display }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Source / Sumber -->
+                    <div>
+                        <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source / Sumber</label>
+                        <select name="source" id="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                onchange="this.form.submit()">
+                            <option value="" {{ !request('source') ? 'selected' : '' }}>Semua Sumber</option>
+                            @foreach($sources as $source)
+                                <option value="{{ $source }}" {{ request('source') == $source ? 'selected' : '' }}>{{ $source }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Row 2 --}}
+
+                    <!-- Tahapan Saat Ini -->
+                    <div>
+                        <label for="stage" class="block text-sm font-medium text-gray-700 mb-1">Tahapan Saat Ini</label>
+                        <select name="stage" id="stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                onchange="this.form.submit()">
+                            <option value="" {{ !request('stage') ? 'selected' : '' }}>Semua Tahapan</option>
+                            @foreach($stages as $stage)
+                                <option value="{{ $stage->value }}" {{ request('stage') == $stage->value ? 'selected' : '' }}>{{ Str::title(str_replace('_', ' ', $stage->name)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Tipe Kandidat -->
+                    <div>
+                        <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Tipe Kandidat</label>
+                        <select name="type" id="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                onchange="this.form.submit()">
+                            <option value="" {{ !request('type') ? 'selected' : '' }}>Semua Tipe</option>
+                            <option value="duplicate" {{ request('type') == 'duplicate' ? 'selected' : '' }}>Duplicate</option>
+                            <option value="non-duplicate" {{ request('type') == 'non-duplicate' ? 'selected' : '' }}>Non-Duplicate</option>
+                            <option value="organic" {{ request('type') == 'organic' ? 'selected' : '' }}>Organik</option>
+                            <option value="non-organic" {{ request('type') == 'non-organic' ? 'selected' : '' }}>Non-Organik</option>
+                        </select>
+                    </div>
+
+                    <!-- Belum Dipindahkan (Checkbox) -->
+                    <div class="flex items-end pb-2">
+                        <label class="inline-flex items-center cursor-pointer group">
+                            <input type="checkbox" name="not_moved" id="not_moved" value="1" {{ request('not_moved') ? 'checked' : '' }} 
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-all"
+                                   onchange="this.form.submit()">
+                            <span class="ml-2 text-sm text-gray-700 group-hover:text-blue-600 transition-colors font-medium">Belum Dipindahkan</span>
+                        </label>
+                    </div>
+
+                    <!-- Reset Button -->
+                    <div class="flex items-end">
+                        <a href="{{ route('candidates.index') }}" class="w-full px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all text-center flex items-center justify-center gap-2">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Reset Filter</span>
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>
@@ -348,23 +374,17 @@
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm text-gray-900">{{ $application->vacancy ? $application->vacancy->name : 'N/A' }}</div>
                                             @if($application->internal_position)
-                                                <div class="text-sm text-gray-500">{{ $application->internal_position }}</div>
+                                                <div class="text-sm text-gray-500 italic">{{ $application->internal_position }}</div>
                                             @endif
                                         </td>
-                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-900">
-                                                @if ($candidate->department)
-                                                    {{ $candidate->department->name }}
-                                                @else
-                                                    N/A
-                                                @endif
-                                            </div>
+                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                            {{ $application->vacancy->department->name ?? $application->department->name ?? $candidate->department->name ?? '-' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                             {{ $application->mpp_year ?? 'N/A' }}
                                         </td>
-                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ $candidate->source }}
+                                        <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ $candidate->source ?? '-' }}
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                              @if($application->overall_status == 'LULUS')
@@ -373,8 +393,10 @@
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Tidak Lulus</span>
                                             @elseif($application->overall_status == 'CANCEL')
                                                 <span class="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Cancel</span>
+                                            @elseif($application->overall_status == 'PINDAH')
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Pindah Posisi</span>
                                             @else
-                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Proses</span>
+                                                <span class="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Proses</span>
                                             @endif
                                         </td>
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">

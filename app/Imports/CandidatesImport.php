@@ -67,6 +67,11 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithChunkReading
         foreach ($rows as $index => $row) {
             $rowIndex = $index + 2; // Excel row number
 
+            // Skip if the entire row is empty
+            if ($row->filter()->isEmpty()) {
+                continue;
+            }
+
             // ================= SAFETY NORMALIZATION =================
             $name = strtoupper(trim($row['nama'] ?? ''));
             if (empty($name)) {

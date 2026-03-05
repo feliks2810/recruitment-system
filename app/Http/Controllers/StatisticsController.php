@@ -69,9 +69,10 @@ class StatisticsController extends Controller
 
     private function getKpiData($query)
     {
-        $totalApplications = (clone $query)->count();
+        // Use unique candidates for KPI (Revision 1 & 11)
+        $totalApplications = (clone $query)->distinct('candidate_id')->count('candidate_id');
         $hiredApplicationsQuery = (clone $query)->where('overall_status', 'LULUS');
-        $totalHired = $hiredApplicationsQuery->count();
+        $totalHired = $hiredApplicationsQuery->distinct('candidate_id')->count('candidate_id');
 
         $avgTimeToHire = $hiredApplicationsQuery->selectRaw('AVG(DATEDIFF(hired_date, created_at)) as avg_days')
             ->value('avg_days');
@@ -86,23 +87,29 @@ class StatisticsController extends Controller
 
     private function getRecruitmentFunnelData($query)
     {
-        $totalApplications = (clone $query)->count();
+        // For funnel, we only care about the LATEST stage each unique candidate has reached
+        $totalApplications = (clone $query)->distinct('candidate_id')->count('candidate_id');
         
         $stages = [
-            'Psikotes' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'psikotes');})->count(),
-            'Interview HC' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'hc_interview');})->count(),
-            'Interview User' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'user_interview');})->count(),
-            'Offering' => (clone $query)->whereHas('stages', function($q) {$q->where('stage_name', 'offering_letter');})->count(),
-            'Hired' => (clone $query)->where('overall_status', 'LULUS')->count(),
+            'Psikotes' => 'psikotes',
+            'Interview HC' => 'hc_interview',
+            'Interview User' => 'user_interview',
+            'Offering' => 'offering_letter',
+            'Hired' => 'hiring',
         ];
 
         $funnel = [];
         $previousStageCount = $totalApplications;
 
-        foreach ($stages as $stageName => $count) {
+        foreach ($stages as $displayName => $stageName) {
+            // Count unique candidates who EVER reached this stage
+            $count = (clone $query)->whereHas('stages', function($q) use ($stageName) {
+                $q->where('stage_name', $stageName);
+            })->distinct('candidate_id')->count('candidate_id');
+
             $conversionRate = $previousStageCount > 0 ? round(($count / $previousStageCount) * 100, 1) : 0;
             $funnel[] = [
-                'stage' => $stageName,
+                'stage' => $displayName,
                 'count' => $count,
                 'conversion' => $conversionRate,
             ];
@@ -130,10 +137,10 @@ class StatisticsController extends Controller
             $query->where('candidates.source', $source);
         }
 
-        return $query->select('candidates.source', 
-                DB::raw('COUNT(*) as total_applications'),
-                DB::raw('SUM(CASE WHEN applications.overall_status = \'LULUS\' THEN 1 ELSE 0 END) as hired_count')
-            )
+        // Count unique candidates per source (Revision 11)
+        return $query->select('candidates.source')
+            ->selectRaw('COUNT(DISTINCT applications.candidate_id) as total_applications')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN applications.overall_status = \'LULUS\' THEN applications.candidate_id ELSE NULL END) as hired_count')
             ->whereNotNull('candidates.source')
             ->groupBy('candidates.source')
             ->orderBy('hired_count', 'desc')
@@ -260,27 +267,44 @@ class StatisticsController extends Controller
 
         $analysis = [];
 
+        // Pre-fetch the latest stage ID for each candidate's latest application within filters (Revision 11)
+        // We use join to applications to ensure we only get stages from filtered applications
+        $latestStageIdsPerCandidate = DB::table('application_stages as as2')
+            ->join('applications as a2', 'as2.application_id', '=', 'a2.id')
+            ->whereIn('a2.id', (clone $baseQuery)->pluck('id'))
+            ->groupBy('a2.candidate_id')
+            ->pluck(DB::raw('MAX(as2.id) as id'));
+
         foreach ($stages as $stage) {
-            $totalReachedQuery = (clone $baseQuery)->whereHas('stages', function($q) use ($stage) {
+            // 1. Total reached: Unique candidates who EVER reached this stage
+            $totalReached = (clone $baseQuery)->whereHas('stages', function($q) use ($stage) {
                 $q->where('stage_name', $stage['stage_name']);
-            });
+            })->distinct('candidate_id')->count('candidate_id');
 
-            $totalReached = $totalReachedQuery->count();
-
-            $passed = (clone $totalReachedQuery)->whereHas('stages', function($q) use ($stage) {
+            // 2. Passed: Unique candidates who have EVER passed this stage
+            $passed = (clone $baseQuery)->whereHas('stages', function($q) use ($stage) {
                 $q->where('stage_name', $stage['stage_name'])->whereIn('status', $stage['pass_values']);
-            })->count();
+            })->distinct('candidate_id')->count('candidate_id');
 
-            $failed = (clone $totalReachedQuery)->whereHas('stages', function($q) use ($stage) {
+            // 3. Failed: Unique candidates who have EVER failed this stage
+            $failed = (clone $baseQuery)->whereHas('stages', function($q) use ($stage) {
                 $q->where('stage_name', $stage['stage_name'])->whereIn('status', $stage['fail_values']);
-            })->count();
-            
-            $totalEvaluated = $passed + $failed;
-            $inProgress = $totalReached - $totalEvaluated;
-            if ($inProgress < 0) {
-                $inProgress = 0;
+            })->distinct('candidate_id')->count('candidate_id');
+
+            // 4. In Progress: Unique candidates whose LATEST overall stage is THIS stage AND result is not pass/fail
+            $inProgress = 0;
+            if ($latestStageIdsPerCandidate->isNotEmpty()) {
+                $inProgress = DB::table('application_stages')
+                    ->whereIn('id', $latestStageIdsPerCandidate)
+                    ->where('stage_name', $stage['stage_name'])
+                    ->where(function($q) use ($stage) {
+                        $q->whereNotIn('status', array_merge($stage['pass_values'], $stage['fail_values']))
+                          ->orWhereNull('status');
+                    })
+                    ->count();
             }
 
+            $totalEvaluated = $passed + $failed;
             $pass_rate = 0;
             if ($totalEvaluated > 0) {
                 $pass_rate = round(($passed / $totalEvaluated) * 100, 1);
@@ -331,6 +355,14 @@ class StatisticsController extends Controller
                 continue;
             }
 
+            // Ensure candidate has id and nama properties
+            $candidateId = $application->candidate->id ?? null;
+            $candidateName = $application->candidate->nama ?? 'Unknown';
+            
+            if (!$candidateId) {
+                continue;
+            }
+
             foreach ($application->stages as $stage) {
                 $startTime = $stage->created_at;
                 $endTime = $stage->updated_at;
@@ -346,8 +378,8 @@ class StatisticsController extends Controller
                         if ($stageName) {
                             $allDurations[$stageName][] = [
                                 'duration' => $duration,
-                                'candidate_name' => $application->candidate->nama ?? 'Unknown',
-                                'candidate_id' => $application->candidate->id ?? null,
+                                'candidate_name' => $candidateName,
+                                'candidate_id' => $candidateId,
                             ];
                         }
                     }
@@ -357,7 +389,7 @@ class StatisticsController extends Controller
 
         $analysis = [];
         foreach ($allStages as $stageName => $stageKey) {
-            if (isset($allDurations[$stageName])) {
+            if (isset($allDurations[$stageName]) && !empty($allDurations[$stageName])) {
                 $durationsWithCandidates = $allDurations[$stageName];
                 $durationsCollection = collect($durationsWithCandidates);
                 $minDurationItem = $durationsCollection->sortBy('duration')->first();
@@ -366,12 +398,12 @@ class StatisticsController extends Controller
                 $analysis[] = [
                     'stage_name' => $stageName,
                     'avg_days' => round($durationsCollection->pluck('duration')->avg(), 1),
-                    'min_days' => $minDurationItem['duration'],
-                    'min_days_candidate_name' => $minDurationItem['candidate_name'],
-                    'min_days_candidate_id' => $minDurationItem['candidate_id'],
-                    'max_days' => $maxDurationItem['duration'],
-                    'max_days_candidate_name' => $maxDurationItem['candidate_name'],
-                    'max_days_candidate_id' => $maxDurationItem['candidate_id'],
+                    'min_days' => $minDurationItem['duration'] ?? 0,
+                    'min_days_candidate_name' => $minDurationItem['candidate_name'] ?? null,
+                    'min_days_candidate_id' => $minDurationItem['candidate_id'] ?? null,
+                    'max_days' => $maxDurationItem['duration'] ?? 0,
+                    'max_days_candidate_name' => $maxDurationItem['candidate_name'] ?? null,
+                    'max_days_candidate_id' => $maxDurationItem['candidate_id'] ?? null,
                 ];
             } else {
                 $analysis[] = [

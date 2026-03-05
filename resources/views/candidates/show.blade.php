@@ -751,8 +751,17 @@
                                                                                     </button>
                                                                                 </template>
                             
+                                                                                    <template x-if="stage.is_locked">
+                                                                                        <div class="flex items-center text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-200 text-xs">
+                                                                                            <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                                                            </svg>
+                                                                                            Locked
+                                                                                        </div>
+                                                                                    </template>
+
                                                                                     @canany(['edit-candidates','edit-timeline'])
-                                                                                        <template x-if="stage.status !== 'locked'">
+                                                                                        <template x-if="stage.status !== 'locked' && !stage.is_locked">
                                                                                             <div class="flex items-center space-x-1">
                                                                                                 <button @click="openStageModal(
                                                                                                     stage.display_name,
@@ -872,7 +881,7 @@
                                         screening: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
                                         psikotes: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
                                         hc_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
-                                        user_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
+                                        user_interview: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN', 'PINDAH_POSISI'],
                                         interview_bod: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN', 'PINDAH_POSISI'],
                                         offering_letter: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
                                         mcu: ['LULUS', 'TIDAK LULUS', 'DIPERTIMBANGKAN'],
@@ -1000,7 +1009,13 @@
                                         this.previousStageDate = previousStageDate;
                                         this.availableResults = this.stageOptions[stageKey] || [];
                                         
-                                        if (stageKey !== 'interview_bod') {
+                                        if (stageKey !== 'interview_bod' && stageKey !== 'user_interview') {
+                                            this.availableResults = this.availableResults.filter(r => r !== 'PINDAH_POSISI');
+                                        }
+
+                                        // If this application is already a result of a move, don't allow moving again (Requirement 10)
+                                        const isAlreadyMoved = this.currentTimeline.some(s => s.notes && s.notes.includes('[PINDAH POSISI]'));
+                                        if (isAlreadyMoved) {
                                             this.availableResults = this.availableResults.filter(r => r !== 'PINDAH_POSISI');
                                         }
                             

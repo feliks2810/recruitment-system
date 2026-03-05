@@ -180,6 +180,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'approve-vacancy-document',
             'reject-vacancy-document',
             'download-vacancy-document',
+            'delete-vacancy-document',
+            'upload-vacancy-document',
         ]);
 
         // ============================================

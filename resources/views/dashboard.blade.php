@@ -5,17 +5,40 @@
 @section('page-subtitle', 'Overview rekrutmen dan kandidat')
 
 @push('header-filters')
-<div class="flex items-center gap-2">
-    <label for="year" class="text-sm font-medium text-gray-700 hidden sm:block">Tahun:</label>
-    <select name="year" id="yearFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[80px]">
-        @php
-            $currentYear = date('Y');
-            for ($year = $currentYear + 1; $year >= $currentYear - 2; $year--) {
-                echo '<option value="' . $year . '"' . (request('year', $currentYear) == $year ? ' selected' : '') . '>' . $year . '</option>';
-            }
-        @endphp
-    </select>
+<div class="flex flex-wrap items-center gap-2 sm:gap-4">
+    <div class="flex items-center gap-2">
+        <label for="yearFilter" class="text-sm font-medium text-gray-700 hidden sm:block">Tahun:</label>
+        <select name="year" id="yearFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[80px]">
+            @foreach($availableYears as $y)
+                <option value="{{ $y }}" {{ request('year', date('Y')) == $y ? 'selected' : '' }}>{{ $y }}</option>
+            @endforeach
+        </select>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <label for="vacancyFilter" class="text-sm font-medium text-gray-700 hidden sm:block">Vacancy:</label>
+        <select name="vacancy_id" id="vacancyFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-w-[200px]">
+            <option value="">Semua Vacancy</option>
+            @foreach($activeVacancies as $v)
+                <option value="{{ $v->id }}" {{ request('vacancy_id') == $v->id ? 'selected' : '' }}>{{ $v->name }}</option>
+            @endforeach
+        </select>
+    </div>
 </div>
+
+<script>
+    document.getElementById('yearFilter').addEventListener('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('year', this.value);
+        window.location.href = url.href;
+    });
+
+    document.getElementById('vacancyFilter').addEventListener('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('vacancy_id', this.value);
+        window.location.href = url.href;
+    });
+</script>
 @endpush
 
 @push('styles')
