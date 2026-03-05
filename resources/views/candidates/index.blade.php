@@ -338,10 +338,9 @@
                                         $latestStage = $application->stages->sortByDesc('id')->first();
                                         $isDuplicate = $duplicateCandidateIds->contains($candidate->id);
                                     @endphp
-                                    @if(Auth::user()->hasRole('department') && $candidate->department_id !== Auth::user()->department_id)
+                                    @if(Auth::user()->hasRole('kepala departemen') && $candidate->department_id !== Auth::user()->department_id)
                                         @continue
-                                    @endif
-                                    {{-- Highlight for duplicate candidates --}}
+                                    @endif                                    {{-- Highlight for duplicate candidates --}}
                                     <tr x-data="{ open: false }" @click.away="open = false" :class="{ 'relative z-10': open }" class="hover:bg-gray-50 transition-colors {{ $isDuplicate ? 'bg-yellow-50 border-l-4 border-yellow-400' : '' }}">
                                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                                             <label for="candidate_checkbox_{{ $candidate->id }}" class="sr-only">Select {{ $candidate->nama }}</label>

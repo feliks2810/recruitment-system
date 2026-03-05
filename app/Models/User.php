@@ -122,7 +122,7 @@ class User extends Authenticatable
      */
     public function getRoleDisplayNameAttribute(): string
     {
-        if ($this->hasRole('department')) {
+        if ($this->hasRole('kepala departemen')) {
             return 'Kepala Departemen';
         }
         if ($this->hasRole('team_hc')) {
@@ -157,7 +157,7 @@ class User extends Authenticatable
         $roleNames = [
             'admin' => 'Administrator',
             'team_hc' => 'Team HC',
-            'department' => 'Kepala Departemen',
+            'kepala departemen' => 'Kepala Departemen',
         ];
 
         return $roleNames[$primaryRole] ?? ucfirst(str_replace('_', ' ', $primaryRole));
@@ -173,7 +173,7 @@ class User extends Authenticatable
         $badgeClasses = [
             'admin' => 'bg-red-100 text-red-800',
             'team_hc' => 'bg-blue-100 text-blue-800',
-            'department' => 'bg-green-100 text-green-800',
+            'kepala departemen' => 'bg-green-100 text-green-800',
         ];
 
         return $badgeClasses[$primaryRole] ?? 'bg-gray-100 text-gray-800';

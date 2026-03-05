@@ -18,26 +18,26 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $year = $request->get('year', date('Y'));
-        $vacancy_id = $request->get('vacancy_id');
         $user = Auth::user();
 
         $baseQuery = Application::query();
         
         // Filter by user role/department
-        if ($user->hasRole('kepala departemen')) {
-            $baseQuery->whereHas('candidate', function ($query) use ($user) {
-                $query->where('department_id', $user->department_id);
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $baseQuery->where(function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  })
+                  ->orWhereHas('candidate', function($c) use ($user) {
+                      $c->where('department_id', $user->department_id);
+                  });
             });
         }
         
         // Filter by mpp_year
         if ($year) {
             $baseQuery->where('applications.mpp_year', $year);
-        }
-
-        // Filter by vacancy (Revision 1)
-        if ($vacancy_id) {
-            $baseQuery->where('applications.vacancy_id', $vacancy_id);
         }
 
         // Get real statistics (Revision 1)
@@ -51,7 +51,7 @@ class DashboardController extends Controller
         ];
 
         // Distribution query - Get the latest stage for each unique candidate's latest application (Revision 1 & 11)
-        $distributionQuery = ApplicationStage::whereIn('id', function($query) use ($year, $vacancy_id, $user) {
+        $distributionQuery = ApplicationStage::whereIn('id', function($query) use ($year, $user) {
             $query->select(DB::raw('MAX(as2.id) as latest_id'))
                 ->from('application_stages as as2')
                 ->join('applications as a2', 'as2.application_id', '=', 'a2.id')
@@ -60,12 +60,8 @@ class DashboardController extends Controller
             if ($year) {
                 $query->where('a2.mpp_year', $year);
             }
-
-            if ($vacancy_id) {
-                $query->where('a2.vacancy_id', $vacancy_id);
-            }
             
-            if ($user->hasRole('kepala departemen')) {
+            if ($user->hasRole('kepala departemen') && $user->department_id) {
                 $query->whereIn('a2.candidate_id', function($csub) use ($user) {
                     $csub->select('id')
                         ->from('candidates')
@@ -176,7 +172,7 @@ class DashboardController extends Controller
         $recentCandidatesQuery = Candidate::with('department', 'applications')
             ->orderBy('created_at', 'desc')
             ->limit(5);
-        if ($user->hasRole('kepala departemen')) {
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
             $recentCandidatesQuery->where('department_id', $user->department_id);
         }
         $recent_candidates = $recentCandidatesQuery->get();
@@ -195,15 +191,24 @@ class DashboardController extends Controller
             ->get();
 
         $departments = [];
-        if ($user->hasRole('admin') || $user->hasRole('super_admin')) {
+        if ($user->hasRole('admin')) {
             $departments = Department::orderBy('name')->get();
         }
 
         $summaryMonth = $request->get('summary_month', Carbon::now()->subMonthNoOverflow()->month);
         $summaryYear = $request->get('summary_year', Carbon::now()->subMonthNoOverflow()->year);
-        $monthlySummary = $this->getMonthlySummary($summaryYear, $summaryMonth);
+        $monthlySummary = $this->getMonthlySummary($summaryYear, $summaryMonth, $user);
 
-        $availableYears = Application::selectRaw('YEAR(created_at) as year')
+        $availableYearsQuery = Application::query();
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $availableYearsQuery->where(function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  });
+            });
+        }
+        $availableYears = $availableYearsQuery->selectRaw('YEAR(created_at) as year')
             ->distinct()
             ->orderBy('year', 'desc')
             ->pluck('year')
@@ -211,13 +216,6 @@ class DashboardController extends Controller
         if (!in_array(date('Y'), $availableYears)) {
             array_unshift($availableYears, date('Y'));
         }
-
-        $activeVacancies = \App\Models\Vacancy::whereHas('mppSubmissions', function ($q) use ($year) {
-            $q->where('proposal_status', 'approved');
-            if ($year) {
-                $q->where('year', $year);
-            }
-        })->orderBy('name')->get();
 
         return view('dashboard', [
             'stats' => $stats,
@@ -228,15 +226,13 @@ class DashboardController extends Controller
             'summaryYear' => $summaryYear,
             'availableYears' => $availableYears,
             'year' => $year,
-            'vacancy_id' => $vacancy_id,
-            'activeVacancies' => $activeVacancies,
             'departments' => $departments,
             'gender_distribution' => $gender_distribution,
             'university_distribution' => $university_distribution,
         ]);
     }
 
-    private function getMonthlySummary($year, $month)
+    private function getMonthlySummary($year, $month, $user = null)
     {
         $year = intval($year);
         $month = intval($month);
@@ -245,11 +241,23 @@ class DashboardController extends Controller
         $startOfMonth = $date->copy()->startOfMonth();
         $endOfMonth = $date->copy()->endOfMonth();
 
-        $applications = Application::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
-        
-        $hired = Application::where('overall_status', 'LULUS')
-                          ->whereBetween('hired_date', [$startOfMonth, $endOfMonth])
-                          ->count();
+        $applicationQuery = Application::whereBetween('created_at', [$startOfMonth, $endOfMonth]);
+        $hiredQuery = Application::where('overall_status', 'LULUS')
+                          ->whereBetween('hired_date', [$startOfMonth, $endOfMonth]);
+
+        if ($user && $user->hasRole('kepala departemen') && $user->department_id) {
+            $deptFilter = function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  });
+            };
+            $applicationQuery->where($deptFilter);
+            $hiredQuery->where($deptFilter);
+        }
+
+        $applications = $applicationQuery->count();
+        $hired = $hiredQuery->count();
 
         return [
             'month_name' => $date->isoFormat('MMMM YYYY'),

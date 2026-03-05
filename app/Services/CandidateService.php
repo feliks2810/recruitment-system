@@ -180,25 +180,27 @@ class CandidateService
     {
         $user = Auth::user();
 
-        // Base query for candidates based on the user's role
-        $candidateQuery = Candidate::query();
-        if ($user->hasRole('department') && $user->department_id) {
-            $candidateQuery->where('department_id', $user->department_id);
+        // Base query for applications based on the user's role/department
+        $baseAppQuery = Application::query();
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $baseAppQuery->where(function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  })
+                  ->orWhereHas('candidate', function($c) use ($user) {
+                      $c->where('department_id', $user->department_id);
+                  });
+            });
         }
 
-        // Get IDs of candidates accessible by the user
-        $accessibleCandidateIds = $candidateQuery->pluck('id');
-        $total_candidates = $accessibleCandidateIds->count();
-
-        // Base query for applications linked to accessible candidates
-        $baseAppQuery = Application::whereIn('candidate_id', $accessibleCandidateIds);
+        // Get total unique candidates from accessible applications
+        $total_candidates = (clone $baseAppQuery)->distinct('candidate_id')->count('candidate_id');
 
         // --- Calculate Mutually Exclusive Stats ---
 
-        // 1. Cancelled: Highest priority. If an application's latest stage is CANCEL, it's just cancelled.
-        $cancelledAppIds = (clone $baseAppQuery)->whereHas('latestStage', function ($q) {
-            $q->where('status', 'CANCEL');
-        })->pluck('id');
+        // 1. Cancelled: Highest priority.
+        $cancelledAppIds = (clone $baseAppQuery)->where('overall_status', 'CANCEL')->pluck('id');
         $candidates_cancelled = $cancelledAppIds->count();
 
         // 2. Passed: Applications with a final 'passed' status, AND are not cancelled.
@@ -215,21 +217,22 @@ class CandidateService
             ->count();
             
         // 4. In Process: Total candidates minus all terminal states.
-        $candidates_in_process = $total_candidates - ($candidates_passed + $candidates_failed + $candidates_cancelled);
+        $candidates_in_process = (clone $baseAppQuery)
+            ->where('overall_status', 'PROSES')
+            ->whereNotIn('id', $cancelledAppIds)
+            ->count();
 
         // --- Other Stats ---
-        $duplicate_count = (clone $candidateQuery)->where('is_suspected_duplicate', true)->count();
-        $needs_action_count = (clone $candidateQuery)->whereHas('applications', function ($q) {
-            $q->where('overall_status', 'PROSES')
+        $duplicate_count = 0; // Column removed in later migrations
+        $needs_action_count = (clone $baseAppQuery)->where('overall_status', 'PROSES')
                 ->whereHas('stages', function ($sq) {
                     $sq->whereDate('scheduled_date', '<=', now())
                         ->where(function ($ssq) {
                             $ssq->whereNull('status')
                                 ->orWhere('status', '')
-                                ->orWhere('status', 'IN_PROGRESS');
+                                ->orWhere('status', 'IN_PROGRESS', 'MENUNGGU');
                         });
-                });
-        })->count();
+                })->count();
 
         return [
             'total_candidates' => $total_candidates,
@@ -258,8 +261,17 @@ class CandidateService
             'educations'
         ]);
 
-        if (Auth::user()->hasRole('department') && Auth::user()->department_id) {
-            $baseQuery->where('department_id', Auth::user()->department_id);
+        if (Auth::user()->hasRole('kepala departemen') && Auth::user()->department_id) {
+            $user = Auth::user();
+            $baseQuery->where(function($q) use ($user) {
+                $q->where('department_id', $user->department_id)
+                  ->orWhereHas('applications', function($aq) use ($user) {
+                      $aq->where('department_id', $user->department_id)
+                        ->orWhereHas('vacancy', function($v) use ($user) {
+                            $v->where('department_id', $user->department_id);
+                        });
+                  });
+            });
         }
 
         if ($request->filled('search')) {

@@ -31,7 +31,14 @@ class VacancyStatisticsController extends Controller
         // Default to the latest year with data, or the current year if none available
         $selectedYear = $request->input('year', $years->first() ?? $currentYear);
 
-        $vacancies = Vacancy::with(['applications.stages', 'mppSubmissions'])->get();
+        $user = Auth::user();
+        $vacancyQuery = Vacancy::with(['applications.stages', 'mppSubmissions']);
+        
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $vacancyQuery->where('department_id', $user->department_id);
+        }
+
+        $vacancies = $vacancyQuery->get();
 
         $statistics = $vacancies->map(function ($vacancy) use ($selectedYear) {
             // Filter applications based on selected year and approved MPP submissions

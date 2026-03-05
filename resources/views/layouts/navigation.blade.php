@@ -32,7 +32,7 @@
                         </x-nav-link>
                     @endif
 
-                    @if(auth()->user()->hasRole('department'))
+                    @if(auth()->user()->hasRole('kepala departemen'))
                         <x-nav-link :href="route('proposals.create')" :active="request()->routeIs('proposals.create')">
                             {{ __('Propose Vacancy') }}
                         </x-nav-link>

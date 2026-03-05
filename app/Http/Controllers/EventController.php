@@ -306,8 +306,8 @@ class EventController extends Controller
             ->where('next_test_date', '>=', now()->toDateString())
             ->whereIn('overall_status', ['PROSES', 'DALAM PROSES', 'PENDING']);
     
-        // Apply department filter for department role users
-        if ($user->hasRole('department') && !empty($user->department_id)) {
+        // Apply department filter for kepala departemen role users
+        if ($user->hasRole('kepala departemen') && !empty($user->department_id)) {
             $candidatesQuery->where('department_id', $user->department_id);
         }
     
@@ -419,7 +419,7 @@ class EventController extends Controller
             
             // Check access permission
             $user = Auth::user();
-            if ($user->hasRole('department') && 
+            if ($user->hasRole('kepala departemen') && 
                 $user->department_id && 
                 $candidate->department_id != $user->department_id) {
                 return response()->json([

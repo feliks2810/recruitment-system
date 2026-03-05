@@ -423,19 +423,20 @@ class CandidateController extends Controller
                 'stages',
             ]);
 
-        // Apply department filter for head of department
-        if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $query->where('vacancies.department_id', $user->department_id);
-        }
-
         // statsQuery should have all filters applied to match the dashboard logic
         $statsQuery = Application::query()
-            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
-        
-        // Add vacancies join for head of department filtering
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id');
+
+        // Apply department filter for head of department
         if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $statsQuery->join('vacancies', 'applications.vacancy_id', '=', 'vacancies.id')
-                       ->where('vacancies.department_id', $user->department_id);
+            $deptFilter = function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhere('vacancies.department_id', $user->department_id)
+                  ->orWhere('candidates.department_id', $user->department_id);
+            };
+            $query->where($deptFilter);
+            $statsQuery->where($deptFilter);
         }
 
         // --- Applying Filters ---
@@ -444,11 +445,6 @@ class CandidateController extends Controller
         if ($selectedYear) {
             $query->where('applications.mpp_year', $selectedYear);
             $statsQuery->where('applications.mpp_year', $selectedYear);
-        }
-
-        if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $query->where('candidates.department_id', $user->department_id);
-            $statsQuery->where('candidates.department_id', $user->department_id);
         }
 
         // --- DUPLICATE LOGIC ---
@@ -460,7 +456,10 @@ class CandidateController extends Controller
 
         // Filter by head of department's department if applicable
         if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $duplicateCandidateQuery->where('vacancies.department_id', $user->department_id);
+            $duplicateCandidateQuery->where(function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhere('vacancies.department_id', $user->department_id);
+            });
         }
 
         if ($selectedYear) {

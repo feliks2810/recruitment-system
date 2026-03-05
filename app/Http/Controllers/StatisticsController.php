@@ -21,14 +21,21 @@ class StatisticsController extends Controller
         $user = Auth::user();
         $baseQuery = Application::query(); // Initialize $baseQuery here
 
+        // Enhanced department filtering for Department Heads
         if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $baseQuery->whereHas('candidate', function ($q) use ($user) {
-                $q->where('department_id', $user->department_id);
+            $baseQuery->where(function($q) use ($user) {
+                $q->where('applications.department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  })
+                  ->orWhereHas('candidate', function($c) use ($user) {
+                      $c->where('department_id', $user->department_id);
+                  });
             });
         }
 
         if ($startDate && $endDate) {
-            $baseQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $baseQuery->whereBetween('applications.created_at', [$startDate, $endDate]);
         }
 
         if ($source) {
@@ -39,11 +46,11 @@ class StatisticsController extends Controller
 
         $kpiData = $this->getKpiData(clone $baseQuery);
         $funnelData = $this->getRecruitmentFunnelData(clone $baseQuery);
-        $sourceData = $this->getSourceEffectivenessData($startDate, $endDate, $source);
+        $sourceData = $this->getSourceEffectivenessData(clone $baseQuery, $source);
         $genderData = $this->getGenderDistributionData(clone $baseQuery);
         $universityData = $this->getUniversityDistributionData(clone $baseQuery);
         $universityPassRateData = $this->getUniversityPassRateData(clone $baseQuery);
-        $monthlyData = $this->getMonthlyApplicationData($startDate, $endDate, $source);
+        $monthlyData = $this->getMonthlyApplicationData(clone $baseQuery, $startDate, $endDate);
 
         $passRateAnalysis = $this->getPassRateAnalysisData(clone $baseQuery);
         $timelineAnalysis = $this->getTimelineAnalysisData(clone $baseQuery);
@@ -119,26 +126,12 @@ class StatisticsController extends Controller
         return $funnel;
     }
 
-    private function getSourceEffectivenessData($startDate, $endDate, $source)
+    private function getSourceEffectivenessData($query, $source)
     {
-        $user = Auth::user();
-        $query = DB::table('applications')
-            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id');
-
-        if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $query->where('candidates.department_id', $user->department_id);
-        }
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('applications.created_at', [$startDate, $endDate]);
-        }
-
-        if ($source) {
-            $query->where('candidates.source', $source);
-        }
-
         // Count unique candidates per source (Revision 11)
-        return $query->select('candidates.source')
+        return (clone $query)
+            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
+            ->select('candidates.source')
             ->selectRaw('COUNT(DISTINCT applications.candidate_id) as total_applications')
             ->selectRaw('COUNT(DISTINCT CASE WHEN applications.overall_status = \'LULUS\' THEN applications.candidate_id ELSE NULL END) as hired_count')
             ->whereNotNull('candidates.source')
@@ -156,7 +149,7 @@ class StatisticsController extends Controller
     {
         $data = (clone $query)
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
-            ->select('candidates.jk', DB::raw('count(*) as count'))
+            ->select('candidates.jk', DB::raw('count(DISTINCT applications.candidate_id) as count'))
             ->groupBy('candidates.jk')
             ->get();
 
@@ -195,7 +188,7 @@ class StatisticsController extends Controller
         $data = (clone $query)
             ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
             ->join('educations', 'candidates.id', '=', 'educations.candidate_id')
-            ->select('educations.institution', DB::raw('count(*) as count'))
+            ->select('educations.institution', DB::raw('count(DISTINCT applications.candidate_id) as count'))
             ->whereNotNull('educations.institution')
             ->where('educations.institution', '!=', '')
             ->groupBy('educations.institution')
@@ -212,27 +205,14 @@ class StatisticsController extends Controller
         return $transformedData;
     }
 
-    private function getMonthlyApplicationData($startDate, $endDate, $source)
+    private function getMonthlyApplicationData($query, $startDate, $endDate)
     {
-        $user = Auth::user();
-        $query = DB::table('applications')
-            ->join('candidates', 'applications.candidate_id', '=', 'candidates.id')
-            ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'));
-
-        if ($user->hasRole('kepala departemen') && $user->department_id) {
-            $query->where('candidates.department_id', $user->department_id);
-        }
-
         $actualStartDate = $startDate ? Carbon::parse($startDate) : Carbon::now()->subMonths(11)->startOfMonth();
         $actualEndDate = $endDate ? Carbon::parse($endDate) : Carbon::now();
 
-        $query->whereBetween('applications.created_at', [$actualStartDate, $actualEndDate]);
-
-        if ($source) {
-            $query->where('candidates.source', $source);
-        }
-
-        $data = $query->groupBy('year', 'month')
+        $data = (clone $query)
+            ->select(DB::raw('YEAR(applications.created_at) as year, MONTH(applications.created_at) as month'), DB::raw('COUNT(*) as count'))
+            ->groupBy('year', 'month')
             ->orderBy('year')
             ->orderBy('month')
             ->get()->mapWithKeys(function ($item) {
@@ -462,12 +442,26 @@ class StatisticsController extends Controller
      */
     public function getSummaryStats()
     {
+        $user = Auth::user();
+        $candidateQuery = Candidate::query();
+        $applicationQuery = Application::query();
+
+        if ($user->hasRole('kepala departemen') && $user->department_id) {
+            $candidateQuery->where('department_id', $user->department_id);
+            $applicationQuery->where(function($q) use ($user) {
+                $q->where('department_id', $user->department_id)
+                  ->orWhereHas('vacancy', function($v) use ($user) {
+                      $v->where('department_id', $user->department_id);
+                  });
+            });
+        }
+
         $stats = [
-            'total_candidates' => Candidate::count(),
-            'in_process' => Application::where('overall_status', 'PROSES')->count(),
-            'passed' => Application::where('overall_status', 'LULUS')->count(),
-            'rejected' => Application::where('overall_status', 'DITOLAK')->count(),
-            'cancelled' => Application::where('overall_status', 'CANCEL')->count(),
+            'total_candidates' => $candidateQuery->count(),
+            'in_process' => (clone $applicationQuery)->where('overall_status', 'PROSES')->count(),
+            'passed' => (clone $applicationQuery)->where('overall_status', 'LULUS')->count(),
+            'rejected' => (clone $applicationQuery)->where('overall_status', 'DITOLAK')->count(),
+            'cancelled' => (clone $applicationQuery)->where('overall_status', 'CANCEL')->count(),
         ];
 
         return $stats;
