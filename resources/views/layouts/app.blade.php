@@ -16,10 +16,8 @@
     <meta name="msapplication-tap-highlight" content="no">
     
     <!-- PWA Icons -->
-    <link rel="icon" type="image/png" href="/images/favicon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon.png">
-    <link rel="apple-touch-icon" href="/images/favicon.png">
+    <link rel="apple-touch-icon" href="/images/favicon.png?v=4">
+    <link rel="manifest" href="/manifest.json?v=4">
     
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -209,6 +207,17 @@
                 document.body.classList.remove('overflow-hidden');
             }
         });
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
     </script>
 </body>
 </html>

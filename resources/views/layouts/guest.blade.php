@@ -5,6 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
+        <!-- PWA Meta Tags & Manifest -->
+        <meta name="theme-color" content="#3b82f6">
+        <link rel="manifest" href="/manifest.json?v=4">
+        <link rel="icon" type="image/png" href="/images/favicon.png?v=4">
+        <link rel="apple-touch-icon" href="/images/favicon.png?v=4">
+
         <title>{{ config('app.name', 'Laravel') }}</title>
 
         <!-- Fonts -->
@@ -26,5 +32,16 @@
                 {{ $slot }}
             </div>
         </div>
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js').then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    }, err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+                });
+            }
+        </script>
     </body>
 </html>
