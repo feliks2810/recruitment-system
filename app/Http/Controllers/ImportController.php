@@ -65,7 +65,7 @@ class ImportController extends Controller
             }
 
             $headers = array_shift($allRows); // Get and remove header row
-            $mappedHeaders = $this->mapHeaders($headers);
+            $mappedHeaders = array_values(array_filter($this->mapHeaders($headers))); // Filter empty and ensure sequential
             $totalRows = count($allRows);
 
             $errors = [];
@@ -79,7 +79,10 @@ class ImportController extends Controller
                     continue;
                 }
 
-                $rowData = array_combine($mappedHeaders, array_pad(array_slice($row, 0, count($mappedHeaders)), count($mappedHeaders), null));
+                $rowData = [];
+                foreach ($mappedHeaders as $i => $mappedHeader) {
+                    $rowData[$mappedHeader] = $row[$i] ?? null;
+                }
                 $rowIndex = $index + 2; // Excel rows are 1-based, and we shifted headers
 
                 $validationErrors = $this->validateRow($rowData, $rowIndex); // Pass year to validateRow
@@ -110,10 +113,10 @@ class ImportController extends Controller
                 'success' => true,
                 'message' => $message,
                 'file_id' => $fileId,
-                'total_rows' => $totalRows, // Show total rows to the user
-                'preview' => $previewData,
+                'total_rows' => $totalRows,
+                'preview' => array_values($previewData),
                 'headers' => $mappedHeaders,
-                'errors' => $errors, // Always return errors, even if empty
+                'errors' => $errors,
             ]);
 
         } catch (\Throwable $e) {

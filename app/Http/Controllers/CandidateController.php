@@ -153,7 +153,23 @@ class CandidateController extends Controller
             $q->where('proposal_status', 'approved');
         }])->whereHas('mppSubmissions', function ($q) {
             $q->where('proposal_status', 'approved');
-        })->orderBy('name')->get();
+        })->orderBy('name')->get()->map(function ($vacancy) {
+            // Filter mppSubmissions to only include those that are not fulfilled
+            $vacancy->setRelation('mppSubmissions', $vacancy->mppSubmissions->filter(function ($mpp) use ($vacancy) {
+                $neededCount = $mpp->pivot->needed_count;
+                if ($neededCount == 0) return true;
+                
+                $acceptedInYear = $vacancy->applications()
+                    ->where('mpp_year', $mpp->year)
+                    ->whereIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA'])
+                    ->count();
+                return $acceptedInYear < $neededCount;
+            }));
+            return $vacancy;
+        })->filter(function ($vacancy) {
+            // Only keep vacancies that have at least one active MPP submission
+            return $vacancy->mppSubmissions->isNotEmpty();
+        });
         $departments = Department::orderBy('name')->get();
         
         // Generate Applicant ID
@@ -609,10 +625,28 @@ class CandidateController extends Controller
         }
 
         $activeVacancies = $activeVacancies->withCount(['applications' => function ($q) use ($selectedYear) {
+            $q->whereIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA']);
             if ($selectedYear) {
                 $q->where('mpp_year', $selectedYear);
             }
-        }])->get();
+        }])->get()->filter(function ($vacancy) use ($selectedYear) {
+            // A vacancy is active if ANY of its approved MPP submissions (for selected year) is NOT fulfilled
+            return $vacancy->mppSubmissions->contains(function ($mpp) use ($vacancy, $selectedYear) {
+                // If we have a selected year, only check that year. Otherwise check all.
+                if ($selectedYear && $mpp->year != $selectedYear) return false;
+                
+                $neededCount = $mpp->pivot->needed_count;
+                if ($neededCount == 0) return true; // Always active if count not set
+                
+                // We need to count for this SPECIFIC year
+                $acceptedInYear = $vacancy->applications()
+                    ->where('mpp_year', $mpp->year)
+                    ->whereIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA'])
+                    ->count();
+                    
+                return $acceptedInYear < $neededCount;
+            });
+        });
         $departments = \App\Models\Department::orderBy('name')->get();
         $sources = \App\Models\Candidate::distinct()->pluck('source');
         $stages = \App\Enums\RecruitmentStage::cases();
@@ -673,7 +707,18 @@ class CandidateController extends Controller
             $activeVacancies->where('vacancies.department_id', $user->department_id);
         }
 
-        $activeVacancies = $activeVacancies->get();
+        $activeVacancies = $activeVacancies->get()->filter(function ($vacancy) {
+            return $vacancy->mppSubmissions->contains(function ($mpp) use ($vacancy) {
+                $neededCount = $mpp->pivot->needed_count;
+                if ($neededCount == 0) return true;
+                
+                $acceptedInYear = $vacancy->applications()
+                    ->where('mpp_year', $mpp->year)
+                    ->whereIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA'])
+                    ->count();
+                return $acceptedInYear < $neededCount;
+            });
+        });
 
         return view('candidates.show', compact(
             'candidate', 

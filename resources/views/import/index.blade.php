@@ -106,34 +106,52 @@
                 </div>
 
                 <!-- Success/Preview Section -->
-                <div x-show="errors.length === 0">
-                    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-6">
+                <div>
+                    <div x-show="errors.length === 0" class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-6">
                         <h4 class="font-bold text-green-900">Validasi Berhasil!</h4>
                         <p class="text-sm text-green-800">
                             <strong x-text="totalRows"></strong> baris data lolos validasi. Berikut adalah preview dari 5 baris pertama.
                         </p>
                     </div>
 
-                    <h5 class="font-semibold text-gray-800 mb-2">Preview Data:</h5>
-                    <div class="overflow-x-auto border border-gray-200 rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <template x-for="header in previewHeaders" :key="header">
-                                        <th class="px-4 py-2 text-left font-medium text-gray-600 uppercase tracking-wider" x-text="header.replace(/_/g, ' ')"></th>
-                                    </template>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <template x-for="row in previewData" :key="row.id">
-                                    <tr>
-                                        <template x-for="header in previewHeaders" :key="header">
-                                            <td class="px-4 py-2 whitespace-nowrap text-gray-700" x-text="row[header]"></td>
+                    <div x-show="errors.length > 0 && previewData.length > 0" class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg mb-6">
+                        <h4 class="font-bold text-yellow-900">Validasi Selesai dengan Catatan</h4>
+                        <p class="text-sm text-yellow-800">
+                            Beberapa baris memiliki kesalahan dan akan dilewati. Namun, baris lainnya valid dan siap di-import. Berikut adalah preview data yang valid.
+                        </p>
+                    </div>
+
+                    <div x-show="previewData.length > 0" class="mt-4">
+                        <h5 class="font-semibold text-gray-800 mb-3">Preview Data (Baris Valid):</h5>
+                        <div class="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr x-show="previewHeaders.length > 0">
+                                        <template x-for="(header, idx) in previewHeaders" :key="'h-'+idx">
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" 
+                                                x-text="typeof header === 'string' ? header.replace(/_/g, ' ') : 'Column ' + (idx+1)"></th>
                                         </template>
                                     </tr>
-                                </template>
-                            </tbody>
-                        </table>
+                                    <tr x-show="previewHeaders.length === 0">
+                                        <th class="px-4 py-3 text-left text-gray-500 italic">Header tidak ditemukan</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="(row, rIdx) in previewData" :key="'r-'+rIdx">
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <template x-for="(header, hIdx) in previewHeaders" :key="'c-'+rIdx+'-'+hIdx">
+                                                <td class="px-4 py-3 whitespace-nowrap text-gray-700 border-r border-gray-100 last:border-r-0" 
+                                                    x-text="row[header] || '-'"></td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div x-show="previewData.length === 0 && errors.length > 0" class="text-center py-4">
+                        <p class="text-gray-500 italic">Tidak ada data valid yang dapat ditampilkan dalam preview.</p>
                     </div>
                 </div>
             </div>

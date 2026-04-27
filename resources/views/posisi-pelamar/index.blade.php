@@ -44,7 +44,11 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $vacancy['name'] }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $vacancy['mpp_year'] }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    @if($vacancy['status'] == 'Aktif (Cukup Pelamar)')
+                                    @if($vacancy['status'] == 'Tercukupi')
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 border border-gray-200">
+                                            {{ $vacancy['status'] }}
+                                        </span>
+                                    @elseif($vacancy['status'] == 'Aktif (Cukup Pelamar)')
                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                                             {{ $vacancy['status'] }}
                                         </span>
@@ -63,11 +67,15 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $vacancy['needed_count'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $vacancy['applicant_count'] }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <a href="{{ route('candidates.index', ['vacancy_id' => $vacancy['id'], 'year' => $vacancy['mpp_year'], 'status' => 'ON_PROCESS']) }}" class="hover:text-blue-600 hover:underline">
+                                        {{ $vacancy['applicant_count'] }}
+                                    </a>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <a href="{{ route('candidates.index', ['vacancy_id' => $vacancy['id'], 'year' => $vacancy['mpp_year'], 'status' => 'HIRED']) }}" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors">
                                         {{ $vacancy['accepted_count'] }}
-                                    </span>
+                                    </a>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex items-center gap-2">

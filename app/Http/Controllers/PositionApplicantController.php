@@ -38,12 +38,14 @@ class PositionApplicantController extends Controller
                     
                     $acceptedCount = $vacancy->applications()
                         ->where('mpp_year', $submission->year)
-                        ->whereIn('overall_status', ['HIRED', 'DITERIMA'])
+                        ->whereIn('overall_status', ['LULUS', 'HIRED', 'DITERIMA'])
                         ->count();
 
                     $neededCount = $vacancy->pivot->needed_count;
                     $status = 'Aktif';
-                    if ($neededCount == 0) {
+                    if ($neededCount > 0 && $acceptedCount >= $neededCount) {
+                        $status = 'Tercukupi';
+                    } elseif ($neededCount == 0) {
                         $status = 'Aktif (Jumlah Dibutuhkan Tidak Ditentukan)';
                     } elseif ($applicantCount >= $neededCount) {
                         $status = 'Aktif (Cukup Pelamar)';
