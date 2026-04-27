@@ -273,6 +273,10 @@ class DashboardController extends Controller
         $user = Auth::user();
         $events = [];
 
+        // Listen to 'start' and 'end' from request (usually sent by FullCalendar)
+        $startDate = $request->get('start') ? Carbon::parse($request->get('start')) : now()->subMonth()->startOfMonth();
+        $endDate = $request->get('end') ? Carbon::parse($request->get('end')) : now()->addMonths(2)->endOfMonth();
+
         // Get only PENDING/IN-PROGRESS scheduled stages for each application
         $stagesQuery = ApplicationStage::with(['application.candidate'])
             ->whereNotNull('scheduled_date')
@@ -283,8 +287,8 @@ class DashboardController extends Controller
             ->whereHas('application', function($q) {
                 $q->whereNotIn('overall_status', ['CANCEL', 'PINDAH']);
             })
-            ->whereDate('scheduled_date', '>=', now()->startOfYear())
-            ->whereDate('scheduled_date', '<=', now()->addYear()->endOfYear());
+            ->whereDate('scheduled_date', '>=', $startDate)
+            ->whereDate('scheduled_date', '<=', $endDate);
 
         if ($user->hasRole('kepala departemen')) {
             $stagesQuery->whereHas('application.candidate', function($q) use ($user) {
@@ -329,8 +333,8 @@ class DashboardController extends Controller
         }
 
         $customEventsQuery = Event::whereNotNull('date')
-            ->whereDate('date', '>=', now()->startOfYear())
-            ->whereDate('date', '<=', now()->addYear()->endOfYear());
+            ->whereDate('date', '>=', $startDate)
+            ->whereDate('date', '<=', $endDate);
         
         if ($user->hasRole('kepala departemen')) {
             $customEventsQuery->where('department_id', $user->department_id);
